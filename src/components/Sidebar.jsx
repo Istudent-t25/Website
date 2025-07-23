@@ -1,6 +1,6 @@
 import {
   Home, Users, FileText, ChevronDown, ChevronUp, Calendar,
-  Moon, X, UserCircle2, LogIn, LogOut, UserPlus
+  Moon, X, UserCircle2, LogIn, LogOut, UserPlus,Book
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from "react-router-dom"
@@ -62,8 +62,8 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Users size={20} />
-                  <span>خوێندکارەکان</span>
+                  <Book size={20} />
+                  <span>بابه‌ته‌كان</span>
                 </div>
                 {openDropdown === "students" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>

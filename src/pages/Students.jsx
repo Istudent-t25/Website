@@ -2,8 +2,8 @@ import { useParams } from "react-router-dom"
 import { useState } from "react"
 import ContentDisplay from "./../components/ContentDisplay"
 
-const filterItems = ["کتێب", "بووکڵێت", "ڤیدیۆ", "پەرتەی تاقی"]
-const scienceFilter = ["زانیاری", "ئەدەبی"]
+const filterItems = ["کتێب", "مه‌لزه‌مه‌", "ڤیدیۆ", "ئه‌سیله‌"]
+const scienceFilter = ["زانستی", "ئەدەبی"]
 
 const gradeNames = {
   grade7: "پۆلی 7",
@@ -15,9 +15,9 @@ const gradeNames = {
 }
 const activeFilterMap = {
   "کتێب": "book",
-  "بووکڵێت": "booklet",
+  "مه‌لزه‌مه‌": "booklet",
   "ڤیدیۆ": "video",
-  "پەرتەی تاقی": "exam"
+  "ئه‌سیله‌": "exam"
 }
 
 const Students = () => {
@@ -31,7 +31,7 @@ const Students = () => {
   return (
     <div className="bg-white rounded-xl shadow p-6 space-y-6">
       <h2 className="text-2xl font-bold text-blue-700">
-        زانیاری خوێندکارەکان – {gradeNames[grade]}
+        بابه‌ته‌كان – {gradeNames[grade]}
       </h2>
 
       {/* 🔍 Search */}

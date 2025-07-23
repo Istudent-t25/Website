@@ -27,7 +27,7 @@ const Dashboard = () => {
       {/* Section: Choose Content */}
       <Card className="col-span-full bg-gradient-to-r from-blue-50 to-purple-50 shadow-md">
         <CardHeader>
-          <CardTitle className="text-blue-800 text-lg">📚 چی دەخوای؟</CardTitle>
+          <CardTitle className="text-blue-800 text-lg">📚 چی ده‌خوازی</CardTitle>
           <CardDescription className="text-gray-600">کتێب، پەرتووک یان ڤیدیۆ هەڵبژێرە بۆ دەستپێکردن</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -35,7 +35,7 @@ const Dashboard = () => {
             <Book /> کتێبەکان
           </motion.button>
           <motion.button whileTap={{ scale: 0.95 }} className="flex items-center justify-center gap-2 bg-green-200 hover:bg-green-300 text-green-900 font-bold py-4 rounded-xl transition">
-            <NotebookText /> پەرتووکەکان
+            <NotebookText /> مه‌لزه‌مه‌كان
           </motion.button>
           <motion.button whileTap={{ scale: 0.95 }} className="flex items-center justify-center gap-2 bg-purple-200 hover:bg-purple-300 text-purple-900 font-bold py-4 rounded-xl transition">
             <Video /> ڤیدیۆکان
