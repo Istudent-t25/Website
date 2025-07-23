@@ -1,12 +1,12 @@
 import { useState } from "react"
 import { BookOpen, Video, FileText } from "lucide-react"
 
-const subjects = ["کوردی", "ئینگلیزی", "ماتماتیک", "فیزیا", "کیمیا", "ئەندازیارى"]
+const subjects = ["کوردی", "ئینگلیزی", "بیركاری", "فیزیا", "کیمیا", "ئەندازیارى"]
 
 const teachersBySubject = {
   "کوردی": ["مامۆستا عومەر", "مامۆستا هێمن"],
   "ئینگلیزی": ["مامۆستا سارا", "مامۆستا ریبوار"],
-  "ماتماتیک": ["مامۆستا ئارام"],
+  "بیركاری": ["مامۆستا ئارام"],
   "فیزیا": ["مامۆستا هوراز"],
   "کیمیا": ["مامۆستا ناز"],
   "ئەندازیارى": ["مامۆستا رێبوار"]
@@ -14,10 +14,10 @@ const teachersBySubject = {
 
 const sampleProducts = [
   {
-    title: "کتێبی ماتماتیک 2024",
+    title: "کتێبی بیركاری 2024",
     url: "https://example.com/book1",
     type: "book",
-    subject: "ماتماتیک",
+    subject: "بیركاری",
     teacher: "مامۆستا ئارام",
     track: "زانیاری",
     image: "/images/test-flat-lay.png"

@@ -4,6 +4,9 @@ import Header from "./components/Header"
 import { Routes, Route } from "react-router-dom"
 import Students from "./pages/Students"
 import ExamsGrade12 from "./pages/ExamsGrade12"
+import Schedule from "./pages/Schedule"
+import Dashboard from "./pages/Dashboard"
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -16,8 +19,10 @@ function App() {
         <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 p-4 overflow-y-auto">
           <Routes>
+            <Route path="/" element={<Dashboard />} />
             <Route path="/students/:grade" element={<Students />} />
             <Route path="/exams/grade12" element={<ExamsGrade12 />} />
+            <Route path="/schedule" element={<Schedule />} />
             <Route path="*" element={<p>هەڵە: پەڕە نەدۆزرایەوە</p>} />
           </Routes>
         </main>

@@ -1,11 +1,11 @@
 import {
   Home, Users, FileText, ChevronDown, ChevronUp, Calendar,
-  ImagePlus, Moon, X
+  Moon, X, UserCircle2, LogIn, LogOut, UserPlus
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from "react-router-dom"
 
-const Sidebar = ({ isOpen, onClose }) => {
+const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
   const location = useLocation()
   const [openDropdown, setOpenDropdown] = useState(null)
 
@@ -25,23 +25,23 @@ const Sidebar = ({ isOpen, onClose }) => {
         }`}
       ></div>
 
-      {/* ✅ Sidebar Container */}
+      {/* Sidebar */}
       <div className={`
-        fixed md:static top-0 right-0 z-40 w-72 h-screen md:h-auto bg-white shadow-xl md:shadow-none p-4
+        fixed md:static top-0 right-0 z-40 w-72 h-screen bg-white shadow-xl p-4
         flex flex-col justify-between rounded-l-3xl rtl
         transform transition-transform duration-300
         ${isOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0
       `}>
-        <div>
-          {/* 🔹 Mobile Close Button */}
-          <div className="flex items-center justify-between md:hidden mb-4">
+        {/* Top Section: Title & Menu */}
+        <div className="flex-grow"> {/* flex-grow allows this section to take available space */}
+          {/* Title + Mobile Close */}
+          <div className="flex items-center justify-between md:mb-6 mb-4">
             <div className="text-2xl font-bold text-blue-600">من خوێندکارم</div>
-            <button onClick={onClose}><X size={24} /></button>
+            <button onClick={onClose} className="md:hidden p-1 rounded-full hover:bg-gray-100 transition"><X size={24} /></button>
           </div>
 
-          {/* 🔸 Main Menu */}
+          {/* Main Menu */}
           <nav className="space-y-2">
-            {/* Dashboard */}
             <Link
               to="/"
               onClick={onClose}
@@ -67,16 +67,15 @@ const Sidebar = ({ isOpen, onClose }) => {
                 </div>
                 {openDropdown === "students" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
-
               {openDropdown === "students" && (
                 <div className="pl-12 mt-2 space-y-1">
-                  {["grade7", "grade8", "grade9", "grade10", "grade11", "grade12"].map((gradeKey, i) => (
+                  {["grade7", "grade8", "grade9", "grade10", "grade11", "grade12"].map((g, i) => (
                     <Link
-                      to={`/students/${gradeKey}`}
+                      key={g}
+                      to={`/students/${g}`}
                       onClick={onClose}
-                      key={gradeKey}
-                      className={`block w-full text-right text-sm px-3 py-2 rounded-lg transition ${
-                        isActive(`/students/${gradeKey}`)
+                      className={`block text-sm px-3 py-2 rounded-lg text-right transition ${
+                        isActive(`/students/${g}`)
                           ? 'bg-blue-200 text-blue-800 font-bold'
                           : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
                       }`}
@@ -105,27 +104,18 @@ const Sidebar = ({ isOpen, onClose }) => {
 
               {openDropdown === "exams" && (
                 <div className="pl-12 mt-2 space-y-1">
-                 <Link
-  to="/exams/grade12"
-  onClick={onClose}
-  className={`block text-right text-sm px-3 py-2 rounded-lg transition ${
-    isActive("/exams/grade12")
-      ? 'bg-blue-200 text-blue-800 font-bold'
-      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
-  }`}
->
-  پۆلی ١٢
-</Link>
-
-                  <Link
-                    to="/exams/results"
-                    onClick={onClose}
-                    className={`block text-right text-sm px-3 py-2 rounded-lg transition ${
-                      isActive("/exams/results")
-                        ? 'bg-blue-200 text-blue-800 font-bold'
-                        : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
-                    }`}
-                  >
+                  <Link to="/exams/grade12" onClick={onClose} className={`block text-sm text-right px-3 py-2 rounded-lg transition ${
+                    isActive("/exams/grade12")
+                      ? 'bg-blue-200 text-blue-800 font-bold'
+                      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                  }`}>
+                    پۆلی ١٢
+                  </Link>
+                  <Link to="/exams/results" onClick={onClose} className={`block text-sm text-right px-3 py-2 rounded-lg transition ${
+                    isActive("/exams/results")
+                      ? 'bg-blue-200 text-blue-800 font-bold'
+                      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                  }`}>
                     ئەنجامەکان
                   </Link>
                 </div>
@@ -141,18 +131,63 @@ const Sidebar = ({ isOpen, onClose }) => {
               }`}
             >
               <Calendar size={20} />
-              <span>ڕێکخستنەکان</span>
+              <span>خشته‌ی هه‌فتانه‌</span>
             </Link>
           </nav>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t pt-4">
-          <span className="text-sm text-gray-500">ڕەنگ</span>
-          <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600">
-            <Moon size={18} />
-            تاریک
-          </button>
+        {/* --- */}
+
+        {/* Bottom Section: User/Auth Card & Theme Toggle */}
+        <div className="pt-4 mt-auto"> {/* mt-auto pushes this section to the bottom */}
+          {/* User Info / Auth Card */}
+          <div className="bg-gray-50 p-3 rounded-xl shadow-sm mb-4 border border-gray-100"> {/* Card styling */}
+            {user ? (
+              <div className="flex items-center gap-3">
+                <UserCircle2 size={36} className="text-blue-600" />
+                <div className="flex flex-col text-sm text-right flex-grow">
+                  <span className="font-semibold text-gray-800">بەخێربێیت، {user.name}</span>
+                  <span className="text-xs text-gray-500">خوێندکار</span>
+                  <button
+                    onClick={onLogout}
+                    className="text-red-600 text-xs mt-1 flex items-center gap-1 self-end hover:underline"
+                  >
+                    <LogOut size={14} />
+                    چوونە دەرەوە
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <UserCircle2 size={36} className="text-blue-600" />
+                  <div className="text-right flex-grow">
+                    <div className="font-semibold text-gray-700">بەخێربێیت، میوانی ئازیز</div>
+                    <div className="text-xs text-gray-500">تکایە چونەژوورەوە یان خۆت تۆمار بکە</div>
+                  </div>
+                </div>
+                {/* Modified buttons to be block-level */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
+                  <Link
+                    to="/login"
+                    onClick={onClose}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md"
+                  >
+                    <LogIn size={18} />
+                    چونەژوورەوە
+                  </Link>
+                  <Link
+                    to="/register"
+                    onClick={onClose}
+                    className="w-full flex items-center justify-center gap-2 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 transition duration-200 shadow-md"
+                  >
+                    <UserPlus size={18} />
+                    خۆت تۆمار بکە
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

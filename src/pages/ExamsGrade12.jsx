@@ -1,6 +1,7 @@
-import questionsData from '../data/grade12Questions'
 import { useState, useEffect } from "react";
 import { CheckCircle, XCircle } from "lucide-react";
+import questionsData from './../data/grade12Questions'
+
 
 const timeOptions = {
   free: 0, // Free mode, no timer
@@ -17,27 +18,27 @@ const ExamsGrade12 = () => {
   const [timerType, setTimerType] = useState("free");
   const [timeLeft, setTimeLeft] = useState(0);
   const [started, setStarted] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState("هەموو بابەتەکان"); // Default to "All Subjects"
+  const [selectedSubject, setSelectedSubject] = useState("هەموو بابەتەکان");
   const [filteredQuestions, setFilteredQuestions] = useState([]);
-  const [mode, setMode] = useState("initial"); // 'initial', 'exam', 'review'
+  const [mode, setMode] = useState("initial"); // 'initial', 'exam_setup', 'exam', 'review', 'view_answers'
   const totalTime = timeOptions[timerType];
   const current = filteredQuestions[step];
   const uniqueSubjects = [
-    "هەموو بابەتەکان", // Option to select all subjects
+    "هەموو بابەتەکان",
     ...new Set(questionsData.map((q) => q.subject)),
   ];
 
   useEffect(() => {
     if (mode === "exam" && started && totalTime > 0 && timeLeft > 0) {
       const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-      return () => clearInterval(interval); // Clear interval on component unmount or dependency change
+      return () => clearInterval(interval);
     }
     if (mode === "exam" && timeLeft === 0 && started && totalTime > 0)
       setShowResult(true);
   }, [timeLeft, started, totalTime, mode]);
 
   const handleSelect = (option) => {
-    if (mode !== "exam") return; // Only allow selection in exam mode
+    if (mode !== "exam") return;
 
     const newAnswers = [...answers];
     newAnswers[step] = {
@@ -62,9 +63,9 @@ const ExamsGrade12 = () => {
     setShowResult(false);
     setStarted(false);
     setTimeLeft(0);
-    setSelectedSubject("هەموو بابەتەکان"); // Reset selected subject
-    setFilteredQuestions([]); // Clear filtered questions
-    setMode("initial"); // Go back to initial mode selection
+    setSelectedSubject("هەموو بابەتەکان");
+    setFilteredQuestions([]);
+    setMode("initial");
   };
 
   const startExam = () => {
@@ -86,13 +87,27 @@ const ExamsGrade12 = () => {
         : questionsData.filter((q) => q.subject === selectedSubject);
 
     setFilteredQuestions(questionsToUse);
-    setStarted(true); // Indicate that a session has started
+    setStarted(true);
     setMode("review");
-    setShowResult(false); // Ensure result screen is not shown initially
-    setStep(0); // Start from the first question
+    setShowResult(false);
+    setStep(0);
   };
 
-  // Render logic based on the current mode
+  // NEW: Function to directly view answers for a selected subject
+  const viewAnswersForSubject = () => {
+    const questionsToUse =
+      selectedSubject === "هەموو بابەتەکان"
+        ? questionsData
+        : questionsData.filter((q) => q.subject === selectedSubject);
+
+    setFilteredQuestions(questionsToUse);
+    setAnswers([]); // Clear any previous answers
+    setStep(0); // Start from the first question in the list
+    setStarted(true); // Indicate a session is active for rendering
+    setMode("view_answers"); // Set new mode
+    setShowResult(true); // Directly show the result-like screen
+  };
+
   return (
     <div className="flex items-center justify-center p-4 bg-gray-100">
       <div className="max-w-3xl w-full bg-white shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6 animate-fade-in border border-gray-100">
@@ -128,16 +143,23 @@ const ExamsGrade12 = () => {
 
             <div className="space-y-4 mt-10">
               <button
-                onClick={() => setMode("exam_setup")} // Go to exam setup (timer selection)
+                onClick={() => setMode("exam_setup")}
                 className="block w-full p-4 bg-gradient-to-r from-green-500 to-green-600 text-white text-xl font-semibold rounded-xl shadow-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 active:scale-100 focus:outline-none focus:ring-4 focus:ring-green-300"
               >
                 دەست پێ بکە بە تاقیکردنەوە
               </button>
               <button
-                onClick={startReview} // Directly start review mode
+                onClick={startReview}
                 className="block w-full p-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xl font-semibold rounded-xl shadow-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 active:scale-100 focus:outline-none focus:ring-4 focus:ring-purple-300"
               >
                 پرسیارەکان ببینە (بێ تاقیکردنەوە)
+              </button>
+              {/* NEW: Button to view answers directly */}
+              <button
+                onClick={viewAnswersForSubject}
+                className="block w-full p-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xl font-semibold rounded-xl shadow-lg hover:from-orange-600 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 active:scale-100 focus:outline-none focus:ring-4 focus:ring-orange-300"
+              >
+                بینینی وەڵامەکان بۆ بابەتێک
               </button>
             </div>
           </div>
@@ -208,7 +230,7 @@ const ExamsGrade12 = () => {
                       idx === step
                         ? "bg-blue-600 text-white transform scale-110 ring-2 ring-blue-300"
                         : answers[idx] && mode === "exam"
-                        ? "bg-green-200 text-green-800 hover:bg-green-300" // Exam mode: answered questions are green
+                        ? "bg-green-200 text-green-800 hover:bg-green-300"
                         : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                     }`}
                 >
@@ -230,29 +252,26 @@ const ExamsGrade12 = () => {
                 return (
                   <button
                     key={opt}
-                    // Disable selection in review mode or if already selected in exam mode
                     disabled={mode === "review" || !!selectedAnswer}
                     onClick={() => handleSelect(opt)}
                     className={`p-4 rounded-xl border flex items-center gap-3 transition-all duration-300 shadow-sm text-left
                       ${
                         mode === "review"
                           ? opt === correctAnswer
-                            ? "bg-green-100 border-green-500 text-green-800 font-medium" // Review mode: correct answer highlighted
-                            : "bg-gray-100 border-gray-200 text-gray-600 opacity-70" // Review mode: other options
-                          : // Exam mode logic below
-                          !selectedAnswer
-                          ? "bg-white hover:bg-blue-50 border-gray-300" // Default state in exam mode
+                            ? "bg-green-100 border-green-500 text-green-800 font-medium"
+                            : "bg-gray-100 border-gray-200 text-gray-600 opacity-70"
+                          : !selectedAnswer
+                          ? "bg-white hover:bg-blue-50 border-gray-300"
                           : isSelected && opt === correctAnswer
-                          ? "bg-green-100 border-green-500 text-green-800 font-medium" // Exam mode: correct and selected
+                          ? "bg-green-100 border-green-500 text-green-800 font-medium"
                           : isSelected && opt !== correctAnswer
-                          ? "bg-red-100 border-red-500 text-red-800 font-medium" // Exam mode: incorrect and selected
+                          ? "bg-red-100 border-red-500 text-red-800 font-medium"
                           : opt === correctAnswer
-                          ? "bg-green-50 text-green-600 border-green-300" // Exam mode: correct answer (even if not selected)
-                          : "bg-gray-100 border-gray-200 text-gray-500 opacity-70" // Exam mode: other unselected options
+                          ? "bg-green-50 text-green-600 border-green-300"
+                          : "bg-gray-100 border-gray-200 text-gray-500 opacity-70"
                       }`}
                   >
                     {opt}
-                    {/* Show check/x icons only in exam mode after selection */}
                     {mode === "exam" && selectedAnswer && opt === correctAnswer && (
                       <CheckCircle size={20} className="text-green-600 ml-auto" />
                     )}
@@ -262,7 +281,6 @@ const ExamsGrade12 = () => {
                       opt !== correctAnswer && (
                         <XCircle size={20} className="text-red-600 ml-auto" />
                       )}
-                    {/* Always show check for correct answer in review mode */}
                     {mode === "review" && opt === correctAnswer && (
                       <CheckCircle size={20} className="text-green-600 ml-auto" />
                     )}
@@ -271,7 +289,6 @@ const ExamsGrade12 = () => {
               })}
             </div>
 
-            {/* Show "Next" button only in exam mode after selection */}
             {mode === "exam" && answers[step]?.selected && (
               <button
                 onClick={next}
@@ -281,7 +298,6 @@ const ExamsGrade12 = () => {
               </button>
             )}
 
-            {/* Show "Finish Review" button in review mode */}
             {mode === "review" && (
               <button
                 onClick={() => setShowResult(true)}
@@ -292,7 +308,7 @@ const ExamsGrade12 = () => {
             )}
           </>
         ) : (
-          // Result screen (different messages for exam vs. review)
+          // Result screen (different messages for exam vs. review vs. view_answers)
           <div className="text-center space-y-6 py-8">
             <h2 className="text-3xl font-bold text-blue-700 drop-shadow-sm">ئەنجامەکان</h2>
             {mode === "exam" ? (
@@ -307,10 +323,31 @@ const ExamsGrade12 = () => {
                 </span>{" "}
                 وەڵامی دروستت داوە ✅
               </p>
-            ) : (
+            ) : mode === "review" ? (
               <p className="text-gray-700 text-xl leading-relaxed">
                 تۆ کۆتاییت بە بینین و پێداچوونەوەی پرسیارەکان هێنا.
               </p>
+            ) : (
+              // NEW: Display all questions and correct answers for 'view_answers' mode
+              <div className="space-y-6 text-left">
+                <h3 className="text-2xl font-bold text-gray-800">
+                  وەڵامەکان بۆ بابەتی: {selectedSubject}
+                </h3>
+                {filteredQuestions.length === 0 ? (
+                  <p className="text-gray-600">هیچ پرسیارێک نییە بۆ ئەم بابەتە.</p>
+                ) : (
+                  filteredQuestions.map((q, index) => (
+                    <div key={q.id} className="bg-white p-5 rounded-xl shadow-md border border-gray-200">
+                      <p className="text-lg font-semibold text-gray-900 mb-2">
+                        {index + 1}. {q.question}
+                      </p>
+                      <p className="text-md text-green-700 font-medium flex items-center gap-2">
+                        <CheckCircle size={20} /> وەڵامی دروست: {q.answer}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
 
             <button

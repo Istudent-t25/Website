@@ -1,12 +1,12 @@
 const grade12Questions = [
   {
-    subject: "ماتماتیک",
+    subject: "بیركاری",
     question: "٣ × ٤ = ؟",
     options: ["٦", "٩", "١٢", "١٥"],
     answer: "١٢"
   },
   {
-    subject: "ماتماتیک",
+    subject: "بیركاری",
     question: "١٠ ÷ ٢ = ؟",
     options: ["٣", "٥", "٧", "١٠"],
     answer: "٥"
@@ -34,12 +34,6 @@ const grade12Questions = [
     question: "ژمارەی ئەلەکترۆنەکان لە ئۆکسجین چەندە؟",
     options: ["٦", "٨", "١٠", "١٢"],
     answer: "٨"
-  },
-  {
-    subject: "بوکێنەوە",
-    question: "چەند دەقی ئەمەریکایە؟",
-    options: ["١٢٠", "١٨٠", "١٥٠", "٢٠٠"],
-    answer: "١٨٠"
   },
   {
     subject: "بیۆلۆجیا",
@@ -112,18 +106,6 @@ const grade12Questions = [
     options: ["حلم", "نوم", "یقظة", "صحوة"],
     answer: "حلم"
   },
-  {
-    subject: "ئیسلام",
-    question: "پێنجم ڕوکن لە ئیسلام چییە؟",
-    options: ["شهادة", "زکات", "صیام", "حج"],
-    answer: "حج"
-  },
-  {
-    subject: "ئیسلام",
-    question: "قورئان بە چەند پارچەیە؟",
-    options: ["١٠", "٢٠", "٣٠", "٦٠"],
-    answer: "٣٠"
-  }
 ];
 
 export default grade12Questions;
