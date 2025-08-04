@@ -17,6 +17,31 @@ const getRandomColor = () => {
   return colorOptions[randomIndex];
 };
 
+const convertDayToEnglish = (kurdishDay) => {
+  const map = {
+    "شەممە": "Saturday",
+    "یەکشەممە": "Sunday",
+    "دووشەممە": "Monday",
+    "سێشەممە": "Tuesday",
+    "چوارشەممە": "Wednesday",
+    "پێنجشەممە": "Thursday",
+    "هەینی": "Friday"
+  };
+  return map[kurdishDay] || kurdishDay;
+};
+const convertDayToKurdish = (englishDay) => {
+  const map = {
+    "Saturday": "شەممە",
+    "Sunday": "یەکشەممە",
+    "Monday": "دووشەممە",
+    "Tuesday": "سێشەممە",
+    "Wednesday": "چوارشەممە",
+    "Thursday": "پێنجشەممە",
+    "Friday": "هەینی"
+  };
+  return map[englishDay] || englishDay;
+};
+
 const ScheduleApp = () => {
   const [users, setUsers] = useState(["بەکارهێنەر١"]);
   const [currentUser, setCurrentUser] = useState("بەکارهێنەر١");
@@ -26,11 +51,10 @@ const ScheduleApp = () => {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [html2canvasLoaded, setHtml2canvasLoaded] = useState(false);
+  const [accessToken, setAccessToken] = useState(localStorage.getItem("access_token") || "");
+  const [studentId, setStudentId] = useState(null);
+  const scheduleCardsRef = useRef(null);
 
-  const scheduleRef = useRef(null); // Ref for the whole app container (not used for image download now)
-  const scheduleCardsRef = useRef(null); // New ref for only the schedule cards section
-
-  // بارکردنی html2canvas بە شێوەیەکی دینامیکی
   useEffect(() => {
     const script = document.createElement('script');
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
@@ -38,47 +62,134 @@ const ScheduleApp = () => {
     script.onerror = () => console.error("نەتوانرا html2canvas باربکرێت.");
     document.body.appendChild(script);
 
+    const fetchStudentInfo = async () => {
+      if (!accessToken) return;
+      try {
+        const res = await fetch("http://134.209.212.209:8000/student/v1/me", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStudentId(data.id);
+        } else {
+          console.warn("Access token may be expired or invalid.");
+        }
+      } catch (err) {
+        console.error("Failed to fetch student info", err);
+      }
+    };
+
+    const fetchSchedules = async () => {
+      try {
+        const res = await fetch("http://134.209.212.209:8000/schedule/v1/schedule", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = {};
+            data.forEach((item) => {
+              const day = convertDayToKurdish(item.weekday);
+              if (!mapped[day]) mapped[day] = [];
+              mapped[day].push({
+                subject: item.name,
+                time: "", // backend doesn't provide time
+                color: getRandomColor().value,
+                textColor: getRandomColor().text,
+              });
+            });
+
+            setSchedules(prev => ({
+              ...prev,
+              [currentUser]: mapped,
+            }));
+
+        } else {
+          console.error("❌ Failed to fetch schedules.");
+        }
+      } catch (err) {
+        console.error("❌ Error fetching schedules:", err);
+      }
+    };
+
+    fetchStudentInfo();
+    fetchSchedules();
+
     return () => {
       document.body.removeChild(script);
     };
-  }, []);
+  }, [accessToken]);
 
-  const handleAddSchedule = () => {
-    if (!form.subject) {
-      alert("تکایە ناونیشان پڕبکەوە.");
-      return;
-    }
+const handleAddSchedule = async () => {
+  if (!form.subject) {
+    alert("تکایە ناونیشان پڕبکەوە.");
+    return;
+  }
 
-    const selectedColor = form.color ? colorOptions.find(c => c.value === form.color) : getRandomColor();
+  const englishDay = convertDayToEnglish(form.day);
 
-    const userSchedule = schedules[currentUser] || {};
-    const newDaySchedule = [...(userSchedule[form.day] || [])];
-    const newEntry = {
-      time: form.time,
-      subject: form.subject,
-      color: selectedColor.value,
-      textColor: selectedColor.text
-    };
+  const selectedColor = form.color
+    ? colorOptions.find((c) => c.value === form.color)
+    : getRandomColor();
 
-    if (editIndex !== null) {
-      newDaySchedule[editIndex] = newEntry;
-    } else {
-      newDaySchedule.push(newEntry);
-    }
-
-    const updatedSchedules = {
-      ...schedules,
-      [currentUser]: {
-        ...userSchedule,
-        [form.day]: newDaySchedule,
-      },
-    };
-
-    setSchedules(updatedSchedules);
-    setForm({ day: "شەممە", time: "", subject: "", color: "", textColor: "" });
-    setEditIndex(null);
+  const userSchedule = schedules[currentUser] || {};
+  const newDaySchedule = [...(userSchedule[form.day] || [])];
+  const newEntry = {
+    time: form.time,
+    subject: form.subject,
+    color: selectedColor.value,
+    textColor: selectedColor.text,
   };
 
+  if (editIndex !== null) {
+    newDaySchedule[editIndex] = newEntry;
+  } else {
+    newDaySchedule.push(newEntry);
+  }
+
+  const updatedSchedules = {
+    ...schedules,
+    [currentUser]: {
+      ...userSchedule,
+      [form.day]: newDaySchedule,
+    },
+  };
+
+  setSchedules(updatedSchedules);
+  setForm({ day: "شەممە", time: "", subject: "", color: "", textColor: "" });
+  setEditIndex(null);
+
+  if (!studentId) return;
+
+  try {
+    const response = await fetch("http://134.209.212.209:8000/schedule/v1/schedule", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        student: studentId,
+        name: form.subject,
+        description: form.subject,
+        weekday: englishDay,
+      }),
+    });
+
+    if (response.ok) {
+      console.log("✅ Schedule saved to database.");
+    } else {
+      const error = await response.json();
+      console.error("❌ Failed to save schedule:", error.detail || response.statusText);
+    }
+  } catch (error) {
+    console.error("❌ Error submitting schedule:", error);
+  }
+};
   const handleEdit = (day, index) => {
     const entry = schedules[currentUser][day][index];
     setForm({ day, ...entry });
@@ -106,7 +217,6 @@ const ScheduleApp = () => {
       alert("تکایە چاوەڕێ بکە تا کتێبخانەی وێنە باردەکرێت.");
       return;
     }
-    // Use scheduleCardsRef to capture only the cards section
     if (scheduleCardsRef.current) {
       const canvas = await window.html2canvas(scheduleCardsRef.current, {
         scale: 2,
@@ -167,7 +277,6 @@ const ScheduleApp = () => {
 
   return (
     <div className="bg-gray-50 p-4 sm:p-6 antialiased">
-      {/* The main container for the entire app, used only for general layout */}
       <div className="max-w-screen-2xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
         <header className="bg-indigo-700 text-white p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-center rounded-t-3xl shadow-md">
           <h1 className="text-3xl sm:text-4xl font-extrabold mb-4 sm:mb-0">
@@ -302,7 +411,6 @@ const ScheduleApp = () => {
           </div>
         </section>
 
-        {/* This section contains only the schedule cards, now with a dedicated ref */}
         <section ref={scheduleCardsRef} className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 bg-white">
           {defaultDays.map((day) => (
             <div

@@ -1,19 +1,16 @@
-import {
-  Home, Users, FileText, ChevronDown, ChevronUp, Calendar,
-  Moon, X, UserCircle2, LogIn, LogOut, UserPlus,Book
-} from 'lucide-react'
-import { useState } from 'react'
-import { Link, useLocation } from "react-router-dom"
+import { Home, Users, FileText, ChevronDown, ChevronUp, Calendar, Moon, X, UserCircle2, LogIn, LogOut, UserPlus, Book } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useLocation } from "react-router-dom";
 
-const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
-  const location = useLocation()
-  const [openDropdown, setOpenDropdown] = useState(null)
+const Sidebar = ({ isOpen, onClose, user, onLogout, openLoginModal, openRegisterModal }) => {
+  const location = useLocation();
+  const [openDropdown, setOpenDropdown] = useState(null);
 
   const handleDropdown = (key) => {
-    setOpenDropdown(openDropdown === key ? null : key)
-  }
+    setOpenDropdown(openDropdown === key ? null : key);
+  };
 
-  const isActive = (path) => location.pathname === path
+  const isActive = (path) => location.pathname === path;
 
   return (
     <>
@@ -33,7 +30,7 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
         ${isOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0
       `}>
         {/* Top Section: Title & Menu */}
-        <div className="flex-grow"> {/* flex-grow allows this section to take available space */}
+        <div className="flex-grow">
           {/* Title + Mobile Close */}
           <div className="flex items-center justify-between md:mb-6 mb-4">
             <div className="text-2xl font-bold text-blue-600">من خوێندکارم</div>
@@ -122,6 +119,48 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
               )}
             </div>
 
+            {/* Exams Dropdown */}
+            <div>
+              <button
+                onClick={() => handleDropdown("grammar")}
+                className={`flex justify-between items-center w-full px-4 py-3 rounded-xl transition-all ${
+                  location.pathname.startsWith("/grammar") ? 'bg-blue-100 text-blue-700 shadow-inner' : 'text-gray-700 hover:bg-blue-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText size={20} />
+                  <span>ڕێزمانه‌كان</span>
+                </div>
+                {openDropdown === "grammar" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+
+              {openDropdown === "grammar" && (
+                <div className="pl-12 mt-2 space-y-1">
+                  <Link to="/grammar/english" onClick={onClose} className={`block text-sm text-right px-3 py-2 rounded-lg transition ${
+                    isActive("/grammar/english")
+                      ? 'bg-blue-200 text-blue-800 font-bold'
+                      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                  }`}>
+                    English Grammar
+                  </Link>
+                  <Link to="/grammar/kurdish" onClick={onClose} className={`block text-sm text-right px-3 py-2 rounded-lg transition ${
+                    isActive("/grammar/kurdish")
+                      ? 'bg-blue-200 text-blue-800 font-bold'
+                      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                  }`}>
+                    ڕێزمانی كوردی
+                  </Link>
+                  <Link to="/grammar/arabic" onClick={onClose} className={`block text-sm text-right px-3 py-2 rounded-lg transition ${
+                    isActive("/grammar/arabic")
+                      ? 'bg-blue-200 text-blue-800 font-bold'
+                      : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                  }`}>
+                    القواعد العربیه
+                  </Link>
+                </div>
+              )}
+            </div>
+
             {/* Schedule */}
             <Link
               to="/schedule"
@@ -133,15 +172,25 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
               <Calendar size={20} />
               <span>خشته‌ی هه‌فتانه‌</span>
             </Link>
+            <Link
+              to="/sounds"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                isActive("/sounds") ? 'bg-blue-100 text-blue-700 shadow-inner' : 'text-gray-700 hover:bg-blue-50'
+              }`}
+            >
+              <Calendar size={20} />
+              <span>ده‌نگه‌كان</span>
+            </Link>
           </nav>
         </div>
 
         {/* --- */}
 
         {/* Bottom Section: User/Auth Card & Theme Toggle */}
-        <div className="pt-4 mt-auto"> {/* mt-auto pushes this section to the bottom */}
+        <div className="pt-4 mt-auto">
           {/* User Info / Auth Card */}
-          <div className="bg-gray-50 p-3 rounded-xl shadow-sm mb-4 border border-gray-100"> {/* Card styling */}
+          <div className="bg-gray-50 p-3 rounded-xl shadow-sm mb-4 border border-gray-100">
             {user ? (
               <div className="flex items-center gap-3">
                 <UserCircle2 size={36} className="text-blue-600" />
@@ -166,24 +215,22 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
                     <div className="text-xs text-gray-500">تکایە چونەژوورەوە یان خۆت تۆمار بکە</div>
                   </div>
                 </div>
-                {/* Modified buttons to be block-level */}
+                {/* Changed Link to button and added onClick handlers */}
                 <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
-                  <Link
-                    to="/login"
-                    onClick={onClose}
+                  <button
+                    onClick={openLoginModal}
                     className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md"
                   >
                     <LogIn size={18} />
                     چونەژوورەوە
-                  </Link>
-                  <Link
-                    to="/register"
-                    onClick={onClose}
+                  </button>
+                  <button
+                    onClick={openRegisterModal}
                     className="w-full flex items-center justify-center gap-2 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 transition duration-200 shadow-md"
                   >
                     <UserPlus size={18} />
                     خۆت تۆمار بکە
-                  </Link>
+                  </button>
                 </div>
               </div>
             )}
@@ -191,7 +238,7 @@ const Sidebar = ({ isOpen, onClose, user, onLogout }) => {
         </div>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;
