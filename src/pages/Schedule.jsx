@@ -97,7 +97,7 @@ const ScheduleApp = () => {
               if (!mapped[day]) mapped[day] = [];
               mapped[day].push({
                 subject: item.name,
-                time: "", // backend doesn't provide time
+                time: "",
                 color: getRandomColor().value,
                 textColor: getRandomColor().text,
               });
