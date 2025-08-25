@@ -1,246 +1,297 @@
-import { Home, Users, FileText, ChevronDown, ChevronUp, Calendar, Moon, X, UserCircle2, LogIn, LogOut, UserPlus, Book } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Home,
+  Library,
+  BookOpenCheck,
+  FileText,
+  CalendarDays,
+  GraduationCap,
+  Headphones,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  UserCircle2,
+  LogIn,
+  UserPlus,
+  LogOut,
+  X,
+} from "lucide-react";
 
-const Sidebar = ({ isOpen, onClose, user, onLogout, openLoginModal, openRegisterModal }) => {
-  const location = useLocation();
-  const [openDropdown, setOpenDropdown] = useState(null);
+/**
+ * Sidebar — best shape
+ * - Desktop: full height column under fixed header, vertical scroll only
+ * - Mobile: slim drawer (w-[min(88vw,20rem)]), smooth tween (no spring bounce)
+ * - Active "rail" glow on the right (RTL), compact paddings, truncation
+ * - Auto-opens the active group on route change
+ */
 
-  const handleDropdown = (key) => setOpenDropdown(openDropdown === key ? null : key);
-  const isActive = (path) => location.pathname === path;
-  const isDropdownActive = (paths) => paths.some(path => location.pathname.startsWith(path));
+const EASE = [0.22, 0.61, 0.36, 1];
 
-  // Framer Motion variants for individual navigation items
-  const navItemVariants = {
-    hidden: { opacity: 0, x: 50 },
-    visible: (i) => ({
-      opacity: 1,
-      x: 0,
-      transition: {
-        delay: isOpen ? i * 0.04 : 0,
-        type: "spring",
-        stiffness: 300,
-        damping: 30
-      }
-    }),
-    hover: { scale: 1.02, x: 5, transition: { type: "tween", duration: 0.15 } },
-    tap: { scale: 0.98 }
-  };
-
-  // Framer Motion variants for dropdown content
-  const dropdownVariants = {
-    hidden: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeOut" } },
-    visible: { opacity: 1, height: "auto", transition: { duration: 0.2, ease: "easeOut" } },
-  };
-
-  // Base classes for consistent styling - Adjusted for white theme
-  const linkBaseClasses = "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ease-in-out group";
-  const activeLinkClasses = "bg-blue-50 text-blue-800 shadow-md font-extrabold ring-2 ring-blue-500/50"; // Lighter blue for active background
-  const inactiveLinkClasses = "text-gray-800 hover:bg-gray-100 hover:text-blue-700"; // Darker text, light gray hover
-
-  const getLinkClasses = (path) => `${linkBaseClasses} ${isActive(path) ? activeLinkClasses : inactiveLinkClasses}`;
-  const getDropdownButtonClasses = (paths) => `${linkBaseClasses} justify-between w-full ${isDropdownActive(paths) ? activeLinkClasses : inactiveLinkClasses}`;
-  const getSubLinkClasses = (path) => `block text-sm text-right px-3 py-2 rounded-lg transition-all duration-200 ease-in-out transform hover:scale-[1.03] ${
-    isActive(path) ? 'bg-blue-100 text-blue-900 font-extrabold' : 'text-gray-700 hover:text-blue-800 hover:bg-gray-50' // Adjusted sub-link colors
-  }`;
-
-  return (
-    <>
-      <motion.div
-        initial={{ x: '100%', opacity: 0 }}
-        animate={{ x: isOpen ? '0%' : '100%', opacity: isOpen ? 1 : 0 }}
-        transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-        className={`
-          fixed top-0 right-0 z-40 w-80 h-screen bg-white // Explicitly set background to white
-          shadow-[0_4px_20px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.04)] // Adjusted shadow for lighter background
-          p-6 flex flex-col justify-between rounded-l-3xl rtl
-          md:static md:translate-x-0
-        `}
-      >
-        <div className="flex-grow">
-          {/* Sidebar Title + Mobile Close Button */}
-          <div className="flex items-center justify-between md:mb-6 mb-4 pb-2 border-b border-gray-200"> {/* Lighter border */}
-            <div className="text-2xl font-extrabold text-blue-700">من خوێندکارم</div>
-            <button onClick={onClose} className="md:hidden p-1 rounded-full hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <X size={24} className="text-gray-600 hover:text-red-500"/>
-            </button>
-          </div>
-
-          {/* Main Navigation Menu */}
-          <nav className="space-y-2">
-            {/* Home Link */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={0}>
-              <Link to="/" onClick={onClose} className={getLinkClasses("/")}>
-                <Home size={20} className="group-hover:text-blue-700 text-blue-600" />
-                <span>سەرەکی</span>
-              </Link>
-            </motion.div>
-
-            {/* Subjects Dropdown */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={1}>
-              <button onClick={() => handleDropdown("subjects")} className={getDropdownButtonClasses(["/students"])}>
-                <div className="flex items-center gap-3">
-                  <Book size={20} className="group-hover:text-blue-700 text-blue-600" />
-                  <span>بابه‌ته‌كان</span>
-                </div>
-                {openDropdown === "subjects" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-              <AnimatePresence>
-                {openDropdown === "subjects" && (
-                  <motion.div
-                    key="subjects-dropdown"
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    variants={dropdownVariants}
-                    className="pl-12 mt-2 space-y-1 overflow-hidden"
-                  >
-                    {["grade7", "grade8", "grade9", "grade10", "grade11", "grade12"].map((g, i) => (
-                      <Link key={g} to={`/students/${g}`} onClick={onClose} className={getSubLinkClasses(`/students/${g}`)}>
-                        پۆلی {7 + i}
-                      </Link>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Exams Dropdown */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={2}>
-              <button onClick={() => handleDropdown("exams")} className={getDropdownButtonClasses(["/exams"])}>
-                <div className="flex items-center gap-3">
-                  <FileText size={20} className="group-hover:text-blue-700 text-blue-600" />
-                  <span>تاقیکردنەوەکان</span>
-                </div>
-                {openDropdown === "exams" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-              <AnimatePresence>
-                {openDropdown === "exams" && (
-                  <motion.div
-                    key="exams-dropdown"
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    variants={dropdownVariants}
-                    className="pl-12 mt-2 space-y-1 overflow-hidden"
-                  >
-                    <Link to="/exams/grade12" onClick={onClose} className={getSubLinkClasses("/exams/grade12")}>
-                      پۆلی ١٢
-                    </Link>
-                    <Link to="/exams/results" onClick={onClose} className={getSubLinkClasses("/exams/results")}>
-                      ئەنجامەکان
-                    </Link>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Grammar Dropdown */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={3}>
-              <button onClick={() => handleDropdown("grammar")} className={getDropdownButtonClasses(["/grammar"])}>
-                <div className="flex items-center gap-3">
-                  <FileText size={20} className="group-hover:text-blue-700 text-blue-600" />
-                  <span>ڕێزمانه‌كان</span>
-                </div>
-                {openDropdown === "grammar" ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-              <AnimatePresence>
-                {openDropdown === "grammar" && (
-                  <motion.div
-                    key="grammar-dropdown"
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    variants={dropdownVariants}
-                    className="pl-12 mt-2 space-y-1 overflow-hidden"
-                  >
-                    <Link to="/grammar/english" onClick={onClose} className={getSubLinkClasses("/grammar/english")}>
-                      English Grammar
-                    </Link>
-                    <Link to="/grammar/kurdish" onClick={onClose} className={getSubLinkClasses("/grammar/kurdish")}>
-                      ڕێزمانی كوردی
-                    </Link>
-                    <Link to="/grammar/arabic" onClick={onClose} className={getSubLinkClasses("/grammar/arabic")}>
-                      القواعد العربیه
-                    </Link>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Text Tools Link */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={4}>
-              <Link to="/text-tools" onClick={onClose} className={getLinkClasses("/text-tools")}>
-                <FileText size={20} className="group-hover:text-blue-700 text-blue-600" />
-                <span>ئامڕازەکانی نووسین</span>
-              </Link>
-            </motion.div>
-
-            {/* Schedule Link */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={5}>
-              <Link to="/schedule" onClick={onClose} className={getLinkClasses("/schedule")}>
-                <Calendar size={20} className="group-hover:text-blue-700 text-blue-600" />
-                <span>خشته‌ی هه‌فتانه‌</span>
-              </Link>
-            </motion.div>
-
-            {/* Sounds Link */}
-            <motion.div variants={navItemVariants} initial="hidden" animate="visible" whileHover="hover" whileTap="tap" custom={6}>
-              <Link to="/sounds" onClick={onClose} className={getLinkClasses("/sounds")}>
-                <Calendar size={20} className="group-hover:text-blue-700 text-blue-600" />
-                <span>ده‌نگه‌كان</span>
-              </Link>
-            </motion.div>
-          </nav>
-        </div>
-
-        {/* Bottom Section: User/Auth Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 20 }}
-          className="pt-4 mt-auto border-t border-gray-200" // Lighter border
-        >
-          <div className="bg-white p-4 rounded-xl shadow-xl mb-4 border border-gray-200"> {/* White background, lighter border */}
-            {user ? (
-              <div className="flex items-center gap-3">
-                <UserCircle2 size={36} className="text-blue-600" />
-                <div className="flex flex-col text-sm text-right flex-grow">
-                  <span className="font-semibold text-gray-800">بەخێربێیت، {user.name}</span> {/* Darker text */}
-                  <span className="text-xs text-gray-600">خوێندکار</span> {/* Darker text */}
-                  <button onClick={onLogout} className="text-red-600 text-xs mt-1 flex items-center gap-1 self-end hover:underline hover:text-red-700 transition-colors duration-200">
-                    <LogOut size={14} />
-                    چوونە دەرەوە
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <UserCircle2 size={36} className="text-blue-600" />
-                  <div className="text-right flex-grow">
-                    <div className="font-semibold text-gray-800">بەخێربێیت، میوانی ئازیز</div> {/* Darker text */}
-                    <div className="text-xs text-gray-600">تکایە چونەژوورەوە یان خۆت تۆمار بکە</div> {/* Darker text */}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 pt-2 border-t border-gray-200"> {/* Lighter border */}
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={openLoginModal} className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md">
-                    <LogIn size={18} />
-                    چوونەژوورەوە
-                  </motion.button>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={openRegisterModal} className="w-full flex items-center justify-center gap-2 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 transition duration-200 shadow-md">
-                    <UserPlus size={18} />
-                    خۆت تۆمار بکە
-                  </motion.button>
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      </motion.div>
-    </>
-  );
+const cls = {
+  wrap: "flex h-full flex-col overflow-y-auto overflow-x-hidden custom-scroll select-none",
+  brand: "px-3 py-3 mb-3 text-[1.05rem] font-extrabold tracking-tight text-sky-700 dark:text-sky-300 border-b border-zinc-200/60 dark:border-zinc-700/60",
+  linkBase: "relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[0.95rem] font-medium transition-all",
+  linkIdle: "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70",
+  linkActive: "bg-gradient-to-l from-sky-500/14 to-transparent text-sky-900 dark:text-sky-100 ring-1 ring-sky-400/40",
+  icon: "shrink-0 text-sky-600 dark:text-sky-400",
+  rail: "absolute -right-1 top-1 bottom-1 w-1 rounded-full bg-sky-500/90 shadow-[0_0_0_2px_rgba(14,165,233,0.15)]",
 };
 
-export default Sidebar;
+function Rail({ show }) {
+  if (!show) return null;
+  return <span className={cls.rail} />;
+}
+
+function Item({ to, icon: Icon, label, active, onClick }) {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`${cls.linkBase} ${active ? cls.linkActive : cls.linkIdle}`}
+      title={label}
+    >
+      <Rail show={active} />
+      <Icon size={18} className={cls.icon} />
+      <span className="truncate">{label}</span>
+    </Link>
+  );
+}
+
+function Group({ id, icon: Icon, label, openId, setOpenId, active, children }) {
+  const isOpen = openId === id;
+  return (
+    <div className="mb-1.5">
+      <button
+        onClick={() => setOpenId(isOpen ? null : id)}
+        className={`w-full ${cls.linkBase} justify-between ${active ? cls.linkActive : cls.linkIdle}`}
+        aria-expanded={isOpen}
+      >
+        <Rail show={active} />
+        <span className="flex items-center gap-3">
+          <Icon size={18} className={cls.icon} />
+          <span className="truncate">{label}</span>
+        </span>
+        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: EASE }}
+            className="ps-9 pe-1 mt-1 space-y-1 overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default function Sidebar({
+  isOpen = true,
+  onClose,
+  user,
+  onLogout,
+  openLoginModal,
+  openRegisterModal,
+  variant = "desktop", // "desktop" | "mobile"
+}) {
+  const location = useLocation();
+  const [openId, setOpenId] = useState(null);
+
+  // Active groups based on path
+  const gActive = useMemo(() => {
+    const p = location.pathname;
+    return {
+      subjects: p.startsWith("/students"),
+      grammar: p.startsWith("/grammar"),
+      exams: p.startsWith("/exams") || p.startsWith("/schedule"),
+      media: p.startsWith("/sounds"),
+    };
+  }, [location.pathname]);
+
+  // Auto-open current group
+  useEffect(() => {
+    const first = Object.entries(gActive).find(([, v]) => v)?.[0];
+    setOpenId(first ?? null);
+  }, [gActive]);
+
+  // =======================
+  // Mobile drawer variant
+  // =======================
+  if (variant === "mobile") {
+    return (
+      <motion.div
+        initial={{ x: "100%", opacity: 0 }}
+        animate={{ x: isOpen ? "0%" : "100%", opacity: isOpen ? 1 : 0 }}
+        transition={{ duration: 0.24, ease: EASE }}
+        className="h-full flex flex-col p-3 overflow-y-auto overflow-x-hidden custom-scroll touch-pan-y"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Brand + close */}
+        <div className="flex items-center justify-between px-2 py-2 mb-2 border-b border-zinc-200/60 dark:border-zinc-700/60">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-sky-500" />
+            <span className="text-[1.15rem] font-extrabold text-sky-700 dark:text-sky-300">
+              به‌شه‌كان
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+            aria-label="Close"
+          >
+            <X size={22} className="text-zinc-600 dark:text-zinc-300" />
+          </button>
+        </div>
+
+        {/* Primary */}
+        <div className="space-y-1">
+          <Item to="/" icon={Home} label="سەرەکی" active={location.pathname === "/"} onClick={onClose} />
+        </div>
+
+        {/* Groups */}
+        <div className="mt-2 space-y-2">
+          <Group id="subjects" icon={Library} label="بابەتەکان" openId={openId} setOpenId={setOpenId} active={gActive.subjects}>
+            {[7, 8, 9, 10, 11, 12].map((g) => (
+              <Item
+                key={g}
+                to={`/students/grade${g}`}
+                icon={BookOpenCheck}
+                label={`پۆلی ${g}`}
+                active={location.pathname === `/students/grade${g}`}
+                onClick={onClose}
+              />
+            ))}
+          </Group>
+
+          <Group id="grammar" icon={FileText} label="ڕێزمان" openId={openId} setOpenId={setOpenId} active={gActive.grammar}>
+            <Item to="/grammar/english" icon={FileText} label="English" active={location.pathname === "/grammar/english"} onClick={onClose} />
+            <Item to="/grammar/kurdish" icon={FileText} label="کوردی" active={location.pathname === "/grammar/kurdish"} onClick={onClose} />
+            <Item to="/grammar/arabic" icon={FileText} label="العربیة" active={location.pathname === "/grammar/arabic"} onClick={onClose} />
+          </Group>
+
+          <Group id="exams" icon={GraduationCap} label="تاقیکردنەوە" openId={openId} setOpenId={setOpenId} active={gActive.exams}>
+            <Item to="/exams/grade12" icon={GraduationCap} label="پۆلی ١٢" active={location.pathname === "/exams/grade12"} onClick={onClose} />
+            <Item to="/schedule" icon={CalendarDays} label="خشتەی هەفتانە" active={location.pathname === "/schedule"} onClick={onClose} />
+          </Group>
+
+          <Group id="media" icon={Headphones} label="دەنگەکان" openId={openId} setOpenId={setOpenId} active={gActive.media}>
+            <Item to="/sounds" icon={Headphones} label="وێنە و دەنگ" active={location.pathname === "/sounds"} onClick={onClose} />
+          </Group>
+        </div>
+
+        {/* Auth */}
+        <div className="mt-auto p-3 border-t border-zinc-200/60 dark:border-zinc-700/60">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <UserCircle2 size={36} className="text-sky-600" />
+              <div className="flex flex-col text-sm">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-100">بەخێربێیت، {user.name}</span>
+                <span className="text-xs text-zinc-500">خوێندکار</span>
+                <button onClick={onLogout} className="text-red-600 text-xs mt-1 self-end hover:underline">
+                  <LogOut size={14} className="inline-block" /> چوونە دەرەوە
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-sm">
+              <button onClick={openLoginModal} className="px-3 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700">
+                <LogIn size={16} className="inline-block mr-1" />
+                چونەژوورەوە
+              </button>
+              <button onClick={openRegisterModal} className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+                <UserPlus size={16} className="inline-block mr-1" />
+                تۆمارکردن
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
+  // =======================
+  // Desktop full-height column
+  // =======================
+  return (
+    <nav className={cls.wrap}>
+      {/* Brand */}
+      <div className={cls.brand}>
+        <span className="inline-flex items-center gap-2">
+          <Sparkles size={18} className="text-sky-500" />
+          به‌شه‌كان
+        </span>
+      </div>
+
+      {/* Primary */}
+      <div className="space-y-1">
+        <Item to="/" icon={Home} label="سەرەکی" active={location.pathname === "/"} />
+      </div>
+
+      {/* Groups */}
+      <div className="mt-2 space-y-2">
+        <Group id="subjects" icon={Library} label="بابەتەکان" openId={openId} setOpenId={setOpenId} active={gActive.subjects}>
+          {[7, 8, 9, 10, 11, 12].map((g) => (
+            <Item
+              key={g}
+              to={`/students/grade${g}`}
+              icon={BookOpenCheck}
+              label={`پۆلی ${g}`}
+              active={location.pathname === `/students/grade${g}`}
+            />
+          ))}
+        </Group>
+
+        <Group id="grammar" icon={FileText} label="ڕێزمان" openId={openId} setOpenId={setOpenId} active={gActive.grammar}>
+          <Item to="/grammar/english" icon={FileText} label="English" active={location.pathname === "/grammar/english"} />
+          <Item to="/grammar/kurdish" icon={FileText} label="کوردی" active={location.pathname === "/grammar/kurdish"} />
+          <Item to="/grammar/arabic" icon={FileText} label="العربیة" active={location.pathname === "/grammar/arabic"} />
+        </Group>
+
+        <Group id="exams" icon={GraduationCap} label="تاقیکردنەوە" openId={openId} setOpenId={setOpenId} active={gActive.exams}>
+          <Item to="/exams/grade12" icon={GraduationCap} label="پۆلی ١٢" active={location.pathname === "/exams/grade12"} />
+          <Item to="/schedule" icon={CalendarDays} label="خشتەی هەفتانە" active={location.pathname === "/schedule"} />
+        </Group>
+
+        <Group id="media" icon={Headphones} label="دەنگەکان" openId={openId} setOpenId={setOpenId} active={gActive.media}>
+          <Item to="/sounds" icon={Headphones} label="وێنە و دەنگ" active={location.pathname === "/sounds"} />
+        </Group>
+      </div>
+
+      {/* Auth */}
+      <div className="mt-auto p-3 border-t border-zinc-200/60 dark:border-zinc-700/60">
+        {user ? (
+          <div className="flex items-center gap-3">
+            <UserCircle2 size={36} className="text-sky-600" />
+            <div className="flex flex-col text-sm">
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">بەخێربێیت، {user.name}</span>
+              <span className="text-xs text-zinc-500">خوێندکار</span>
+              <button onClick={onLogout} className="text-red-600 text-xs mt-1 self-end hover:underline">
+                <LogOut size={14} className="inline-block" /> چوونە دەرەوە
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 text-sm">
+            <button onClick={openLoginModal} className="px-3 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700">
+              <LogIn size={16} className="inline-block mr-1" />
+              چونەژوورەوە
+            </button>
+            <button onClick={openRegisterModal} className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+              <UserPlus size={16} className="inline-block mr-1" />
+              تۆمارکردن
+            </button>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}

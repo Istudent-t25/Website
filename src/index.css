@@ -1,26 +1,144 @@
-/* Tailwind v4 import */
+/* Tailwind v4 */
 @import "tailwindcss";
 
+/* ====== Fonts ====== */
 @font-face {
   font-family: "Ubuntu";
   src: url("/fonts/Ubuntu-Kurdish-Kurdfont.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
+  font-display: swap;
 }
-:root { --vh: 1vh; }
-html, body, #root { height: 100%; }
+:root {
+  --vh: 1vh;               /* legacy helper if you still use it */
+  color-scheme: light dark; /* let the UA pick form controls accordingly */
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+html {
+  /* If you use anchor links, header offset is helpful (56px header + notch) */
+  scroll-padding-top: calc(env(safe-area-inset-top) + 56px);
+}
+
 body {
   font-family: Ubuntu, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-               Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
-               "Segoe UI Emoji", "Segoe UI Symbol";
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol";
   direction: rtl;
-  overflow: hidden;          /* prevent double scrollbars */
+
+  /* DO NOT disable scroll globally (this broke your main scroll before) */
+  overflow: auto;
+
+  /* Nice rendering defaults */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Avoid pull-to-refresh bounce chaining */
+  overscroll-behavior-y: none;
+  background-color: #ffffff;
+  color: #0a0a0a;
 }
-.custom-scroll { 
-  scrollbar-width: thin; 
-  scrollbar-color: #cbd5e1 transparent; 
-  -webkit-overflow-scrolling: touch; 
+
+:root.dark body {
+  background-color: #0a0a0b; /* ~ zinc-950 */
+  color: #e5e7eb;            /* tailwind zinc-200-ish */
 }
-.custom-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
-.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ====== App Shell Helpers ====== */
+/* your main scroll containers should add `custom-scroll` class */
+.custom-scroll {
+  /* iOS momentum scrolling */
+  -webkit-overflow-scrolling: touch;
+
+  /* Keep layout stable when scrollbar shows/hides (Chrome/Edge/FF) */
+  scrollbar-gutter: stable both-edges;
+
+  /* Firefox scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120,120,120,.4) transparent;
+}
+
+/* WebKit-based scrollbars (Chrome, Edge, Safari) */
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(120,120,120,.4);
+  border-radius: 9999px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(120,120,120,.55);
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ====== Safe-area helpers (useful if needed on wrappers/drawers) ====== */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ====== Focus rings (nicer defaults) ====== */
+:where(button, [role="button"], a, input, textarea, select):focus-visible {
+  outline: 2px solid rgb(56 189 248 / 0.9); /* sky-400-ish */
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ====== Reduced motion ====== */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ====== Utility tweaks you might reuse ====== */
+
+/* Glassy surface (if you want subtle cards without shadcn) */
+.glass {
+  background: color-mix(in oklab, #0a0a0b 80%, transparent);
+  /* in light mode, this becomes a very faint white mix */
+  background: color-mix(in oklab, #ffffff 70%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 16px;
+}
+
+/* Smooth shadow for panels */
+.soft-shadow {
+  box-shadow:
+    0 10px 25px -10px rgb(0 0 0 / 0.35),
+    0 2px 8px -2px rgb(0 0 0 / 0.25);
+}
+
+/* Card hover lift */
+.lift:hover {
+  transform: translateY(-2px);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+/* Divider */
+.hr-soft {
+  height: 1px;
+  background: linear-gradient(
+    to left,
+    transparent,
+    rgb(255 255 255 / 0.08),
+    transparent
+  );
+}
+
+/* Optional: hide scrollbars visually but keep scrollability (not recommended globally)
+.hide-scroll::-webkit-scrollbar { display: none; }
+.hide-scroll { scrollbar-width: none; } */
