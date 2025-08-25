@@ -1,6 +1,6 @@
 import React, { useState, Fragment, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { BookOpen, Globe, MessageCircle, Youtube, Search, Info, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
+import { BookOpen, Globe, MessageCircle, Youtube, Search, Info, ChevronDown, ChevronUp, Lightbulb, Sparkles } from 'lucide-react'; // Added Sparkles icon
 import { Menu, Transition } from '@headlessui/react';
 
 // Sample data for grammar lessons in English, Kurdish, and Arabic.
@@ -310,76 +310,77 @@ const GrammarPage = () => {
     setActiveTopicId(activeTopicId === id ? null : id);
   };
   
+  // TopicCard component for displaying individual grammar topics
   const TopicCard = ({ id, title, explanation, extraInfo, rules, types, examples, youtubeResources, dir }) => {
     const isTopicVisible = activeTopicId === id;
     const isRtl = dir === 'rtl';
 
     return (
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-300">
+      <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-[1.005]">
         <button 
           onClick={() => handleTopicToggle(id)}
-          className="flex justify-between items-center w-full p-6 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 hover:bg-gray-50"
+          className="flex justify-between items-center w-full p-4 text-left focus:outline-none focus:ring- focus:ring-purple-300 transition-colors duration-200 hover:bg-gray-50"
         >
           <div>
-            <h3 className={`text-2xl font-bold text-gray-900 ${isRtl ? 'text-right' : 'text-left'}`}>{title}</h3>
-            <p className={`text-sm text-gray-500 mt-1 ${isRtl ? 'text-right' : 'text-left'}`}>{explanation}</p>
+            <h3 className={`text-xl md:text-2xl font-extrabold text-gray-900 ${isRtl ? 'text-right' : 'text-left'}`}>{title}</h3>
+            <p className={`text-sm md:text-base text-gray-600 mt-1 ${isRtl ? 'text-right' : 'text-left'}`}>{explanation}</p>
           </div>
-          {isTopicVisible ? <ChevronUp size={24} className="text-blue-500" /> : <ChevronDown size={24} className="text-gray-500" />}
+          {isTopicVisible ? <ChevronUp size={24} className="text-purple-600" /> : <ChevronDown size={24} className="text-gray-500" />}
         </button>
         
         {isTopicVisible && (
-          <div className="p-6 border-t border-gray-200 animate-fade-in space-y-6">
+          <div className="p-3 border-t border-gray-200 animate-fade-in space-y-8">
             
-            {/* Mom-to-Child Lesson */}
+            {/* Mom-to-Child Lesson Section */}
             {extraInfo && (
               <div>
-                <h4 className={`text-xl font-bold text-gray-800 mb-2 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
-                  <Info size={20} className="text-purple-500" /> Mom-to-child Lesson
+                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
+                  <Sparkles size={22} className="text-pink-500" /> Insight from the Heart
                 </h4>
-                <div className="bg-purple-50 p-4 rounded-xl">
-                  <p className={`text-purple-800 font-medium ${isRtl ? 'text-right' : 'text-left'}`}>{extraInfo}</p>
+                <div className="bg-gradient-to-r from-pink-50 to-rose-50 p-5 rounded-2xl shadow-inner border border-pink-100">
+                  <p className={`text-pink-800 font-medium text-sm md:text-base ${isRtl ? 'text-right' : 'text-left'} break-words`}>{extraInfo}</p>
                 </div>
               </div>
             )}
             
-            {/* Rules & Structure */}
+            {/* Rules & Structure Section */}
             {rules && rules.length > 0 && (
               <div>
-                <h4 className={`text-xl font-bold text-gray-800 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>Rules & Structure:</h4>
-                <ul className={`list-inside space-y-2 text-gray-700 ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
+                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Core Rules & Structure:</h4>
+                <ul className={`list-inside space-y-3 text-gray-700 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
                   {rules.map((rule, index) => (
-                    <li key={index} className={isRtl ? 'before:content-["•_"]' : ''} dangerouslySetInnerHTML={{ __html: rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                    <li key={index} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* In-depth types and examples */}
+            {/* In-depth types and examples Section */}
             {types && types.length > 0 && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {types.map((type, index) => (
-                  <div key={index}>
-                    <h4 className={`text-lg font-semibold text-gray-800 mb-1 ${isRtl ? 'text-right' : 'text-left'}`}>{type.subTitle}</h4>
-                    <p className={`text-sm text-gray-600 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>{type.subExplanation}</p>
+                  <div key={index} className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className={`text-base md:text-lg font-semibold text-gray-900 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>{type.subTitle}</h4>
+                    <p className={`text-sm text-gray-600 mb-3 ${isRtl ? 'text-right' : 'text-left'} break-words`}>{type.subExplanation}</p>
                     
                     {/* Render table if it exists */}
                     {type.subTable ? (
-                      <div className="overflow-x-auto rounded-lg shadow-sm">
+                      <div className="overflow-x-auto rounded-lg shadow-inner border border-gray-100">
                         <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
+                          <thead className="bg-gray-100">
                             <tr>
                               {type.subTable.headers.map((header, i) => (
-                                <th key={i} scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>
+                                <th key={i} scope="col" className={`px-2 py-2 md:px-6 md:py-4 text-xs font-medium text-gray-600 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'} `}> {/* Reduced horizontal padding here */}
                                   {header}
                                 </th>
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody className="bg-white divide-y divide-gray-100">
                             {type.subTable.rows.map((row, i) => (
-                              <tr key={i}>
+                              <tr key={i} className="hover:bg-blue-50">
                                 {row.map((cell, j) => (
-                                  <td key={j} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-600 ${isRtl ? 'text-right' : 'text-left'}`}>
+                                  <td key={j} className={`px-2 py-3 md:px-6 md:py-4 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`}> {/* Reduced horizontal padding here */}
                                     {cell}
                                   </td>
                                 ))}
@@ -389,9 +390,9 @@ const GrammarPage = () => {
                         </table>
                       </div>
                     ) : (
-                      <ul className={`list-inside mt-2 space-y-1 text-gray-700 ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
+                      <ul className={`list-inside mt-3 space-y-2 text-gray-800 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
                         {type.subExamples.map((example, exIndex) => (
-                          <li key={exIndex} className={isRtl ? 'before:content-["•_"]' : ''} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                          <li key={exIndex} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                         ))}
                       </ul>
                     )}
@@ -403,35 +404,35 @@ const GrammarPage = () => {
             {/* Simple list of examples if no types */}
             {examples && examples.length > 0 && (
               <div>
-                <h4 className={`text-lg font-semibold text-gray-700 ${isRtl ? 'text-right' : 'text-left'}`}>Examples:</h4>
-                <ul className={`list-inside mt-2 space-y-1 text-gray-600 ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
+                <h4 className={`text-base md:text-lg font-semibold text-gray-700 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Examples in Action:</h4>
+                <ul className={`list-inside mt-2 space-y-2 text-gray-700 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
                   {examples.map((example, index) => (
-                    <li key={index} className={isRtl ? 'before:content-["•_"]' : ''} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                    <li key={index} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* YouTube Resources */}
+            {/* YouTube Resources Section */}
             {youtubeResources && youtubeResources.length > 0 && (
-              <div className="border-t pt-4 border-gray-100">
-                <h4 className={`text-xl font-bold text-gray-800 mb-2 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
-                  <Youtube size={20} className="text-blue-500" /> Get More Information
+              <div className="border-t pt-6 border-gray-200">
+                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
+                  <Youtube size={22} className="text-red-500" /> Dive Deeper with Video
                 </h4>
-                <div className="bg-blue-50 p-4 rounded-xl">
-                  <h5 className={`text-md font-semibold text-blue-800 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>Recommended Teachers & Channels:</h5>
-                  <ul className={`space-y-2 ${isRtl ? 'text-right' : 'text-left'}`}>
+                <div className="bg-red-50 p-5 rounded-2xl shadow-inner border border-red-100">
+                  <h5 className={`text-sm md:text-md font-semibold text-red-800 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Recommended Channels & Playlists:</h5>
+                  <ul className={`space-y-3 ${isRtl ? 'text-right' : 'text-left'}`}>
                     {youtubeResources.map((resource, index) => (
                       <li key={index}>
                         <a
                           href={resource.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline transition-colors duration-200"
+                          className="text-red-600 hover:underline font-medium transition-colors duration-200 flex items-center gap-2"
                         >
-                          {resource.name}
+                          <Youtube size={18} className="text-red-600" /> {resource.name}
                         </a>
-                        <p className="text-xs text-blue-700 opacity-80">{resource.description}</p>
+                        <p className="text-xs md:text-sm text-red-700 opacity-90 mt-1 break-words">{resource.description}</p>
                       </li>
                     ))}
                   </ul>
@@ -448,13 +449,12 @@ const GrammarPage = () => {
   const isRtl = activeLanguage === 'kurdish' || activeLanguage === 'arabic';
 
   return (
-    <div className="p-4 md:p-8 bg-gray-100 min-h-screen text-gray-800 font-sans">
-      {/* Start of the new header section */}
-      <header className="bg-white rounded-3xl shadow-xl p-4 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-40">
+    <div className="p-1 md:p-8 bg-gradient-to-br min-h-screen text-gray-900 antialiased">
+      <header className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-1 transform transition-all duration-300 hover:scale-[1.01] border border-gray-100">
         {/* Title */}
         <div className="flex-shrink-0 text-center sm:text-left">
-          <h1 className="text-2xl font-extrabold text-gray-900">Grammar Guide</h1>
-          <p className="text-sm text-gray-500">Master English, Kurdish & Arabic</p>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-900 tracking-tight">Grammar Navigator <Sparkles size={28} className="inline-block text-purple-500 animate-pulse" /></h1>
+          <p className="text-sm sm:text-base lg:text-lg text-gray-600 mt-1">Unlock the Power of English, Kurdish & Arabic</p>
         </div>
 
         {/* Search Bar, Language Dropdown and Tips Button */}
@@ -466,15 +466,15 @@ const GrammarPage = () => {
               placeholder="Search topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full border-2 border-gray-300 focus:border-blue-500 focus:outline-none transition-colors duration-200"
+              className="w-full pl-10 pr-4 py-2 rounded-full border-2 border-purple-300 focus:border-purple-600 focus:ring-4 focus:ring-purple-200 focus:outline-none transition-all duration-200 text-base shadow-sm"
             />
-            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
           </div>
 
           {/* Language Dropdown */}
-          <Menu as="div" className="relative inline-block text-left">
+          <Menu as="div" className="relative inline-block text-left w-full sm:w-auto">
             <div>
-              <Menu.Button className="inline-flex justify-center w-full rounded-full border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-blue-500 transition-colors duration-200">
+              <Menu.Button className="inline-flex justify-center items-center w-full rounded-full border border-purple-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-purple-500 transition-colors duration-200">
                 {getLanguageIcon(activeLanguage)}
                 <span className="ml-2">{getLanguageName(activeLanguage)}</span>
                 <ChevronDown size={20} className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
@@ -490,16 +490,16 @@ const GrammarPage = () => {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-fade-in">
                 <div className="py-1">
                   <Menu.Item>
                     {({ active }) => (
                       <a
                         href="#"
                         onClick={() => setActiveLanguage('english')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'}`}
+                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
                       >
-                        <Globe size={20} className="mr-3" />
+                        <Globe size={20} className="mr-3 text-blue-500" />
                         English
                       </a>
                     )}
@@ -509,9 +509,9 @@ const GrammarPage = () => {
                       <a
                         href="#"
                         onClick={() => setActiveLanguage('kurdish')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'}`}
+                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
                       >
-                        <MessageCircle size={20} className="mr-3" />
+                        <MessageCircle size={20} className="mr-3 text-green-500" />
                         Kurdish
                       </a>
                     )}
@@ -521,9 +521,9 @@ const GrammarPage = () => {
                       <a
                         href="#"
                         onClick={() => setActiveLanguage('arabic')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'}`}
+                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
                       >
-                        <BookOpen size={20} className="mr-3" />
+                        <BookOpen size={20} className="mr-3 text-red-500" />
                         Arabic
                       </a>
                     )}
@@ -536,10 +536,10 @@ const GrammarPage = () => {
           {/* Grammar Tips Button */}
           <button
             onClick={() => setShowPublicTips(!showPublicTips)}
-            className="flex items-center gap-2 p-3 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 active:scale-95 bg-yellow-500 text-white shadow-xl hover:bg-yellow-600"
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-purple-300 focus:ring-offset-2"
           >
             <Lightbulb size={24} />
-            Tips
+            Pro Tips
           </button>
         </div>
       </header>
@@ -548,38 +548,39 @@ const GrammarPage = () => {
       <div className="mx-auto max-w-7xl">
         {/* Grammar Tips Pop-up */}
         {showPublicTips && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white p-8 md:p-12 rounded-2xl shadow-2xl w-full h-full md:max-w-4xl md:max-h-[80vh] relative overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-md">
+            <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white p-6 md:p-12 rounded-3xl shadow-2xl w-full h-full md:max-w-4xl md:max-h-[85vh] relative overflow-y-auto transform scale-95 md:scale-100 transition-transform duration-300 ease-out border-4 border-purple-300">
               <button
                 onClick={() => setShowPublicTips(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors duration-200 p-2 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                aria-label="Close tips"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
               </button>
-              <h3 className="text-3xl font-extrabold text-gray-900 mb-4 flex items-center gap-2">
-                <Lightbulb size={32} className="text-yellow-500" /> General Grammar Tips
+              <h3 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-5 flex items-center gap-3">
+                <Lightbulb size={36} className="text-purple-500" /> Essential Grammar Tips
               </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Quick and useful rules to help you with your writing and speaking.
+              <p className="text-base md:text-lg text-gray-700 mb-8">
+                Unlock common patterns and helpful shortcuts to master grammar with ease.
               </p>
               
-              <div className="space-y-8">
+              <div className="space-y-10">
                 {currentTips.map((section, index) => (
                   <div key={index}>
-                    <h4 className="text-2xl font-bold text-gray-800 mb-4">{section.sectionTitle}</h4>
-                    <div className="overflow-x-auto rounded-lg shadow-sm border border-gray-200">
+                    <h4 className="text-xl md:text-2xl font-bold text-gray-800 mb-5 border-b-2 pb-2 border-purple-200">{section.sectionTitle}</h4>
+                    <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200">
                       <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-purple-50">
                           <tr>
-                            <th scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Rule</th>
-                            <th scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Example</th>
+                            <th scope="col" className={`px-4 py-3 md:px-6 md:py-4 text-xs font-semibold text-purple-700 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Rule</th>
+                            <th scope="col" className={`px-4 py-3 md:px-6 md:py-4 text-xs font-semibold text-purple-700 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Example</th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white divide-y divide-gray-100">
                           {section.tips.map((tip, tipIndex) => (
-                            <tr key={tipIndex}>
-                              <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-600 ${isRtl ? 'text-right' : 'text-left'}`} dangerouslySetInnerHTML={{ __html: tip.rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                              <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-600 ${isRtl ? 'text-right' : 'text-left'}`} dangerouslySetInnerHTML={{ __html: tip.example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                            <tr key={tipIndex} className="hover:bg-purple-50 transition-colors duration-150">
+                              <td className={`px-4 py-4 md:px-6 md:py-5 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`} dangerouslySetInnerHTML={{ __html: tip.rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                              <td className={`px-4 py-4 md:px-6 md:py-5 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`} dangerouslySetInnerHTML={{ __html: tip.example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                             </tr>
                           ))}
                         </tbody>
@@ -594,25 +595,38 @@ const GrammarPage = () => {
         )}
 
         {/* Grammar Content Section */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {filteredContent.length > 0 ? (
             filteredContent.map((topic) => (
               <TopicCard key={topic.id} {...topic} />
             ))
           ) : (
-            <p className="text-center text-gray-500 text-lg">No topics found matching your search.</p>
+            <p className="text-center text-gray-500 text-lg py-10">No topics found matching your search. Try a different keyword!</p>
           )}
         </div>
       </div>
-      {/* CSS for custom animations */}
+      {/* CSS for custom animations and overall body font */}
       <style>
         {`
           @keyframes fade-in {
-            from { opacity: 0; transform: translateY(-10px); }
+            from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
           }
           .animate-fade-in {
-            animation: fade-in 0.3s ease-out forwards;
+            animation: fade-in 0.4s ease-out forwards;
+          }
+          @keyframes pulse {
+            0%, 100% {
+              transform: scale(1);
+              opacity: 1;
+            }
+            50% {
+              transform: scale(1.05);
+              opacity: 0.8;
+            }
+          }
+          .animate-pulse {
+            animation: pulse 1.5s infinite ease-in-out;
           }
         `}
       </style>

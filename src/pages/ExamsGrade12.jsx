@@ -1,803 +1,813 @@
-import { useState, useEffect, useRef } from "react";
-import { CheckCircle, XCircle, Search, Clock, Award, RotateCcw, BookOpen, ArrowRight, Flag, Lightbulb } from "lucide-react";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, CheckCircle2, XCircle, Lightbulb, ChevronRight, ChevronLeft, Dot, CircleDot, CircleCheck, CircleX, LogOut } from 'lucide-react'; // Added LogOut icon
 
-// Mock questions data with Year and Section fields
-const questionsData = [
+// --- Mock Data for Exams (Expand this with more real data!) ---
+const subjects = ["بیركاری", "فیزیا", "کیمیا", "ئینگلیزی", "کوردی"];
+const tracks = ["زانستی", "ئەدەبی"]; // Assuming Grade 12 has these tracks
+
+const examsData = [
   {
-    id: 1,
-    subject: "بیرکاری",
-    year: "2023-2024",
-    section: "زانستی",
-    question: "چەندە یەکسانە بە $2 + 2$؟",
-    options: ["3", "4", "5", "6"],
-    answer: "4",
-    solution: "چارەسەر: $2 + 2 = 4$. ئەمە بنەمایەکی سادەی کۆکردنەوەیە. بۆ زانیاری زیاتر، بیرکاری یەکێکە لە لقە سەرەکییەکانی زانست کە مامەڵە لەگەڵ ژمارە و بڕ و فۆرم و گۆڕانکاریدا دەکات.",
+    id: 'math-exam-1',
+    subject: 'بیركاری',
+    track: 'زانستی',
+    title: 'تاقیکردنەوەی بیركاری - بەشی یەکەم',
+    questions: [
+      {
+        id: 'm1q1',
+        questionText: 'ئەم هاوکێشەیە شیکار بکە: $2x + 5 = 15$',
+        options: ['x = 5', 'x = 10', 'x = 2.5', 'x = 7.5'],
+        correctAnswer: 'x = 5',
+        explanation: 'بۆ شیکارکردنی هاوکێشەکە، سەرەتا 5 لە هەردوو لای هاوکێشەکە کەمدەکەینەوە، دەبێتە $2x = 10$. پاشان هەردوو لای دابەش بە 2 دەکەین، کە دەبێتە $x = 5$.',
+        explanationImage: null, // You can add image URLs here for complex explanations
+        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q1+Math'
+      },
+      {
+        id: 'm1q2',
+        questionText: 'چوارگۆشەی ژمارە 9 چەندە؟',
+        options: ['18', '36', '81', '90'],
+        correctAnswer: '81',
+        explanation: 'چوارگۆشەی ژمارەیەک واتە ژمارەکە جارانی خۆی. $9 \\times 9 = 81$.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q2+Math'
+      },
+      {
+        id: 'm1q3',
+        questionText: 'کاتێک دوو ژمارە کۆدەکرێنەوە 10 دەدات، یەکێکیان 4 بێت ئەوی تر چەندە؟',
+        options: ['4', '6', '14', '7'],
+        correctAnswer: '6',
+        explanation: 'بۆ دۆزینەوەی ژمارەی تر: $10 - 4 = 6$.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q3+Math'
+      },
+      {
+        id: 'm1q4',
+        questionText: 'ڕووبەری بازنەیەک کە نیوەتیرەکەی 7 بێت (پای = $22/7$)؟',
+        options: ['154', '49', '22', '14'],
+        correctAnswer: '154',
+        explanation: 'ڕووبەری بازنە: $\\text{Area} = \\pi r^2$. لێرەدا $r=7$, $\\pi=22/7$. کەواتە $\\text{Area} = (22/7) \\times 7^2 = (22/7) \\times 49 = 22 \\times 7 = 154$.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q4+Math'
+      },
+      {
+        id: 'm1q5',
+        questionText: 'گۆشەکانی سێگۆشە چەند پلەیە؟',
+        options: ['90', '180', '270', '360'],
+        correctAnswer: '180',
+        explanation: 'کۆ گۆشەکانی ناوەوەی سێگۆشە هەمیشە $180$ پلەیە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q5+Math'
+      },
+    ]
   },
   {
-    id: 2,
-    subject: "زانست",
-    year: "2023-2024",
-    section: "زانستی",
-    question: "کام هەسارەیە نزیکترینە لە خۆر؟",
-    options: ["زەوی", "مەریخ", "ڤینۆس", "عەطارد"],
-    answer: "عەطارد",
-    solution: "چارەسەر: هەسارەی عەطارد نزیکترین هەسارەیە لە خۆر. تەنها $57.9$ ملیۆن کیلۆمەتر دوورە لە خۆرەوە.",
+    id: 'physics-exam-1',
+    subject: 'فیزیا',
+    track: 'زانستی',
+    title: 'تاقیکردنەوەی فیزیا - بەشی یەکەم',
+    questions: [
+      {
+        id: 'p1q1',
+        questionText: 'کام یەکێک لەمانە یەکەی هێزە؟',
+        options: ['جول', 'وات', 'نیوتن', 'پاسکال'],
+        correctAnswer: 'نیوتن',
+        explanation: 'نیوتن (Newton) یەکەی SI هێزە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q1+Physics'
+      },
+      {
+        id: 'p1q2',
+        questionText: 'یاسای دووەمی نیوتن چییە؟',
+        options: ['E=mc²', 'F=ma', 'V=IR', 'P=IV'],
+        correctAnswer: 'F=ma',
+        explanation: 'یاسای دووەمی نیوتن باس لە پەیوەندی نێوان هێز (F)، بارستایی (m) و خێرایی (a) دەکات.',
+        explanationImage: 'https://placehold.co/300x150/f0f9ff/0f172a?text=F=ma'
+      },
+      {
+        id: 'p1q3',
+        questionText: 'کاتێک تەنێک بە خێرایی جێگیر دەجوڵێت، هێزی گشتی لێی چەندە؟',
+        options: ['زیاتر لە سفر', 'کەمتر لە سفر', 'سفر', 'نازانرێت'],
+        correctAnswer: 'سفر',
+        explanation: 'بەپێی یاسای یەکەمی نیوتن، ئەگەر هێزی گشتی سفر بێت، تەنەکە بە خێرایی جێگیر دەجوڵێت یان لە وەستاندا دەمێنێتەوە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q3+Physics'
+      },
+      {
+        id: 'p1q4',
+        questionText: 'کامیان سەرچاوەی وزەی نوێبووەوەیە؟',
+        options: ['نەوت', 'خەڵوز', 'ڕۆژ', 'گاز'],
+        correctAnswer: 'ڕۆژ',
+        explanation: 'ڕۆژ سەرچاوەیەکی سروشتی و هەمیشەیی وزەیە کە بەرهەمی نوێبووەوەیە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q4+Physics'
+      },
+    ]
   },
   {
-    id: 3,
-    subject: "ئینگلیزی",
-    year: "2022-2023",
-    section: "زانستی",
-    question: "تێپەڕبووی 'go' چییە؟",
-    options: ["goed", "gone", "went", "going"],
-    answer: "went",
-    solution: "Solution: The past tense of 'go' is 'went'. For example: 'I go to school every day.' (present) vs. 'I went to school yesterday.' (past).",
+    id: 'kurdish-exam-1',
+    subject: 'کوردی',
+    track: 'ئەدەبی',
+    title: 'تاقیکردنەوەی کوردی - گرامەر',
+    questions: [
+      {
+        id: 'k1q1',
+        questionText: 'کام وشە ناوە؟',
+        options: ['ڕۆیشت', 'خۆش', 'پیاو', 'بە'],
+        correctAnswer: 'پیاو',
+        explanation: '"پیاو" ناوە و ناوی کەسێکە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q1+Kurdish'
+      },
+      {
+        id: 'k1q2',
+        questionText: 'کام ڕستەیە هاوڵاتی تێدایە؟',
+        options: ['من دەڕۆم', 'ئەو خوێندکارە', 'ئێمە یاری دەکەین', 'تۆ جوان بووی'],
+        correctAnswer: 'ئەو خوێندکارە',
+        explanation: 'لە زمانی کوردیدا "ئەو خوێندکارە" ڕستەیەکی تەواوە و "خوێندکارە" هاوڵاتییە.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q2+Kurdish'
+      },
+      {
+        id: 'k1q3',
+        questionText: 'ژمارەی پیتی بزوێن لە وشەی "کتێب" چەندە؟',
+        options: ['یەک', 'دوو', 'سێ', 'چوار'],
+        correctAnswer: 'دوو',
+        explanation: 'پیتی بزوێن لە وشەی "کتێب" بریتین لە "ی" و "ێ".',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q3+Kurdish'
+      },
+    ]
   },
   {
-    id: 4,
-    subject: "کۆمەڵایەتی",
-    year: "2022-2023",
-    section: "وێژەیی",
-    question: "پایتەختی عێراق چییە؟",
-    options: ["هەولێر", "سلێمانی", "بەغداد", "کەرکوک"],
-    answer: "بەغداد",
-  },
-  {
-    id: 5,
-    subject: "بیرکاری",
-    year: "2021-2022",
-    section: "زانستی",
-    question: "چەندە یەکسانە بە $5 \\times 3$؟",
-    options: ["10", "15", "20", "25"],
-    answer: "15",
-    solution: "https://placehold.co/600x250/aad8ff/2c3e50?text=Solution+Image+for+5x3%0A(Example+Diagram)", // Example image URL for solution
-  },
-  {
-    id: 6,
-    subject: "زانست",
-    year: "2021-2022",
-    section: "زانستی",
-    question: "فرمول کیمیایی آب چیست؟",
-    options: ["CO2", "O2", "H2O", "N2"],
-    answer: "H2O",
-    solution: "Solution: The chemical formula for water is $H_2O$. This means each molecule of water contains two hydrogen atoms and one oxygen atom.",
-  },
-  {
-    id: 7,
-    subject: "ئینگلیزی",
-    year: "2020-2021",
-    section: "زانستی",
-    question: "What is the opposite of 'hot'?",
-    options: ["warm", "cold", "big", "small"],
-    answer: "cold",
-  },
-  {
-    id: 8,
-    subject: "کۆمەڵایەتی",
-    year: "2020-2021",
-    section: "وێژەیی",
-    question: "کێ نووسەری 'مەم و زین' بوو؟",
-    options: ["نالی", "کوردی", "خانای قوبادی", "ئەحمەدی خانی"],
-    answer: "ئەحمەدی خانی",
-  },
-  {
-    id: 9,
-    subject: "بیرکاری",
-    year: "2023-2024",
-    section: "زانستی",
-    question: "کۆتایی زنجیرەی ژمارەکان چییە؟ $1, 3, 5, 7, \\dots$",
-    options: ["9", "10", "11", "12"],
-    answer: "9",
-    solution: "چارەسەر: ئەمە زنجیرەیەکی ژمارە تاکەکانە. ژمارەی داهاتوو دوای 7 دەبێت 9. ($1+2=3, 3+2=5, 5+2=7, 7+2=9$)",
-  },
-  {
-    id: 10,
-    subject: "زانست",
-    year: "2023-2024",
-    section: "زانستی",
-    question: "کام گازی ئۆکسجین دەردەکات لە پرۆسەی فۆتۆسێنتێزیسدا؟",
-    options: ["کاربۆن دایۆکساید", "نیتڕۆجین", "ئاڵت وێژەن", "هیلیۆم"],
-    answer: "کاربۆن دایۆکساید",
-    solution: "چارەسەر: لە پرۆسەی فۆتۆسێنتێزیسدا، ڕووەکەکان گازی کاربۆن دایۆکساید هەڵدەمژن و ئۆکسجین دەردەکەن وەک بەرهەمێکی لاوەکی. هاوکێشەی گشتی فۆتۆسێنتێزیس: $6CO_2 + 6H_2O + \\text{ڕووناکی} \\rightarrow C_6H_{12}O_6 + 6O_2$",
-  },
-  {
-    id: 11,
-    subject: "ئینگلیزی",
-    year: "2022-2023",
-    section: "زانستی",
-    question: "What is the plural of 'child'?",
-    options: ["childs", "childes", "children", "childen"],
-    answer: "children",
-  },
-  {
-    id: 12,
-    subject: "کۆمەڵایەتی",
-    year: "2022-2023",
-    section: "وێژەیی",
-    question: "سەربەخۆیی ویلایەتە یەکگرتووەکانی ئەمریکا لە چ ساڵێکدا ڕاگەیەندرا؟",
-    options: ["1774", "1776", "1783", "1789"],
-    answer: "1776",
-  },
-  {
-    id: 13,
-    subject: "کوردی",
-    year: "2023-2024",
-    section: "وێژەیی",
-    question: "ناوی پایتەختی کوردستان چییە؟",
-    options: ["سلێمانی", "هەولێر", "دهۆک", "کەرکوک"],
-    answer: "هەولێر",
-    solution: "چارەسەر: هەولێر بە پایتەختی هەرێمی کوردستان دادەنرێت.",
-  },
-  {
-    id: 14,
-    subject: "فیزیا",
-    year: "2021-2022",
-    section: "زانستی",
-    question: "فۆرموڵی هێز چییە بەپێی یاسای دووەمی نیوتن؟",
-    options: ["$E=mc^2$", "$F=ma$", "$P=IV$", "$V=IR$"],
-    answer: "$F=ma$",
-    solution: "چارەسەر: بەپێی یاسای دووەمی نیوتن، هێز (F) یەکسانە بە بارستە (m) جارانی تاودان (a)، واتە $F=ma$.",
-  },
-  {
-    id: 15,
-    subject: "مێژوو",
-    year: "2020-2021",
-    section: "وێژەیی",
-    question: "کەی شۆڕشی فەڕەنسا دەستی پێکرد؟",
-    options: ["1776", "1789", "1804", "1815"],
-    answer: "1789",
-    solution: "چارەسەر: شۆڕشی فەڕەنسا لە ساڵی 1789 دەستی پێکرد و بە ڕووخانی بەندینخانەی باستیل لە 14ی تەمموزەوە دەستی پێکرا.",
+    id: 'english-exam-1',
+    subject: 'ئینگلیزی',
+    track: 'زانستی',
+    title: 'English Exam - Grammar Basics',
+    questions: [
+      {
+        id: 'e1q1',
+        questionText: 'Which one is a verb?',
+        options: ['Table', 'Run', 'Happy', 'Blue'],
+        correctAnswer: 'Run',
+        explanation: '"Run" is an action word.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/3b82f6/ffffff?text=Q1+English'
+      },
+      {
+        id: 'e1q2',
+        questionText: 'Complete the sentence: "She ___ to the store." (Past tense)',
+        options: ['go', 'goes', 'went', 'going'],
+        correctAnswer: 'went',
+        explanation: '"Went" is the past tense of "go", suitable for a completed action.',
+        explanationImage: null,
+        image: 'https://placehold.co/400x200/3b82f6/ffffff?text=Q2+English'
+      },
+    ]
   },
 ];
 
-
-const timeOptions = {
-  free: 0, // Free mode, no timer
-  "15min": 15 * 60, // 15 minutes in seconds
-  "30min": 30 * 60, // 30 minutes in seconds
-  "1h": 60 * 60, // 1 hour in seconds
-  "2h": 2 * 60 * 60, // 2 hours in seconds
+// --- Utility function to shuffle an array ---
+const shuffleArray = (array) => {
+  const newArray = [...array]; // Create a shallow copy to avoid mutating original
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
 };
 
+// --- Main ExamsGrade12 Component ---
 const ExamsGrade12 = () => {
-  // State variables for managing exam flow and data
-  const [step, setStep] = useState(0); // Current question index
-  const [answers, setAnswers] = useState([]); // User's selected answers
-  const [showResult, setShowResult] = useState(false); // Flag to show result screen
-  const [timerType, setTimerType] = useState("free"); // Selected timer duration
-  const [timeLeft, setTimeLeft] = useState(0); // Remaining time in seconds
-  const [started, setStarted] = useState(false); // Flag indicating if exam has started
-  const [selectedSubject, setSelectedSubject] = useState("هەموو بابەتەکان"); // Currently selected subject for filtering
-  const [selectedYear, setSelectedYear] = useState("هەموو ساڵەکان"); // New: Selected year for filtering
-  const [selectedSection, setSelectedSection] = useState("هەموو بەشەکان"); // New: Selected section for filtering
-  const [filteredQuestions, setFilteredQuestions] = useState([]); // Questions filtered by subject, year, and section
-  // Application mode: 'initial' (welcome), 'exam_setup', 'exam' (in progress), 'review' (reviewing answers), 'view_answers' (just showing answers)
-  const [mode, setMode] = useState("initial");
-  const totalTime = timeOptions[timerType]; // Total time for the selected timer
+  // --- State Management ---
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedTrack, setSelectedTrack] = useState('');
+  const [availableExams, setAvailableExams] = useState([]);
+  const [currentExam, setCurrentExam] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState({}); // Stores {questionId: selectedOption}
+  const [showResults, setShowResults] = useState(false);
+  const [showOverallExplanation, setShowOverallExplanation] = useState(false); // For showing *all* explanations in results view
+  const [showLiveExplanation, setShowLiveExplanation] = useState(false); // For showing *current question's* explanation live
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [quizStarted, setQuizStarted] = useState(false); // To manage quiz flow
+  const [timerDurationInput, setTimerDurationInput] = useState(''); // New state for manual timer input
+  const [examMode, setExamMode] = useState('practice'); // 'practice' or 'exam'
 
-  // New state for displaying "no questions found" message
-  const [showNoQuestionsMessage, setShowNoQuestionsMessage] = useState(false);
+  // --- Handlers (Moved to top for proper hoisting with useCallback) ---
 
-  // Ref for the MathJax script (to re-render math after question change)
-  const mathJaxRef = useRef(null);
+  const calculateScore = useCallback(() => {
+    if (!currentExam) return { correct: 0, total: 0 };
+    let correctCount = 0;
+    currentExam.questions.forEach(q => {
+      if (userAnswers[q.id] === q.correctAnswer) {
+        correctCount++;
+      }
+    });
+    return { correct: correctCount, total: currentExam.questions.length };
+  }, [currentExam, userAnswers]);
 
-  // Get lists of unique subjects, years, and sections for the filter dropdowns
-  const uniqueSubjects = [
-    "هەموو بابەتەکان",
-    ...new Set(questionsData.map((q) => q.subject)),
-  ];
-  const uniqueYears = [ // New: Unique years for filter
-    "هەموو ساڵەکان",
-    ...new Set(questionsData.map((q) => q.year)),
-  ];
-  const uniqueSections = [ // New: Unique sections for filter
-    "هەموو بەشەکان",
-    ...new Set(questionsData.map((q) => q.section)),
-  ];
+  const handleSubmitQuiz = useCallback(() => {
+    setIsTimerRunning(false);
+    setShowResults(true);
+    setShowLiveExplanation(false); // Hide live explanation when submitting
+  }, []);
 
-  // useEffect for handling the exam timer
-  useEffect(() => {
-    let interval;
-    // Start timer if in exam mode, started, has a time limit, and time is left
-    if (mode === "exam" && started && totalTime > 0 && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    }
-    // If timer runs out in exam mode, show results
-    if (mode === "exam" && timeLeft === 0 && started && totalTime > 0) {
-      setShowResult(true);
-    }
-    return () => clearInterval(interval); // Cleanup: clear interval on component unmount or dependency change
-  }, [timeLeft, started, totalTime, mode]); // Dependencies for useEffect
-
-  // useEffect for MathJax rendering when questions change
-  useEffect(() => {
-    // Dynamically load MathJax script if not already loaded
-    if (!mathJaxRef.current) {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
-      script.async = true;
-      script.onload = () => {
-        if (window.MathJax) {
-          window.MathJax.typesetPromise(); // Typeset any existing math
-        }
-      };
-      document.head.appendChild(script);
-      mathJaxRef.current = script;
-    } else if (window.MathJax) {
-      // If MathJax is already loaded, re-typeset when a new question is displayed
-      window.MathJax.typesetPromise();
-    }
-  }, [step, filteredQuestions, mode]); // Re-run when question step or filtered questions change
-
-  // Clear "no questions found" message when filters change
-  useEffect(() => {
-    setShowNoQuestionsMessage(false);
-  }, [selectedSubject, selectedYear, selectedSection]);
-
-
-  // Handle user's option selection during an exam
-  const handleSelect = (option) => {
-    if (mode !== "exam") return; // Only allow selection in 'exam' mode
-
-    const newAnswers = [...answers];
-    newAnswers[step] = {
-      selected: option,
-      correct: option === filteredQuestions[step].answer, // Check if selected option is correct
-    };
-    setAnswers(newAnswers);
-
-    // Play sound feedback based on correctness
-    // Note: You need to have 'correct.mp3' and 'wrong.mp3' files in your public directory
-    const audio = new Audio(
-      option === filteredQuestions[step].answer ? "/sounds/correct.mp3" : "/sounds/wrong.mp3"
-    );
-    audio.play();
-  };
-
-  // Navigate to the next question or finalize the exam/review
-  const next = () => {
-    if (step + 1 < filteredQuestions.length) {
-      setStep(step + 1); // Move to next question
+  const handleNextQuestion = useCallback(() => {
+    setShowLiveExplanation(false); // Hide live explanation when moving to next question
+    if (currentExam && currentQuestionIndex < currentExam.questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
     } else {
-      setShowResult(true); // All questions answered/reviewed, show results
+      // If it's the last question or no more questions, submit the quiz
+      setIsTimerRunning(false);
+      setShowResults(true);
+    }
+  }, [currentExam, currentQuestionIndex]);
+
+  const handlePreviousQuestion = useCallback(() => {
+    setShowLiveExplanation(false); // Hide live explanation when moving to previous question
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  }, [currentQuestionIndex]);
+
+  const handleResetQuiz = useCallback(() => {
+    setSelectedSubject('');
+    setSelectedTrack('');
+    setCurrentExam(null);
+    setQuizStarted(false);
+    setShowResults(false);
+    setTimerSeconds(0);
+    setIsTimerRunning(false);
+    setUserAnswers({});
+    setShowOverallExplanation(false);
+    setShowLiveExplanation(false);
+    setTimerDurationInput(''); // Reset timer input
+    setExamMode('practice'); // Reset exam mode
+  }, []);
+
+  // New handler to exit the quiz gracefully
+  const handleExitQuiz = useCallback(() => {
+    // Implement confirmation if needed:
+    // if (!window.confirm("دڵنیایت کە دەتەوێت لە تاقیکردنەوەکە بێیتە دەرەوە؟")) {
+    //   return;
+    // }
+    handleResetQuiz(); // Reuse the reset function to go back to initial state
+  }, [handleResetQuiz]);
+
+  // --- Filtering available exams based on subject and track ---
+  useEffect(() => {
+    const filtered = examsData.filter(exam =>
+      (selectedSubject ? exam.subject === selectedSubject : true) &&
+      (selectedTrack ? exam.track === selectedTrack : true)
+    );
+    setAvailableExams(filtered);
+    setCurrentExam(null); // Reset current exam if filters change
+    setQuizStarted(false);
+    setShowResults(false);
+    setTimerSeconds(0);
+    setIsTimerRunning(false);
+    setUserAnswers({});
+    setShowOverallExplanation(false); // Reset explanation view
+    setShowLiveExplanation(false); // Reset live explanation
+  }, [selectedSubject, selectedTrack]);
+
+  // --- Timer logic ---
+  useEffect(() => {
+    let interval = null;
+    if (isTimerRunning && timerSeconds > 0) {
+      interval = setInterval(() => {
+        setTimerSeconds(prevSeconds => prevSeconds - 1);
+      }, 1000);
+    } else if (timerSeconds === 0 && isTimerRunning) {
+      setIsTimerRunning(false);
+      handleSubmitQuiz(); // Automatically submit when timer runs out
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning, timerSeconds, handleSubmitQuiz]);
+
+  // --- Handlers (remaining, now after the core useCallback definitions) ---
+  const handleStartQuiz = (exam) => {
+    // Shuffle options ONCE when the quiz starts for each question
+    const newExam = {
+      ...exam,
+      questions: exam.questions.map(q => ({
+        ...q,
+        // Ensure options are shuffled and stored once per question
+        shuffledOptions: shuffleArray(q.options)
+      }))
+    };
+    setCurrentExam(newExam);
+    setCurrentQuestionIndex(0);
+    setUserAnswers({});
+    setShowResults(false);
+    setShowOverallExplanation(false);
+    setShowLiveExplanation(false);
+    setQuizStarted(true);
+    // Use manual timer input, or default to 1 min per question if not set
+    const initialTimer = timerDurationInput ? parseInt(timerDurationInput) * 60 : newExam.questions.length * 60;
+    setTimerSeconds(initialTimer);
+    setIsTimerRunning(true);
+  };
+
+  const handleAnswerChange = (questionId, option) => {
+    // Allow answering only if results are not being shown
+    if (!showResults) {
+      setUserAnswers(prev => ({ ...prev, [questionId]: option }));
+      // ONLY set showLiveExplanation to true if in 'practice' mode
+      // and a selection has been made (will be triggered by button, not here)
     }
   };
 
-  // Restart the application to its initial state
-  const restart = () => {
-    setStep(0);
-    setAnswers([]);
-    setShowResult(false);
-    setStarted(false);
-    setTimeLeft(0);
-    setSelectedSubject("هەموو بابەتەکان");
-    setSelectedYear("هەموو ساڵەکان"); // Reset year filter
-    setSelectedSection("هەموو بەشەکان"); // Reset section filter
-    setFilteredQuestions([]);
-    setMode("initial");
+  const formatTime = (totalSeconds) => {
+    if (totalSeconds < 0) return "00:00"; // Prevent negative time display
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Function to apply all filters and set the questions for the session
-  const applyFilters = () => {
-    let questionsToUse = questionsData;
+  const currentQuestion = currentExam?.questions[currentQuestionIndex];
+  const score = showResults ? calculateScore() : { correct: 0, total: currentExam?.questions.length || 0 };
 
-    if (selectedSubject !== "هەموو بابەتەکان") {
-      questionsToUse = questionsToUse.filter((q) => q.subject === selectedSubject);
-    }
-    if (selectedYear !== "هەموو ساڵەکان") {
-      questionsToUse = questionsToUse.filter((q) => q.year === selectedYear);
-    }
-    if (selectedSection !== "هəموو بەشەکان") { // Changed from 'هەموو بەشەکان' due to potential typo
-      questionsToUse = questionsToUse.filter((q) => q.section === selectedSection);
-    }
-    return questionsToUse;
+  // Framer Motion variants for section transitions
+  const sectionVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+    exit: { opacity: 0, y: -20, transition: { duration: 0.2, ease: "easeIn" } },
   };
 
+  // Determine button styles for subject/track selection
+  const getButtonClass = (isActive) =>
+    `px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap flex items-center gap-2 justify-center
+     ${isActive ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-500/50" : "bg-gray-200 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700"}`;
 
-  // Initialize and start the exam
-  const startExam = () => {
-    const questions = applyFilters();
-    if (questions.length === 0) {
-      setShowNoQuestionsMessage(true); // Show message if no questions
-      setMode("initial"); // Stay on initial mode
-      return;
+  // Option styling logic
+  const getOptionClass = (option) => {
+    const isSelected = userAnswers[currentQuestion.id] === option;
+    const isCorrect = currentQuestion.correctAnswer === option;
+    const isUserIncorrect = isSelected && !isCorrect; // User selected this, and it's wrong
+
+    // When showing full results or live explanation, apply full feedback colors
+    if (showResults || (examMode === 'practice' && showLiveExplanation)) {
+      if (isCorrect) {
+        return 'bg-green-100 border-green-500 shadow-md ring-1 ring-green-400'; // Correct answer
+      } else if (isUserIncorrect) {
+        return 'bg-red-100 border-red-500 shadow-md ring-1 ring-red-400'; // User chose this and it was wrong
+      } else { // Unselected, incorrect options (or unselected correct if user chose wrong)
+        return 'bg-gray-50 border-gray-200';
+      }
+    } else {
+      // In active quiz mode (no results, no live explanation), only highlight selected
+      return isSelected
+        ? 'bg-blue-100 border-blue-500 shadow-sm'
+        : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-blue-300';
     }
-    setShowNoQuestionsMessage(false); // Hide message if questions are found
-    setFilteredQuestions(questions);
-    setStarted(true);
-    setMode("exam_setup"); // Go to exam setup to choose time
-    setStep(0); // Reset step for new exam
-    setAnswers([]); // Clear answers for new exam
   };
-
-  // Initialize and start review mode
-  const startReview = () => {
-    const questions = applyFilters();
-    if (questions.length === 0) {
-      setShowNoQuestionsMessage(true);
-      setMode("initial"); // Stay on initial mode
-      return;
-    }
-    setShowNoQuestionsMessage(false);
-    setFilteredQuestions(questions);
-    setStarted(true);
-    setMode("review"); // Set mode to 'review'
-    setShowResult(false); // Ensure result screen is hidden
-    setStep(0); // Start from the first question
-    setAnswers([]); // Clear answers for review
-  };
-
-  // Initialize and display answers for a selected subject
-  const viewAnswersForSubject = () => {
-    const questions = applyFilters();
-    if (questions.length === 0) {
-      setShowNoQuestionsMessage(true);
-      setMode("initial"); // Stay on initial mode
-      return;
-    }
-    setShowNoQuestionsMessage(false);
-    setFilteredQuestions(questions);
-    setAnswers([]); // Clear any previous answers
-    setStep(0); // Start from the first question
-    setStarted(true); // Indicate a session is active for rendering
-    setMode("view_answers"); // Set mode to 'view_answers'
-    setShowResult(true); // Directly show the result-like screen with answers
-  };
-
-  // Get the current question based on the 'step' index
-  const currentQuestion = filteredQuestions[step];
 
   return (
-    // Main container with full-width background and centered content
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-300 via-purple-300 to-pink-300 flex flex-col items-center justify-center p-4 sm:p-8 font-sans antialiased overflow-hidden relative">
-      {/* Background blobs for fun visual effect */}
-      <div className="absolute top-0 left-0 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
-      <div className="absolute top-0 right-0 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-      <div className="absolute bottom-0 left-20 w-80 h-80 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+    <div className="bg-white rounded-xl shadow-lg p-6 space-y-6 border border-slate-100">
+      <h2 className="text-3xl font-extrabold text-indigo-700 mb-6 text-center">
+        تاقیکردنەوەکانی پۆلی ١٢ - مەشقکردن
+      </h2>
 
-      <div className="container max-w-6xl w-full bg-white bg-opacity-95 backdrop-filter backdrop-blur-lg shadow-4xl rounded-3xl p-6 sm:p-12 space-y-8 border-t-8 border-indigo-700 relative z-10 transition-all duration-500 ease-in-out transform hover:scale-[1.005]">
-        {/* Initial Welcome Screen - Redesigned */}
-        {mode === "initial" && (
-          <div className="flex flex-col items-center justify-center min-h-[70vh] py-8 px-4 sm:px-8 animate-fade-in">
-            <h1 className="text-5xl sm:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 mb-6 drop-shadow-lg leading-tight text-center animate-slide-in-down">
-              ئامادەبە بۆ سەرکەوتن!
-              <p className="text-xl sm:text-3xl font-medium text-gray-700 mt-4">
-                تاقیکردنەوەی پۆلی 12
-              </p>
-            </h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl my-10">
-              {/* Subject Filter */}
-              <div className="relative animate-pop">
-                <label htmlFor="subject-select" className="block text-lg font-medium text-gray-700 text-right mb-2">بابەت هەڵبژێرە:</label>
-                <select
-                  id="subject-select"
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="block appearance-none w-full bg-white border-2 border-indigo-400 text-gray-800 py-4 px-6 pr-12 rounded-full leading-tight focus:outline-none focus:ring-4 focus:ring-indigo-300 focus:border-indigo-600 text-xl shadow-xl cursor-pointer transition-all duration-300 hover:border-indigo-600"
+      <AnimatePresence mode="wait">
+        {!quizStarted && (
+          <motion.div
+            key="quiz-setup"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="space-y-6"
+          >
+            {/* Exam Mode Selection */}
+            <div className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">شێوازی تاقیکردنەوە:</label>
+              <div className="flex flex-wrap gap-3">
+                <motion.button
+                  onClick={() => setExamMode('practice')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={getButtonClass(examMode === 'practice')}
                 >
-                  {uniqueSubjects.map((subject) => (
-                    <option key={subject} value={subject} className="py-2">
-                      {subject}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-600">
-                  <svg className="fill-current h-7 w-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Year Filter */}
-              <div className="relative animate-pop">
-                <label htmlFor="year-select" className="block text-lg font-medium text-gray-700 text-right mb-2">ساڵی تاقیکردنەوە:</label>
-                <select
-                  id="year-select"
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="block appearance-none w-full bg-white border-2 border-indigo-400 text-gray-800 py-4 px-6 pr-12 rounded-full leading-tight focus:outline-none focus:ring-4 focus:ring-indigo-300 focus:border-indigo-600 text-xl shadow-xl cursor-pointer transition-all duration-300 hover:border-indigo-600"
+                  <Lightbulb size={18} /> شێوازی مەشق (نیشاندانی وەڵام)
+                </motion.button>
+                <motion.button
+                  onClick={() => setExamMode('exam')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={getButtonClass(examMode === 'exam')}
                 >
-                  {uniqueYears.map((year) => (
-                    <option key={year} value={year} className="py-2">
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-600">
-                  <svg className="fill-current h-7 w-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Section Filter */}
-              <div className="relative animate-pop">
-                <label htmlFor="section-select" className="block text-lg font-medium text-gray-700 text-right mb-2">جۆری بەش:</label>
-                <select
-                  id="section-select"
-                  value={selectedSection}
-                  onChange={(e) => setSelectedSection(e.target.value)}
-                  className="block appearance-none w-full bg-white border-2 border-indigo-400 text-gray-800 py-4 px-6 pr-12 rounded-full leading-tight focus:outline-none focus:ring-4 focus:ring-indigo-300 focus:border-indigo-600 text-xl shadow-xl cursor-pointer transition-all duration-300 hover:border-indigo-600"
-                >
-                  {uniqueSections.map((section) => (
-                    <option key={section} value={section} className="py-2">
-                      {section}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-600">
-                  <svg className="fill-current h-7 w-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
+                  <Clock size={18} /> شێوازی تاقیکردنەوە (وەڵام لە کۆتاییدا)
+                </motion.button>
               </div>
             </div>
 
-            {/* No questions found message */}
-            {showNoQuestionsMessage && (
-                <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-xl relative mb-6 animate-fade-in" role="alert">
-                    <strong className="font-bold">سەرنج!</strong>
-                    <span className="block sm:inline"> هیچ پرسیارێک بەپێی هەڵبژاردەکانت نەدۆزرایەوە. تکایە فلتەرەکان بگۆڕە.</span>
+            {/* Subject Selection */}
+            <div className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">📚 بابەتی تاقیکردنەوە هەڵبژێرە:</label>
+              <div className="flex flex-wrap gap-3">
+                {subjects.map(subj => (
+                  <motion.button
+                    key={subj}
+                    onClick={() => setSelectedSubject(subj)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={getButtonClass(selectedSubject === subj)}
+                  >
+                    {subj}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Track Selection (if applicable and subject selected) */}
+            {selectedSubject && (
+              <motion.div
+                key="track-selection"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100 overflow-hidden" // overflow-hidden for height animation
+              >
+                <label className="block text-sm font-semibold text-gray-700 mb-3">لقی خوێندن:</label>
+                <div className="flex flex-wrap gap-3">
+                  {tracks.map(track => (
+                    <motion.button
+                      key={track}
+                      onClick={() => setSelectedTrack(track)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={getButtonClass(selectedTrack === track)}
+                    >
+                      {track}
+                    </motion.button>
+                  ))}
                 </div>
+              </motion.div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-2xl mt-12">
-              <button
-                onClick={() => setMode("exam_setup")}
-                className="group w-full p-5 bg-gradient-to-br from-emerald-500 to-teal-600 text-white text-xl font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400 flex flex-col items-center justify-center gap-3 relative overflow-hidden"
+            {/* Timer Duration Input (Only visible if Exam Mode is selected) */}
+            {examMode === 'exam' && (
+              <motion.div
+                key="timer-input-section"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100 overflow-hidden"
               >
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                <Award size={40} className="mb-2 group-hover:rotate-6 transition-transform duration-300" />
-                دەست پێ بکە بە تاقیکردنەوە
-              </button>
-              <button
-                onClick={startReview}
-                className="group w-full p-5 bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white text-xl font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-rose-400 flex flex-col items-center justify-center gap-3 relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                <BookOpen size={40} className="mb-2 group-hover:-rotate-6 transition-transform duration-300" />
-                پرسیارەکان ببینە (بێ تاقیکردنەوە)
-              </button>
-              <button
-                onClick={viewAnswersForSubject}
-                className="group w-full p-5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400 flex flex-col items-center justify-center gap-3 relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                <Search size={40} className="mb-2 group-hover:translate-y-1 transition-transform duration-300" />
-                بینینی وەڵامەکان بۆ بابەتێک
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Exam Setup Screen */}
-        {mode === "exam_setup" && (
-          <div className="space-y-8 text-center py-8 animate-fade-in">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-800">کاتی تاقیکردنەوە هەڵبژێرە:</h2>
-            <div className="relative inline-block w-full max-w-md animate-pop">
-              <select
-                value={timerType}
-                onChange={(e) => setTimerType(e.target.value)}
-                className="block appearance-none w-full bg-white border border-gray-300 text-gray-700 py-4 px-6 pr-10 rounded-xl leading-tight focus:outline-none focus:ring-4 focus:ring-indigo-400 focus:border-indigo-600 text-xl shadow-lg cursor-pointer transition-all duration-300 hover:border-indigo-400"
-              >
-                <option value="free">بێ سنوور</option>
-                <option value="15min">15 خولەک</option>
-                <option value="30min">30 خولەک</option>
-                <option value="1h">1 کاتژمێر</option>
-                <option value="2h">2 کاتژمێر</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-700">
-                <svg className="fill-current h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
-              </div>
-            </div>
-            <button
-              onClick={startExam} // This button's actual action is now handled by startExam which goes to exam_setup
-              className="w-full p-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-2xl font-semibold rounded-2xl shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400 flex items-center justify-center gap-3 animate-pop animation-delay-100"
-            >
-              <Clock size={32} /> دەست پێ بکە
-            </button>
-            <button
-              onClick={() => setMode("initial")}
-              className="w-full p-5 bg-gray-300 text-gray-800 text-2xl font-semibold rounded-2xl shadow-md hover:bg-gray-400 transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-gray-300 flex items-center justify-center gap-3 animate-pop animation-delay-200"
-            >
-              گەڕانەوە
-            </button>
-          </div>
-        )}
-
-        {/* Exam or Review in progress screen */}
-        {["exam", "review"].includes(mode) && !showResult && currentQuestion && (
-          <>
-            <div className="flex flex-col sm:flex-row justify-between items-center flex-wrap gap-4 mb-6 pb-4 border-b-2 border-indigo-400 animate-fade-in-down">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
-                سەبارەت بە: <span className="text-indigo-700">{currentQuestion.subject}</span>
-              </h2>
-              <span className="text-lg text-gray-600 font-medium">
-                پرسیار <span className="font-extrabold text-xl text-indigo-800">{step + 1}</span> / <span className="font-extrabold text-xl text-indigo-800">{filteredQuestions.length}</span>
-              </span>
-            </div>
-
-            {mode === "exam" && totalTime > 0 && (
-              <div className="text-center text-3xl text-red-600 font-bold mb-6 animate-pulse bg-red-50 p-4 rounded-xl border border-red-200 shadow-inner">
-                ⏳ ماوە: {Math.floor(timeLeft / 60)}:
-                {(timeLeft % 60).toString().padStart(2, "0")}
-              </div>
+                <label htmlFor="timer-duration" className="block text-sm font-semibold text-gray-700 mb-3">⏰ ماوەی تاقیکردنەوە (خولەک):</label>
+                <input
+                  id="timer-duration"
+                  type="number"
+                  min="1"
+                  placeholder="بۆ نموونە: 30"
+                  value={timerDurationInput}
+                  onChange={(e) => setTimerDurationInput(e.target.value)}
+                  className="w-full px-5 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-400 outline-none transition-all duration-200 text-gray-800 placeholder-gray-400 text-right"
+                />
+                <p className="text-xs text-gray-500 mt-1">ئەگەر بەتاڵ بێت، 1 خولەک بۆ هەر پرسیارێک دادەنرێت.</p>
+              </motion.div>
             )}
 
-            {/* Question Navigation Bubbles */}
-            <div className="flex flex-wrap gap-3 justify-center py-4 px-2 bg-indigo-100 rounded-xl p-3 shadow-inner border border-indigo-200 mb-8 animate-fade-in-up">
-              {filteredQuestions.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setStep(idx)}
-                  className={`w-14 h-14 text-xl rounded-full font-bold transition-all duration-300 shadow-md flex items-center justify-center text-white ring-offset-2 ring-offset-white transform hover:scale-110 active:scale-95
-                    ${
-                      idx === step
-                        ? "bg-indigo-700 ring-4 ring-indigo-400"
-                        : answers[idx] && answers[idx].correct && mode === "exam"
-                        ? "bg-green-500 hover:bg-green-600"
-                        : answers[idx] && !answers[idx].correct && mode === "exam"
-                        ? "bg-rose-500 hover:bg-rose-600"
-                        : "bg-gray-500 hover:bg-gray-600"
+            {/* Available Exams List */}
+            {availableExams.length > 0 && selectedSubject ? (
+              <motion.div
+                key="available-exams"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100"
+              >
+                <label className="block text-sm font-semibold text-gray-700 mb-3">تاقیکردنەوە بەردەستەکان:</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {availableExams.map(exam => (
+                    <motion.button
+                      key={exam.id}
+                      onClick={() => handleStartQuiz(exam)}
+                      whileHover={{ scale: 1.02, boxShadow: "0 4px 8px rgba(0,0,0,0.1)" }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex flex-col items-start p-4 rounded-lg bg-white border border-blue-200 text-right shadow-sm hover:shadow-md transition-all duration-200"
+                    >
+                      <span className="text-lg font-semibold text-blue-700">{exam.title}</span>
+                      <span className="text-sm text-gray-600">ژمارەی پرسیارەکان: {exam.questions.length}</span>
+                      <span className="text-xs text-gray-500">{exam.subject} - {exam.track}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              selectedSubject && (
+                <motion.div
+                  key="no-exams"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center text-gray-500 text-base py-4"
+                >
+                  هیچ تاقیکردنەوەیەک نەدۆزرایەوە بۆ ئەم بابەت/لقە.
+                </motion.div>
+              )
+            )}
+          </motion.div>
+        )}
+
+        {/* Quiz Interface */}
+        {quizStarted && currentExam && (
+          <motion.div
+            key="quiz-active"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="space-y-6"
+          >
+            {/* Quiz Header (Title + Timer + Exit Button) */}
+            <div className="flex justify-between items-center bg-blue-50 p-4 rounded-xl shadow-inner border border-blue-100">
+              <h3 className="text-xl font-bold text-blue-800">{currentExam.title}</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                  <Clock size={20} />
+                  <span>{formatTime(timerSeconds)}</span>
+                </div>
+                <motion.button
+                  onClick={handleExitQuiz}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition flex items-center gap-1"
+                >
+                  <LogOut size={18} /> لابردن
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Question Navigation Dots */}
+            <div className="flex flex-wrap justify-center gap-2 py-3 bg-gray-50 rounded-xl shadow-inner border border-gray-100">
+              {currentExam.questions.map((q, idx) => (
+                <motion.button
+                  key={q.id}
+                  onClick={() => setCurrentQuestionIndex(idx)}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold
+                    ${idx === currentQuestionIndex
+                      ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400/50' // Current question
+                      : (showResults && userAnswers[q.id] === q.correctAnswer)
+                        ? 'bg-green-500 text-white' // Correctly answered
+                        : (showResults && userAnswers[q.id] && userAnswers[q.id] !== q.correctAnswer)
+                          ? 'bg-red-500 text-white' // Incorrectly answered
+                          : userAnswers[q.id]
+                            ? 'bg-blue-200 text-blue-800' // Answered but not yet checked
+                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300' // Unanswered
                     }`}
-                  title={`پرسیار ${idx + 1}`}
                 >
+                  {/* Using index for numbers */}
                   {idx + 1}
-                </button>
+                </motion.button>
               ))}
             </div>
 
-            {/* Current Question Display */}
-            <div className="text-2xl font-semibold text-gray-900 mt-6 p-8 bg-white rounded-2xl shadow-xl border-l-8 border-teal-500 animate-slide-in-right">
-              {currentQuestion?.question}
-            </div>
 
-            {/* Options Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
-              {currentQuestion?.options.map((opt) => {
-                const selectedAnswer = answers[step]?.selected;
-                const correctAnswer = currentQuestion.answer;
-                const isSelected = selectedAnswer === opt;
-                const isCorrectOption = opt === correctAnswer;
-
-                return (
-                  <button
-                    key={opt}
-                    disabled={mode === "review" || !!selectedAnswer}
-                    onClick={() => handleSelect(opt)}
-                    className={`p-5 rounded-xl border-2 flex items-center justify-between gap-3 transition-all duration-300 shadow-md text-left font-medium text-xl transform hover:scale-[1.01] active:scale-[0.99]
-                      ${
-                        mode === "review" || mode === "view_answers"
-                          ? isCorrectOption
-                            ? "bg-green-100 border-green-500 text-green-800 cursor-default"
-                            : "bg-gray-100 border-gray-200 text-gray-600 opacity-70 cursor-default"
-                          : !selectedAnswer
-                          ? "bg-white hover:bg-indigo-50 border-gray-300 text-gray-900"
-                          : isSelected && isCorrectOption
-                          ? "bg-green-100 border-green-500 text-green-800 ring-2 ring-green-300"
-                          : isSelected && !isCorrectOption
-                          ? "bg-rose-100 border-rose-500 text-rose-800 ring-2 ring-rose-300"
-                          : isCorrectOption
-                          ? "bg-green-50 border-green-300 text-green-600 opacity-80"
-                          : "bg-gray-100 border-gray-200 text-gray-500 opacity-70"
-                      }`}
-                  >
-                    <span>{opt}</span>
-                    {/* Feedback icons */}
-                    {mode === "exam" && selectedAnswer && isSelected && isCorrectOption && (
-                      <CheckCircle size={28} className="text-green-600 flex-shrink-0 animate-pop" />
-                    )}
-                    {mode === "exam" && selectedAnswer && isSelected && !isCorrectOption && (
-                      <XCircle size={28} className="text-rose-600 flex-shrink-0 animate-pop" />
-                    )}
-                    {(mode === "review" || mode === "view_answers") && isCorrectOption && (
-                      <CheckCircle size={28} className="text-green-600 flex-shrink-0 animate-pop" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Navigation Buttons (Next / Finish Review) */}
-            {(mode === "exam" && answers[step]?.selected) || mode === "review" ? (
-              <div className="flex justify-center mt-10">
-                <button
-                  onClick={next}
-                  className="px-12 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-semibold rounded-full shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-400 flex items-center gap-3 animate-pop"
-                >
-                  {step + 1 < filteredQuestions.length ? (
-                    <>دوایــی <ArrowRight size={24} /></>
-                  ) : (
-                    <>کۆتایی <Flag size={24} /></>
-                  )}
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
-
-        {/* Result Screen (for exam, review, and view_answers modes) */}
-        {showResult && (
-          <div className="text-center space-y-8 py-8 animate-fade-in">
-            <h2 className="text-4xl sm:text-5xl font-bold text-indigo-700 drop-shadow-lg">ئەنجامەکان</h2>
-
-            {mode === "exam" ? (
-              <p className="text-gray-700 text-xl sm:text-2xl leading-relaxed">
-                تۆ{" "}
-                <span className="font-extrabold text-green-600 text-3xl">
-                  {answers.filter((a) => a.correct).length}
-                </span>{" "}
-                لە{" "}
-                <span className="font-extrabold text-indigo-600 text-3xl">
-                  {filteredQuestions.length}
-                </span>{" "}
-                وەڵامی دروستت داوە ✅
-              </p>
-            ) : mode === "review" ? (
-              <p className="text-gray-700 text-xl sm:text-2xl leading-relaxed">
-                تۆ کۆتاییت بە بینین و پێداچوونەوەی پرسیارەکان هێنا.
-              </p>
-            ) : (
-              // Display all questions and correct answers for 'view_answers' mode
-              <div className="space-y-6 text-left max-h-[60vh] overflow-y-auto pr-3 custom-scrollbar p-6 bg-gray-50 rounded-xl shadow-inner border border-gray-200 animate-fade-in-up">
-                <h3 className="text-2xl font-bold text-gray-800 border-b-2 border-indigo-300 pb-3 mb-4">
-                  وەڵامەکان بۆ بابەتی: <span className="text-indigo-700">{selectedSubject} - ساڵی: {selectedYear} - بەشی: {selectedSection}</span>
-                </h3>
-                {filteredQuestions.length === 0 ? (
-                  <p className="text-gray-600 text-lg">هیچ پرسیارێک نییە بۆ ئەم بابەتە بەپێی هەڵبژاردەکانت.</p>
-                ) : (
-                  filteredQuestions.map((q, index) => (
-                    <div key={q.id} className="bg-white p-5 rounded-xl shadow-md border border-gray-200 animate-fade-in-up mb-4">
-                      <p className="text-lg font-semibold text-gray-900 mb-2">
-                        <span className="text-indigo-600 font-extrabold">{index + 1}.</span> {q.question}
-                      </p>
-                      <p className="text-md text-green-700 font-medium flex items-center gap-2">
-                        <CheckCircle size={22} className="flex-shrink-0" /> وەڵامی دروست: <span className="font-bold">{q.answer}</span>
-                      </p>
-                      {/* Solution display */}
-                      {q.solution && (
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <h4 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-                            <Lightbulb size={20} className="text-yellow-500" /> چارەسەر/ڕوونکردنەوە:
-                          </h4>
-                          {q.solution.startsWith('http') ? (
-                            <img
-                              src={q.solution}
-                              alt="Solution"
-                              className="max-w-full h-auto rounded-lg shadow-sm"
-                              onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x200/CCCCCC/666666?text=Image+Not+Found"; }}
-                            />
-                          ) : (
-                            <p className="text-gray-700 text-base leading-relaxed">{q.solution}</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
+            {/* Question Display */}
+            {currentQuestion && (
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200 space-y-4">
+                <p className="text-lg font-semibold text-gray-800">
+                  پرسیار {currentQuestionIndex + 1} لە {currentExam.questions.length}:
+                </p>
+                {currentQuestion.image && (
+                  <img src={currentQuestion.image} alt="Question visual" className="w-full max-h-60 object-contain rounded-lg mb-4" />
                 )}
+                <div className="text-xl font-medium text-gray-900 leading-relaxed q-text" dangerouslySetInnerHTML={{ __html: currentQuestion.questionText.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} />
+
+                <div className="space-y-3 mt-5">
+                  {/* Use shuffledOptions for consistent order */}
+                  {currentQuestion.shuffledOptions.map((option, idx) => {
+                    const isSelected = userAnswers[currentQuestion.id] === option;
+                    const isCorrect = currentQuestion.correctAnswer === option;
+                    const isUserIncorrect = isSelected && !isCorrect;
+
+                    return (
+                      <motion.label
+                        key={idx}
+                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all duration-200
+                          ${getOptionClass(option)}
+                          ${(showLiveExplanation || showResults) && (isCorrect || isUserIncorrect) ? 'transform scale-[1.01] transition-transform' : ''}
+                        `}
+                        whileHover={!(showLiveExplanation || showResults) ? { scale: 1.01, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" } : {}}
+                        whileTap={!(showLiveExplanation || showResults) ? { scale: 0.99 } : {}}
+                      >
+                        <input
+                          type="radio"
+                          name={`question-${currentQuestion.id}`}
+                          value={option}
+                          checked={isSelected}
+                          onChange={() => handleAnswerChange(currentQuestion.id, option)}
+                          className="ml-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          disabled={showResults} // Disable input if results are shown (prevents changing answers after submit)
+                        />
+                        <span className="text-gray-800 font-medium flex-grow">{option}</span>
+                        {/* Show icons if live feedback or full results OR in practice mode if an answer is selected for current question */}
+                        {((examMode === 'practice' && showLiveExplanation && userAnswers[currentQuestion.id]) || showResults) && ( // show icon if live explanation and user has selected an answer
+                          <AnimatePresence>
+                            {isCorrect && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <CheckCircle2 size={20} className="text-green-600 mr-2" />
+                              </motion.div>
+                            )}
+                            {isUserIncorrect && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <XCircle size={20} className="text-red-600 mr-2" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        )}
+                      </motion.label>
+                    );
+                  })}
+                </div>
+
+                {/* Show Live Explanation Button (Only in Practice Mode if an answer is selected) */}
+                {examMode === 'practice' && userAnswers[currentQuestion.id] && !showResults && (
+                    <motion.button
+                        onClick={() => setShowLiveExplanation(prev => !prev)}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-full font-semibold hover:bg-yellow-700 transition mx-auto mt-4"
+                    >
+                        <Lightbulb size={20} />
+                        {showLiveExplanation ? 'شاردنەوەی وەڵام' : 'بینینی وەڵامی دروست و شیکار'}
+                    </motion.button>
+                )}
+
+
+                {/* Navigation and Actions */}
+                <div className="flex flex-wrap justify-between gap-3 mt-6 pt-4 border-t border-gray-100">
+                  <motion.button
+                    onClick={handlePreviousQuestion}
+                    disabled={currentQuestionIndex === 0 || showResults}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    <ChevronRight size={18} /> پرسیاری پێشوو
+                  </motion.button>
+                  
+                  {currentQuestionIndex === currentExam.questions.length - 1 ? (
+                    <motion.button
+                      onClick={handleSubmitQuiz}
+                      disabled={showResults}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                    >
+                      ناردن <CheckCircle2 size={18} />
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      onClick={handleNextQuestion}
+                      disabled={showResults}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                    >
+                      پرسیاری داهاتوو <ChevronLeft size={18} />
+                    </motion.button>
+                  )}
+                </div>
               </div>
             )}
 
-            <button
-              onClick={restart}
-              className="px-12 py-4 bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 text-xl font-semibold rounded-full shadow-lg hover:from-gray-400 hover:to-gray-500 transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-gray-300 mt-10 flex items-center justify-center gap-3 animate-pop"
-            >
-              <RotateCcw size={28} /> دەستپێکەوە بکە
-            </button>
-          </div>
+            {/* Live Solution and Explanation Section (for current question) */}
+            <AnimatePresence>
+              {showLiveExplanation && currentQuestion && (
+                <motion.div
+                  key="live-explanation"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="bg-green-50 p-6 rounded-xl shadow-md border border-green-200 mt-4 space-y-4"
+                >
+                  <h4 className="text-xl font-bold text-green-700 flex items-center gap-2">
+                    <CheckCircle2 size={24} /> وەڵامی دروست:
+                  </h4>
+                  <p className="text-lg font-semibold text-green-800">{currentQuestion.correctAnswer}</p>
+
+                  <h4 className="text-xl font-bold text-purple-700 flex items-center gap-2">
+                    <Lightbulb size={24} /> شیکار:
+                  </h4>
+                  {currentQuestion.explanationImage && (
+                    <img src={currentQuestion.explanationImage} alt="Explanation Visual" className="w-full max-h-80 object-contain rounded-lg mb-4" />
+                  )}
+                  <div className="text-base text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQuestion.explanation.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Results Summary (if showResults is true) */}
+            <AnimatePresence>
+              {showResults && (
+                <motion.div
+                  key="results-summary"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="bg-blue-100 p-6 rounded-xl shadow-md border border-blue-200 mt-6 text-center space-y-3"
+                >
+                  <h3 className="text-2xl font-bold text-blue-800">ئەنجامی تاقیکردنەوە</h3>
+                  <p className="text-xl font-semibold text-gray-700">
+                    {score.correct} لە {score.total} پرسیار دروست بوون!
+                  </p>
+
+                  {/* Toggle to show/hide all correct answers */}
+                  <motion.button
+                    onClick={() => setShowOverallExplanation(prev => !prev)} // Controls display of all answers
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-full font-semibold hover:bg-yellow-700 transition mx-auto mt-4"
+                  >
+                    <Lightbulb size={20} />
+                    {showOverallExplanation ? 'شاردنەوەی وەڵامەکان' : 'بینینی وەڵامی دروست بۆ هەموو پرسیارەکان'}
+                  </motion.button>
+
+                  {/* Display all correct answers and user's answers */}
+                  <AnimatePresence>
+                    {showOverallExplanation && (
+                      <motion.div
+                        key="all-answers-detailed"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className="text-right mt-6 p-4 bg-white rounded-xl border border-gray-200 space-y-4 overflow-hidden"
+                      >
+                        <h4 className="text-xl font-bold text-gray-800 border-b pb-2 mb-4">هەموو وەڵامەکان:</h4>
+                        {currentExam.questions.map((q, idx) => (
+                          <div key={q.id} className="border-b border-gray-100 pb-3 mb-3 last:border-b-0 last:pb-0 last:mb-0">
+                            <p className="font-semibold text-gray-900">پرسیار {idx + 1}: <span dangerouslySetInnerHTML={{ __html: q.questionText.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} /></p>
+                            <p className="text-sm text-gray-600 flex items-center">
+                              وەڵامی تۆ: <span className={`mr-2 font-medium ${userAnswers[q.id] === q.correctAnswer ? 'text-green-600' : 'text-red-600'}`}>
+                                {userAnswers[q.id] || 'وەڵام نەدراوەتەوە'}
+                              </span>
+                              {userAnswers[q.id] === q.correctAnswer ? (
+                                <CheckCircle2 size={16} className="text-green-600" />
+                              ) : (
+                                <XCircle size={16} className="text-red-600" />
+                              )}
+                            </p>
+                            <p className="text-sm text-green-700 flex items-center">
+                              وەڵامی دروست: <span className="mr-2 font-medium">{q.correctAnswer}</span>
+                            </p>
+                            <motion.button
+                              onClick={() => {
+                                setCurrentQuestionIndex(idx);
+                                setShowResults(false); // Exit results view
+                                setShowLiveExplanation(true); // Show explanation for this question
+                                // Optional: scroll to top of quiz interface
+                                const quizInterface = document.getElementById('quiz-active-section');
+                                if (quizInterface) quizInterface.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              className="text-blue-500 text-xs mt-1 hover:underline flex items-center gap-1 mx-auto"
+                            >
+                              <Lightbulb size={14} /> بینینی شیکار
+                            </motion.button>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex justify-center gap-4 pt-4 border-t border-blue-200 mt-6">
+                    <motion.button
+                      onClick={handleResetQuiz}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
+                    >
+                      دووبارە دەستپێکردنەوە
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         )}
-      </div>
-      {/* Custom CSS for scrollbar and animations */}
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #a78bfa; /* indigo-400 */
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #8b5cf6; /* indigo-500 */
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.8s ease-out forwards;
-        }
-
-        @keyframes fadeInDown {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .animate-fade-in-down {
-          animation: fadeInDown 0.8s ease-out forwards;
-        }
-
-        @keyframes slideInRight {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        .animate-slide-in-right {
-          animation: slideInRight 0.6s ease-out forwards;
-        }
-
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .animate-fade-in-up {
-          animation: fadeInUp 0.7s ease-out forwards;
-        }
-
-        @keyframes pop {
-          0% {
-            transform: scale(0.8);
-            opacity: 0;
-          }
-          50% {
-            transform: scale(1.05);
-            opacity: 1;
-          }
-          100% {
-            transform: scale(1);
-          }
-        }
-        .animate-pop {
-          animation: pop 0.4s ease-out forwards;
-        }
-
-        @keyframes blob {
-          0%, 100% {
-            transform: translateY(0) scale(1);
-          }
-          33% {
-            transform: translateY(-20px) scale(1.1);
-          }
-          66% {
-            transform: translateY(20px) scale(0.9);
-          }
-        }
-        .animate-blob {
-          animation: blob 7s infinite cubic-bezier(0.62, 0.0, 0.38, 1);
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
+      </AnimatePresence>
     </div>
   );
 };

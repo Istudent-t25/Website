@@ -1,17 +1,39 @@
-import React, { useState } from 'react';
-import { X, LogIn } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, LogIn, AlertTriangle } from 'lucide-react'; // Added AlertTriangle icon
 
-const LoginModal = ({ isOpen, onClose, onSwitchToRegister, onLoginSuccess }) => {
+const LoginModal = ({ isOpen, onClose, onSwitchToRegister, onLoginSuccess, showProtectedRouteWarning }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [displayWarning, setDisplayWarning] = useState(false); // Internal state for warning display
+
+  // Effect to manage the warning message display
+  useEffect(() => {
+    if (showProtectedRouteWarning) {
+      setDisplayWarning(true);
+      setError(''); // Clear any previous login errors when warning appears
+    } else if (!isOpen) {
+      // Only reset warning when modal is fully closed or warning is explicitly turned off
+      setDisplayWarning(false);
+    }
+  }, [showProtectedRouteWarning, isOpen]);
+
+  // Effect to clear form and errors when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setEmail('');
+      setPassword('');
+      setError('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setDisplayWarning(false); // Hide warning on form submission
 
     if (!email || !password) {
       setError('تکایە ئیمەیڵ و وشەی نهێنی داخڵ بکە.');
@@ -33,13 +55,12 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister, onLoginSuccess }) => 
 
       const data = await response.json();
 
-          if (response.ok) {
+      if (response.ok) {
         if (onLoginSuccess) {
           onLoginSuccess({
             accessToken: data.access_token,
           });
         }
-
       } else {
         setError(data.detail || 'هەڵەی چونەژوورەوە. تکایە زانیارییەکانت بپشکنە.');
       }
@@ -63,6 +84,14 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister, onLoginSuccess }) => 
         </button>
         <h2 className="text-2xl font-bold text-blue-700 mb-6 text-center">چونەژوورەوە</h2>
         
+        {/* Display warning message if displayWarning is true */}
+        {displayWarning && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg relative text-right mb-4 flex items-center gap-2">
+            <AlertTriangle size={20} className="flex-shrink-0 text-yellow-600" />
+            <span className="block sm:inline">تکایە بچۆرە ژوورەوە یان خۆت تۆمار بکە بۆ گەیشتن بەم بەشە. 🔐</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative text-right" role="alert">
@@ -115,6 +144,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister, onLoginSuccess }) => 
         <p className="text-center text-sm text-gray-600 mt-4">
           هەژمارت نییە؟{' '}
           <button
+            type="button"
             onClick={onSwitchToRegister}
             className="text-blue-600 hover:underline font-medium"
             disabled={loading}

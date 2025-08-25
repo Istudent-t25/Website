@@ -22,7 +22,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="p-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
       {/* Section: Choose Content */}
       <Card className="col-span-full bg-gradient-to-r from-blue-50 to-purple-50 shadow-md">
@@ -46,7 +46,7 @@ const Dashboard = () => {
       {/* Section: Today's Schedule */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-700"><CalendarDays size={20} />خشته‌ی ئه‌مرۆ</CardTitle>
+          <CardTitle className="flex items-center gap- text-blue-700"><CalendarDays size={20} />خشته‌ی ئه‌مرۆ</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {todaySubjects.map((s, i) => (
