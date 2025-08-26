@@ -9,6 +9,10 @@
   font-style: normal;
   font-display: swap;
 }
+
+html[dir="rtl"], [dir="rtl"] {
+  font-family: "Ubuntu";
+}
 :root {
   --vh: 1vh;               /* legacy helper if you still use it */
   color-scheme: light dark; /* let the UA pick form controls accordingly */
@@ -28,15 +32,9 @@ body {
     Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol";
   direction: rtl;
-
-  /* DO NOT disable scroll globally (this broke your main scroll before) */
   overflow: auto;
-
-  /* Nice rendering defaults */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* Avoid pull-to-refresh bounce chaining */
   overscroll-behavior-y: none;
   background-color: #ffffff;
   color: #0a0a0a;

@@ -11,10 +11,13 @@ import ExamsGrade12 from "./pages/ExamsGrade12.jsx";
 import Schedule from "./pages/Schedule.jsx";
 import SoundsPage from "./pages/Sounds.jsx";
 import GrammarPage from "./pages/Grammers.jsx";
+import ProfileSettings from "./pages/ProfileSettings.jsx";
+import ExamBank from "./pages/ExamBank.jsx";
 
 import LoginModal from "./components/LoginModal.jsx";
 import RegisterModal from "./components/RegisterModal.jsx";
 import UserDetailsModal from "./components/UserDetailsModal.jsx";
+import DeveloperPage from "./pages/DeveloperPage.jsx";
 // import ProtectedRoute from "./components/ProtectedRoute.jsx"; // if needed
 
 const HEADER_M = 56; // mobile header height (h-14)
@@ -131,10 +134,13 @@ export default function App() {
                   <Routes location={location}>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/sounds" element={<SoundsPage />} />
-                    <Route path="/grammar/:lang" element={<GrammarPage />} />
+                    <Route path="/grammar/" element={<GrammarPage />} />
                     <Route path="/students/:grade" element={<Students />} />
                     <Route path="/exams/grade12" element={<ExamsGrade12 />} />
                     <Route path="/schedule" element={<Schedule />} />
+                    <Route path="/exams/bank" element={<ExamBank />} />
+                    <Route path="/settings" element={<ProfileSettings />} />
+                    <Route path="/developer" element={<DeveloperPage />} />
                     <Route path="*" element={<p className="text-center text-red-500">هەڵە: پەڕە نەدۆزرایەوە</p>} />
                   </Routes>
                 </motion.div>

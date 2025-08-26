@@ -1,815 +1,1227 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle2, XCircle, Lightbulb, ChevronRight, ChevronLeft, Dot, CircleDot, CircleCheck, CircleX, LogOut } from 'lucide-react'; // Added LogOut icon
+// ExamsGrade12Pro.jsx — Kurdish-first, RTL, stylish exam flow with history
+// - Full Kurdish UI labels
+// - RTL, better Arabic-script font
+// - Hero header, analysis, share modal, history integration
+// - LocalStorage for progress + historical results
 
-// --- Mock Data for Exams (Expand this with more real data!) ---
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Lightbulb,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  LogOut,
+  ListChecks,
+  Download,
+  Upload,
+  Volume2,
+  BookOpen,
+  BarChart3,
+  Share2,
+  NotebookPen,
+  Clipboard,
+  Info,
+  History,
+} from "lucide-react";
+
+import HistoricalResultsPage from "./../components/HistoricalResultsPage";
+
+// ---------------- Demo Data ----------------
 const subjects = ["بیركاری", "فیزیا", "کیمیا", "ئینگلیزی", "کوردی"];
-const tracks = ["زانستی", "ئەدەبی"]; // Assuming Grade 12 has these tracks
+const tracks = ["زانستی", "ئەدەبی"];
+const difficulties = ["ئاسان", "مامناوەند", "سخت"];
 
 const examsData = [
   {
-    id: 'math-exam-1',
-    subject: 'بیركاری',
-    track: 'زانستی',
-    title: 'تاقیکردنەوەی بیركاری - بەشی یەکەم',
+    id: "math-exam-1",
+    subject: "بیركاری",
+    track: "زانستی",
+    title: "تاقیکردنەوەی بیركاری - بەشی یەکەم",
     questions: [
       {
-        id: 'm1q1',
+        id: "m1q1",
         questionText: 'ئەم هاوکێشەیە شیکار بکە: $2x + 5 = 15$',
-        options: ['x = 5', 'x = 10', 'x = 2.5', 'x = 7.5'],
-        correctAnswer: 'x = 5',
-        explanation: 'بۆ شیکارکردنی هاوکێشەکە، سەرەتا 5 لە هەردوو لای هاوکێشەکە کەمدەکەینەوە، دەبێتە $2x = 10$. پاشان هەردوو لای دابەش بە 2 دەکەین، کە دەبێتە $x = 5$.',
-        explanationImage: null, // You can add image URLs here for complex explanations
-        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q1+Math'
+        options: ["x = 5", "x = 10", "x = 2.5", "x = 7.5"],
+        correctAnswer: "x = 5",
+        explanation:
+          "بۆ شیکارکردن: 5 لە هەردوو لای دەکەمەوە → 2x=10 → بەشکردن بە 2 → x=5.",
+        image: "https://placehold.co/640x320/50b2ed/ffffff?text=Q1+Math",
+        hint: "سەرهەڵدان: کەمکردنەوەی ٥ له‌ هه‌ردوو لای",
+        difficulty: "ئاسان",
       },
       {
-        id: 'm1q2',
-        questionText: 'چوارگۆشەی ژمارە 9 چەندە؟',
-        options: ['18', '36', '81', '90'],
-        correctAnswer: '81',
-        explanation: 'چوارگۆشەی ژمارەیەک واتە ژمارەکە جارانی خۆی. $9 \\times 9 = 81$.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q2+Math'
+        id: "m1q2",
+        questionText: "چوارگۆشەی ژمارە 9 چەندە؟",
+        options: ["18", "36", "81", "90"],
+        correctAnswer: "81",
+        explanation: "٩ × ٩ = ٨١.",
+        image: "https://placehold.co/640x320/50b2ed/ffffff?text=Q2+Math",
+        hint: "x^2 واتە x جارەکەی خۆی.",
+        difficulty: "ئاسان",
       },
       {
-        id: 'm1q3',
-        questionText: 'کاتێک دوو ژمارە کۆدەکرێنەوە 10 دەدات، یەکێکیان 4 بێت ئەوی تر چەندە؟',
-        options: ['4', '6', '14', '7'],
-        correctAnswer: '6',
-        explanation: 'بۆ دۆزینەوەی ژمارەی تر: $10 - 4 = 6$.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q3+Math'
+        id: "m1q3",
+        questionText:
+          "کاتێک دوو ژمارە کۆ دەبن 10، یەکێکیان 4 بێت ئەوی تر چەندە؟",
+        options: ["4", "6", "14", "7"],
+        correctAnswer: "6",
+        explanation: "١٠ - ٤ = ٦.",
+        image: "https://placehold.co/640x320/50b2ed/ffffff?text=Q3+Math",
+        hint: "ناوەندەکە کم بکە لە ١٠.",
+        difficulty: "ئاسان",
       },
       {
-        id: 'm1q4',
-        questionText: 'ڕووبەری بازنەیەک کە نیوەتیرەکەی 7 بێت (پای = $22/7$)؟',
-        options: ['154', '49', '22', '14'],
-        correctAnswer: '154',
-        explanation: 'ڕووبەری بازنە: $\\text{Area} = \\pi r^2$. لێرەدا $r=7$, $\\pi=22/7$. کەواتە $\\text{Area} = (22/7) \\times 7^2 = (22/7) \\times 49 = 22 \\times 7 = 154$.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q4+Math'
+        id: "m1q4",
+        questionText:
+          "ڕووبەری بازنەیەک کە نیوەتیرەکەی 7 (π = 22/7) چەندە؟",
+        options: ["154", "49", "22", "14"],
+        correctAnswer: "154",
+        explanation: "A = πr² → (22/7)×49 = 154.",
+        image: "https://placehold.co/640x320/50b2ed/ffffff?text=Q4+Math",
+        hint: "r²=49.",
+        difficulty: "مامناوەند",
       },
       {
-        id: 'm1q5',
-        questionText: 'گۆشەکانی سێگۆشە چەند پلەیە؟',
-        options: ['90', '180', '270', '360'],
-        correctAnswer: '180',
-        explanation: 'کۆ گۆشەکانی ناوەوەی سێگۆشە هەمیشە $180$ پلەیە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/50b2ed/ffffff?text=Q5+Math'
+        id: "m1q5",
+        questionText: "کۆی گۆشەکانی سێگۆشە چەند پلەیە؟",
+        options: ["90", "180", "270", "360"],
+        correctAnswer: "180",
+        explanation: "هەمیشە ١٨٠ پلە.",
+        image: "https://placehold.co/640x320/50b2ed/ffffff?text=Q5+Math",
+        hint: "یاسای ناوەوەی سێگۆشە.",
+        difficulty: "ئاسان",
       },
-    ]
+    ],
   },
   {
-    id: 'physics-exam-1',
-    subject: 'فیزیا',
-    track: 'زانستی',
-    title: 'تاقیکردنەوەی فیزیا - بەشی یەکەم',
+    id: "physics-exam-1",
+    subject: "فیزیا",
+    track: "زانستی",
+    title: "تاقیکردنەوەی فیزیا - بەشی یەکەم",
     questions: [
       {
-        id: 'p1q1',
-        questionText: 'کام یەکێک لەمانە یەکەی هێزە؟',
-        options: ['جول', 'وات', 'نیوتن', 'پاسکال'],
-        correctAnswer: 'نیوتن',
-        explanation: 'نیوتن (Newton) یەکەی SI هێزە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q1+Physics'
+        id: "p1q1",
+        questionText: "کام یەکەی هێزە؟",
+        options: ["جول", "وات", "نیوتن", "پاسکال"],
+        correctAnswer: "نیوتن",
+        explanation: "یەکەی SI بۆ هێز نیوتنە.",
+        image: "https://placehold.co/640x320/ef4444/ffffff?text=Q1+Physics",
+        hint: "N=kg·m/s².",
+        difficulty: "مامناوەند",
       },
       {
-        id: 'p1q2',
-        questionText: 'یاسای دووەمی نیوتن چییە؟',
-        options: ['E=mc²', 'F=ma', 'V=IR', 'P=IV'],
-        correctAnswer: 'F=ma',
-        explanation: 'یاسای دووەمی نیوتن باس لە پەیوەندی نێوان هێز (F)، بارستایی (m) و خێرایی (a) دەکات.',
-        explanationImage: 'https://placehold.co/300x150/f0f9ff/0f172a?text=F=ma'
+        id: "p1q2",
+        questionText: "یاسای دووەمی نیوتن؟",
+        options: ["E=mc²", "F=ma", "V=IR", "P=IV"],
+        correctAnswer: "F=ma",
+        explanation: "پەیوەندی هێز، بارستایی، خێرایی.",
+        image: "https://placehold.co/640x320/ef4444/ffffff?text=Q2+Physics",
+        hint: "F=ma هەموو جاران.",
+        difficulty: "ئاسان",
       },
-      {
-        id: 'p1q3',
-        questionText: 'کاتێک تەنێک بە خێرایی جێگیر دەجوڵێت، هێزی گشتی لێی چەندە؟',
-        options: ['زیاتر لە سفر', 'کەمتر لە سفر', 'سفر', 'نازانرێت'],
-        correctAnswer: 'سفر',
-        explanation: 'بەپێی یاسای یەکەمی نیوتن، ئەگەر هێزی گشتی سفر بێت، تەنەکە بە خێرایی جێگیر دەجوڵێت یان لە وەستاندا دەمێنێتەوە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q3+Physics'
-      },
-      {
-        id: 'p1q4',
-        questionText: 'کامیان سەرچاوەی وزەی نوێبووەوەیە؟',
-        options: ['نەوت', 'خەڵوز', 'ڕۆژ', 'گاز'],
-        correctAnswer: 'ڕۆژ',
-        explanation: 'ڕۆژ سەرچاوەیەکی سروشتی و هەمیشەیی وزەیە کە بەرهەمی نوێبووەوەیە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/ef4444/ffffff?text=Q4+Physics'
-      },
-    ]
-  },
-  {
-    id: 'kurdish-exam-1',
-    subject: 'کوردی',
-    track: 'ئەدەبی',
-    title: 'تاقیکردنەوەی کوردی - گرامەر',
-    questions: [
-      {
-        id: 'k1q1',
-        questionText: 'کام وشە ناوە؟',
-        options: ['ڕۆیشت', 'خۆش', 'پیاو', 'بە'],
-        correctAnswer: 'پیاو',
-        explanation: '"پیاو" ناوە و ناوی کەسێکە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q1+Kurdish'
-      },
-      {
-        id: 'k1q2',
-        questionText: 'کام ڕستەیە هاوڵاتی تێدایە؟',
-        options: ['من دەڕۆم', 'ئەو خوێندکارە', 'ئێمە یاری دەکەین', 'تۆ جوان بووی'],
-        correctAnswer: 'ئەو خوێندکارە',
-        explanation: 'لە زمانی کوردیدا "ئەو خوێندکارە" ڕستەیەکی تەواوە و "خوێندکارە" هاوڵاتییە.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q2+Kurdish'
-      },
-      {
-        id: 'k1q3',
-        questionText: 'ژمارەی پیتی بزوێن لە وشەی "کتێب" چەندە؟',
-        options: ['یەک', 'دوو', 'سێ', 'چوار'],
-        correctAnswer: 'دوو',
-        explanation: 'پیتی بزوێن لە وشەی "کتێب" بریتین لە "ی" و "ێ".',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/f97316/ffffff?text=Q3+Kurdish'
-      },
-    ]
-  },
-  {
-    id: 'english-exam-1',
-    subject: 'ئینگلیزی',
-    track: 'زانستی',
-    title: 'English Exam - Grammar Basics',
-    questions: [
-      {
-        id: 'e1q1',
-        questionText: 'Which one is a verb?',
-        options: ['Table', 'Run', 'Happy', 'Blue'],
-        correctAnswer: 'Run',
-        explanation: '"Run" is an action word.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/3b82f6/ffffff?text=Q1+English'
-      },
-      {
-        id: 'e1q2',
-        questionText: 'Complete the sentence: "She ___ to the store." (Past tense)',
-        options: ['go', 'goes', 'went', 'going'],
-        correctAnswer: 'went',
-        explanation: '"Went" is the past tense of "go", suitable for a completed action.',
-        explanationImage: null,
-        image: 'https://placehold.co/400x200/3b82f6/ffffff?text=Q2+English'
-      },
-    ]
+    ],
   },
 ];
 
-// --- Utility function to shuffle an array ---
-const shuffleArray = (array) => {
-  const newArray = [...array]; // Create a shallow copy to avoid mutating original
-  for (let i = newArray.length - 1; i > 0; i--) {
+// ------------- helpers & constants -------------
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return newArray;
+  return a;
+};
+const lsKey = "exams_g12_state_v1";
+const lsKeyResults = "exams_g12_historical_results_v1";
+
+// better Arabic-script font stack for Kurdish
+const kuFont = "font-['Noto_Naskh_Arabic','Inter',system-ui,sans-serif]";
+
+// clipboard helper
+const copyToClipboard = (text) => {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => alert("کۆپی کرا بۆ کلیپبۆرد!"),
+      () => fallback()
+    );
+  } else fallback();
+
+  function fallback() {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      alert("کۆپی کرا (یاریەک)!");
+    } catch {
+      alert("نەتوانرا کۆپی بکرێت.");
+    }
+    document.body.removeChild(ta);
+  }
 };
 
-// --- Main ExamsGrade12 Component ---
-const ExamsGrade12 = () => {
-  // --- State Management ---
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTrack, setSelectedTrack] = useState('');
-  const [availableExams, setAvailableExams] = useState([]);
-  const [currentExam, setCurrentExam] = useState(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState({}); // Stores {questionId: selectedOption}
+export default function ExamsGrade12Pro() {
+  // navigation
+  const [currentView, setCurrentView] = useState("examPicker"); // examPicker | activeExam | resultsView | historyList
+  const [lastViewWasHistory, setLastViewWasHistory] = useState(false);
+
+  // filters
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedTrack, setSelectedTrack] = useState("");
+  const [difficultyFilter, setDifficultyFilter] = useState("");
+  const [mode, setMode] = useState("practice"); // practice | exam
+
+  // exam state
+  const [exam, setExam] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [notes, setNotes] = useState({});
+  const [hintsUsed, setHintsUsed] = useState({});
+  const [perQSeconds, setPerQSeconds] = useState({});
+  const [activeQ, setActiveQ] = useState(null);
+
+  // results/review
   const [showResults, setShowResults] = useState(false);
-  const [showOverallExplanation, setShowOverallExplanation] = useState(false); // For showing *all* explanations in results view
-  const [showLiveExplanation, setShowLiveExplanation] = useState(false); // For showing *current question's* explanation live
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [quizStarted, setQuizStarted] = useState(false); // To manage quiz flow
-  const [timerDurationInput, setTimerDurationInput] = useState(''); // New state for manual timer input
-  const [examMode, setExamMode] = useState('practice'); // 'practice' or 'exam'
+  const [showAllExplanations, setShowAllExplanations] = useState(false);
+  const [showWrongOnly, setShowWrongOnly] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
-  // --- Handlers (Moved to top for proper hoisting with useCallback) ---
+  // timers
+  const [seconds, setSeconds] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [manualMinutes, setManualMinutes] = useState("");
+  const tickRef = useRef(null);
 
-  const calculateScore = useCallback(() => {
-    if (!currentExam) return { correct: 0, total: 0 };
-    let correctCount = 0;
-    currentExam.questions.forEach(q => {
-      if (userAnswers[q.id] === q.correctAnswer) {
-        correctCount++;
-      }
-    });
-    return { correct: correctCount, total: currentExam.questions.length };
-  }, [currentExam, userAnswers]);
+  // history
+  const [historicalResults, setHistoricalResults] = useState([]);
 
-  const handleSubmitQuiz = useCallback(() => {
-    setIsTimerRunning(false);
-    setShowResults(true);
-    setShowLiveExplanation(false); // Hide live explanation when submitting
-  }, []);
+  // TTS
+  const speak = (text) => {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ku-IQ";
+      synth.cancel();
+      synth.speak(u);
+    } catch {}
+  };
 
-  const handleNextQuestion = useCallback(() => {
-    setShowLiveExplanation(false); // Hide live explanation when moving to next question
-    if (currentExam && currentQuestionIndex < currentExam.questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    } else {
-      // If it's the last question or no more questions, submit the quiz
-      setIsTimerRunning(false);
-      setShowResults(true);
-    }
-  }, [currentExam, currentQuestionIndex]);
-
-  const handlePreviousQuestion = useCallback(() => {
-    setShowLiveExplanation(false); // Hide live explanation when moving to previous question
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  }, [currentQuestionIndex]);
-
-  const handleResetQuiz = useCallback(() => {
-    setSelectedSubject('');
-    setSelectedTrack('');
-    setCurrentExam(null);
-    setQuizStarted(false);
-    setShowResults(false);
-    setTimerSeconds(0);
-    setIsTimerRunning(false);
-    setUserAnswers({});
-    setShowOverallExplanation(false);
-    setShowLiveExplanation(false);
-    setTimerDurationInput(''); // Reset timer input
-    setExamMode('practice'); // Reset exam mode
-  }, []);
-
-  // New handler to exit the quiz gracefully
-  const handleExitQuiz = useCallback(() => {
-    // Implement confirmation if needed:
-    // if (!window.confirm("دڵنیایت کە دەتەوێت لە تاقیکردنەوەکە بێیتە دەرەوە؟")) {
-    //   return;
-    // }
-    handleResetQuiz(); // Reuse the reset function to go back to initial state
-  }, [handleResetQuiz]);
-
-  // --- Filtering available exams based on subject and track ---
-  useEffect(() => {
-    const filtered = examsData.filter(exam =>
-      (selectedSubject ? exam.subject === selectedSubject : true) &&
-      (selectedTrack ? exam.track === selectedTrack : true)
+  // derived lists
+  const filteredExams = useMemo(() => {
+    let list = examsData.filter(
+      (e) =>
+        (!selectedSubject || e.subject === selectedSubject) &&
+        (!selectedTrack || e.track === selectedTrack)
     );
-    setAvailableExams(filtered);
-    setCurrentExam(null); // Reset current exam if filters change
-    setQuizStarted(false);
-    setShowResults(false);
-    setTimerSeconds(0);
-    setIsTimerRunning(false);
-    setUserAnswers({});
-    setShowOverallExplanation(false); // Reset explanation view
-    setShowLiveExplanation(false); // Reset live explanation
-  }, [selectedSubject, selectedTrack]);
-
-  // --- Timer logic ---
-  useEffect(() => {
-    let interval = null;
-    if (isTimerRunning && timerSeconds > 0) {
-      interval = setInterval(() => {
-        setTimerSeconds(prevSeconds => prevSeconds - 1);
-      }, 1000);
-    } else if (timerSeconds === 0 && isTimerRunning) {
-      setIsTimerRunning(false);
-      handleSubmitQuiz(); // Automatically submit when timer runs out
+    if (difficultyFilter) {
+      list = list
+        .map((ex) => ({
+          ...ex,
+          questions: ex.questions.filter((q) => q.difficulty === difficultyFilter),
+        }))
+        .filter((ex) => ex.questions.length > 0);
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, timerSeconds, handleSubmitQuiz]);
+    return list;
+  }, [selectedSubject, selectedTrack, difficultyFilter]);
 
-  // --- Handlers (remaining, now after the core useCallback definitions) ---
-  const handleStartQuiz = (exam) => {
-    // Shuffle options ONCE when the quiz starts for each question
-    const newExam = {
-      ...exam,
-      questions: exam.questions.map(q => ({
-        ...q,
-        // Ensure options are shuffled and stored once per question
-        shuffledOptions: shuffleArray(q.options)
-      }))
-    };
-    setCurrentExam(newExam);
-    setCurrentQuestionIndex(0);
-    setUserAnswers({});
-    setShowResults(false);
-    setShowOverallExplanation(false);
-    setShowLiveExplanation(false);
-    setQuizStarted(true);
-    // Use manual timer input, or default to 1 min per question if not set
-    const initialTimer = timerDurationInput ? parseInt(timerDurationInput) * 60 : newExam.questions.length * 60;
-    setTimerSeconds(initialTimer);
-    setIsTimerRunning(true);
-  };
+  // detailed score
+  const detailedScore = useMemo(() => {
+    if (!exam || !questions.length)
+      return {
+        correct: 0,
+        incorrect: 0,
+        unanswered: 0,
+        total: 0,
+        timeSpent: 0,
+        percentage: 0,
+      };
 
-  const handleAnswerChange = (questionId, option) => {
-    // Allow answering only if results are not being shown
-    if (!showResults) {
-      setUserAnswers(prev => ({ ...prev, [questionId]: option }));
-      // ONLY set showLiveExplanation to true if in 'practice' mode
-      // and a selection has been made (will be triggered by button, not here)
-    }
-  };
+    let correct = 0;
+    let incorrect = 0;
+    let answeredCount = 0;
+    let totalTimeSpent = 0;
 
-  const formatTime = (totalSeconds) => {
-    if (totalSeconds < 0) return "00:00"; // Prevent negative time display
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const currentQuestion = currentExam?.questions[currentQuestionIndex];
-  const score = showResults ? calculateScore() : { correct: 0, total: currentExam?.questions.length || 0 };
-
-  // Framer Motion variants for section transitions
-  const sectionVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-    exit: { opacity: 0, y: -20, transition: { duration: 0.2, ease: "easeIn" } },
-  };
-
-  // Determine button styles for subject/track selection
-  const getButtonClass = (isActive) =>
-    `px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap flex items-center gap-2 justify-center
-     ${isActive ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-500/50" : "bg-gray-200 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700"}`;
-
-  // Option styling logic
-  const getOptionClass = (option) => {
-    const isSelected = userAnswers[currentQuestion.id] === option;
-    const isCorrect = currentQuestion.correctAnswer === option;
-    const isUserIncorrect = isSelected && !isCorrect; // User selected this, and it's wrong
-
-    // When showing full results or live explanation, apply full feedback colors
-    if (showResults || (examMode === 'practice' && showLiveExplanation)) {
-      if (isCorrect) {
-        return 'bg-green-100 border-green-500 shadow-md ring-1 ring-green-400'; // Correct answer
-      } else if (isUserIncorrect) {
-        return 'bg-red-100 border-red-500 shadow-md ring-1 ring-red-400'; // User chose this and it was wrong
-      } else { // Unselected, incorrect options (or unselected correct if user chose wrong)
-        return 'bg-gray-50 border-gray-200';
+    for (const q of questions) {
+      totalTimeSpent += perQSeconds[q.id] || 0;
+      if (answers[q.id] !== undefined && answers[q.id] !== null) {
+        answeredCount++;
+        if (answers[q.id] === q.correctAnswer) correct++;
+        else incorrect++;
       }
-    } else {
-      // In active quiz mode (no results, no live explanation), only highlight selected
-      return isSelected
-        ? 'bg-blue-100 border-blue-500 shadow-sm'
-        : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-blue-300';
     }
+    const percentage =
+      questions.length > 0 ? ((correct / questions.length) * 100).toFixed(0) : 0;
+
+    return {
+      correct,
+      incorrect,
+      unanswered: questions.length - answeredCount,
+      total: questions.length,
+      timeSpent: totalTimeSpent,
+      percentage,
+    };
+  }, [exam, questions, answers, perQSeconds]);
+
+  // --- Local Storage Management ---
+  useEffect(() => {
+    const rawProgress = localStorage.getItem(lsKey);
+    if (rawProgress) {
+      try {
+        const s = JSON.parse(rawProgress);
+        if (s && s.exam) {
+          setExam(s.exam);
+          setQuestions(s.questions || []);
+          setAnswers(s.answers || {});
+          setNotes(s.notes || {});
+          setHintsUsed(s.hintsUsed || {});
+          setPerQSeconds(s.perQSeconds || {});
+          setActiveQ(s.activeQ || null);
+          setMode(s.mode || "practice");
+          setShowResults(s.showResults || false);
+          setShowAllExplanations(s.showAllExplanations || false);
+          setSeconds(s.seconds || 0);
+          setRunning(s.running || false);
+          setShowWrongOnly(s.showWrongOnly || false);
+          setCurrentView(s.currentView || "examPicker");
+          setLastViewWasHistory(s.lastViewWasHistory || false);
+        }
+      } catch (e) {
+        console.error("Failed to load exam progress:", e);
+      }
+    }
+
+    const rawResults = localStorage.getItem(lsKeyResults);
+    if (rawResults) {
+      try {
+        setHistoricalResults(JSON.parse(rawResults));
+      } catch (e) {
+        console.error("Failed to parse historical results:", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const s = {
+      exam,
+      questions,
+      answers,
+      notes,
+      hintsUsed,
+      perQSeconds,
+      activeQ,
+      mode,
+      showResults,
+      showAllExplanations,
+      seconds,
+      running,
+      showWrongOnly,
+      currentView,
+      lastViewWasHistory,
+    };
+    localStorage.setItem(lsKey, JSON.stringify(s));
+  }, [
+    exam,
+    questions,
+    answers,
+    notes,
+    hintsUsed,
+    perQSeconds,
+    activeQ,
+    mode,
+    showResults,
+    showAllExplanations,
+    seconds,
+    running,
+    showWrongOnly,
+    currentView,
+    lastViewWasHistory,
+  ]);
+
+  useEffect(() => {
+    localStorage.setItem(lsKeyResults, JSON.stringify(historicalResults));
+  }, [historicalResults]);
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60)
+      .toString()
+      .padStart(2, "0");
+    const ss = (s % 60).toString().padStart(2, "0");
+    return `${m}:${ss}`;
   };
 
-  return (
-    <div className="bg-white rounded-xl shadow-lg p-6 space-y-6 border border-slate-100">
-      <h2 className="text-3xl font-extrabold text-indigo-700 mb-6 text-center">
-        تاقیکردنەوەکانی پۆلی ١٢ - مەشقکردن
-      </h2>
+  const submitAll = useCallback(() => {
+    setRunning(false);
+    if (
+      currentView === "activeExam" ||
+      (currentView === "resultsView" && !lastViewWasHistory)
+    ) {
+      const resultEntry = {
+        id: exam.id + "-" + Date.now(),
+        examId: exam.id,
+        examTitle: exam.title,
+        examSubject: exam.subject,
+        examTrack: exam.track,
+        answers: { ...answers },
+        perQSeconds: { ...perQSeconds },
+        notes: { ...notes },
+        hintsUsed: { ...hintsUsed },
+        detailedScore: { ...detailedScore },
+        timestamp: Date.now(),
+      };
+      setHistoricalResults((prev) => [resultEntry, ...prev]);
+    }
 
-      <AnimatePresence mode="wait">
-        {!quizStarted && (
-          <motion.div
-            key="quiz-setup"
-            variants={sectionVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="space-y-6"
-          >
-            {/* Exam Mode Selection */}
-            <div className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">شێوازی تاقیکردنەوە:</label>
-              <div className="flex flex-wrap gap-3">
-                <motion.button
-                  onClick={() => setExamMode('practice')}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={getButtonClass(examMode === 'practice')}
+    setShowResults(true);
+    setShowAllExplanations(false);
+    setCurrentView("resultsView");
+  }, [
+    exam,
+    answers,
+    perQSeconds,
+    notes,
+    hintsUsed,
+    detailedScore,
+    currentView,
+    lastViewWasHistory,
+  ]);
+
+  // global timer
+  useEffect(() => {
+    if (!running || seconds <= 0) {
+      if (seconds === 0 && running) submitAll();
+      return;
+    }
+    tickRef.current = setInterval(() => setSeconds((s) => s - 1), 1000);
+    return () => clearInterval(tickRef.current);
+  }, [running, seconds, submitAll]);
+
+  // per-question timer
+  useEffect(() => {
+    if (!running || !activeQ) return;
+    const t = setInterval(() => {
+      setPerQSeconds((prev) => ({
+        ...prev,
+        [activeQ]: (prev[activeQ] || 0) + 1,
+      }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [running, activeQ]);
+
+  // start exam
+  const startExam = useCallback(
+    (ex) => {
+      let qs = ex.questions;
+      if (difficultyFilter)
+        qs = qs.filter((q) => q.difficulty === difficultyFilter);
+      qs = qs.map((q) => ({ ...q, shuffledOptions: shuffle(q.options) }));
+      setExam(ex);
+      setQuestions(qs);
+      setAnswers({});
+      setNotes({});
+      setHintsUsed({});
+      setPerQSeconds({});
+      setActiveQ(qs[0]?.id || null);
+      setShowResults(false);
+      setShowAllExplanations(false);
+      setShowWrongOnly(false);
+
+      const secs = manualMinutes.trim()
+        ? Math.max(1, parseInt(manualMinutes, 10)) * 60
+        : qs.length * 60;
+      setSeconds(secs);
+      setRunning(true);
+      setCurrentView("activeExam");
+      setLastViewWasHistory(false);
+    },
+    [manualMinutes, difficultyFilter]
+  );
+
+  // exit exam
+  const exitExam = useCallback(() => {
+    setExam(null);
+    setQuestions([]);
+    setAnswers({});
+    setNotes({});
+    setHintsUsed({});
+    setPerQSeconds({});
+    setActiveQ(null);
+    setShowResults(false);
+    setShowAllExplanations(false);
+    setRunning(false);
+    setSeconds(0);
+    setShowWrongOnly(false);
+    setCurrentView("examPicker");
+    setLastViewWasHistory(false);
+  }, []);
+
+  // events
+  const choose = (qid, option) => {
+    setAnswers((a) => ({ ...a, [qid]: option }));
+    setActiveQ(qid);
+  };
+  const toggleHint = (qid) => setHintsUsed((h) => ({ ...h, [qid]: !h[qid] }));
+  const changeNote = (qid, text) => setNotes((n) => ({ ...n, [qid]: text }));
+
+  // history logic
+  const goToHistoryList = useCallback(() => {
+    setExam(null);
+    setQuestions([]);
+    setAnswers({});
+    setPerQSeconds({});
+    setNotes({});
+    setHintsUsed({});
+    setActiveQ(null);
+    setShowResults(false);
+    setShowAllExplanations(false);
+    setShowWrongOnly(false);
+    setRunning(false);
+    setSeconds(0);
+    setCurrentView("historyList");
+    setLastViewWasHistory(true);
+  }, []);
+
+  const viewHistoricalResult = useCallback((result) => {
+    const originalExam = examsData.find((e) => e.id === result.examId);
+    if (!originalExam) {
+      alert("تاقیکردنەوەکە نەدۆزرایەوە (سڕاوە).");
+      return;
+    }
+    const qs = originalExam.questions.map((q) => ({
+      ...q,
+      shuffledOptions: shuffle(q.options),
+    }));
+    setExam(originalExam);
+    setQuestions(qs);
+    setAnswers(result.answers);
+    setPerQSeconds(result.perQSeconds || {});
+    setNotes(result.notes || {});
+    setHintsUsed(result.hintsUsed || {});
+    setMode("exam");
+    setShowResults(true);
+    setShowAllExplanations(false);
+    setShowWrongOnly(false);
+    setRunning(false);
+    setSeconds(0);
+    setCurrentView("resultsView");
+    setLastViewWasHistory(true);
+  }, []);
+
+  const handleBackFromResults = useCallback(() => {
+    if (lastViewWasHistory) goToHistoryList();
+    else exitExam();
+  }, [lastViewWasHistory, goToHistoryList, exitExam]);
+
+  // analytics
+  const totals = useMemo(() => {
+    const byDiff = {
+      "ئاسان": { c: 0, t: 0 },
+      "مامناوەند": { c: 0, t: 0 },
+      "سخت": { c: 0, t: 0 },
+    };
+
+    for (const q of questions) {
+      const correct = answers[q.id] === q.correctAnswer;
+      const d = q.difficulty || "مامناوەند";
+      if (!byDiff[d]) byDiff[d] = { c: 0, t: 0 };
+      byDiff[d].t++;
+      if (correct) byDiff[d].c++;
+    }
+
+    const totalTime = Object.values(perQSeconds).reduce((a, b) => a + b, 0);
+    const avgTimePerQuestion =
+      questions.length > 0 ? Math.round(totalTime / questions.length) : 0;
+
+    let timeOnIncorrect = 0;
+    for (const q of questions) {
+      if (answers[q.id] && answers[q.id] !== q.correctAnswer) {
+        timeOnIncorrect += perQSeconds[q.id] || 0;
+      }
+    }
+
+    return {
+      byDiff,
+      avgTimePerQuestion,
+      totalExamTime: totalTime,
+      timeOnIncorrect,
+    };
+  }, [questions, answers, perQSeconds]);
+
+  // motion variant
+  const card = {
+    hidden: { opacity: 0, y: 8 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+  };
+
+  // Question Card
+  const QuestionCard = ({ q, index }) => {
+    const chosen = answers[q.id];
+    const showFeedback = showResults || (mode === "practice" && chosen);
+
+    if (showWrongOnly && answers[q.id] === q.correctAnswer) return null;
+
+    return (
+      <motion.div
+        variants={card}
+        initial="hidden"
+        animate="show"
+        className="rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-4 shadow"
+      >
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 mt-0.5 text-xs px-2 py-1 rounded-full bg-sky-600/15 text-sky-600">
+            {index + 1}
+          </div>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 mb-2">
+              <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200">
+                {q.difficulty || "مامناوەند"}
+              </span>
+              <button
+                onClick={() => speak(q.questionText.replace(/\$.*?\$/g, ""))}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
+              >
+                <Volume2 size={14} /> خوێندنەوە
+              </button>
+              {q.hint && (
+                <button
+                  onClick={() => toggleHint(q.id)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/70 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 hover:bg-amber-200/70 dark:hover:bg-amber-800/20 transition"
                 >
-                  <Lightbulb size={18} /> شێوازی مەشق (نیشاندانی وەڵام)
-                </motion.button>
-                <motion.button
-                  onClick={() => setExamMode('exam')}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={getButtonClass(examMode === 'exam')}
-                >
-                  <Clock size={18} /> شێوازی تاقیکردنەوە (وەڵام لە کۆتاییدا)
-                </motion.button>
-              </div>
+                  <Lightbulb size={14} /> ئاماژە
+                </button>
+              )}
+              {showResults && (
+                <span className="text-xs text-zinc-500 mr-auto">
+                  کات: {perQSeconds[q.id] ? `${perQSeconds[q.id]}s` : "0s"}
+                </span>
+              )}
             </div>
 
-            {/* Subject Selection */}
-            <div className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">📚 بابەتی تاقیکردنەوە هەڵبژێرە:</label>
-              <div className="flex flex-wrap gap-3">
-                {subjects.map(subj => (
-                  <motion.button
-                    key={subj}
-                    onClick={() => setSelectedSubject(subj)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={getButtonClass(selectedSubject === subj)}
-                  >
-                    {subj}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Track Selection (if applicable and subject selected) */}
-            {selectedSubject && (
-              <motion.div
-                key="track-selection"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100 overflow-hidden" // overflow-hidden for height animation
-              >
-                <label className="block text-sm font-semibold text-gray-700 mb-3">لقی خوێندن:</label>
-                <div className="flex flex-wrap gap-3">
-                  {tracks.map(track => (
-                    <motion.button
-                      key={track}
-                      onClick={() => setSelectedTrack(track)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={getButtonClass(selectedTrack === track)}
-                    >
-                      {track}
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
+            {q.image && (
+              <img
+                src={q.image}
+                alt=""
+                className="w-full max-h-56 object-cover rounded-xl mb-3"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src =
+                    "https://placehold.co/640x320/cccccc/333333?text=Image+Not+Found";
+                }}
+              />
             )}
+            <div
+              className="text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 leading-relaxed"
+              dangerouslySetInnerHTML={{
+                __html: q.questionText
+                  .replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>')
+                  .replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>'),
+              }}
+            />
 
-            {/* Timer Duration Input (Only visible if Exam Mode is selected) */}
-            {examMode === 'exam' && (
-              <motion.div
-                key="timer-input-section"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100 overflow-hidden"
-              >
-                <label htmlFor="timer-duration" className="block text-sm font-semibold text-gray-700 mb-3">⏰ ماوەی تاقیکردنەوە (خولەک):</label>
-                <input
-                  id="timer-duration"
-                  type="number"
-                  min="1"
-                  placeholder="بۆ نموونە: 30"
-                  value={timerDurationInput}
-                  onChange={(e) => setTimerDurationInput(e.target.value)}
-                  className="w-full px-5 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-400 outline-none transition-all duration-200 text-gray-800 placeholder-gray-400 text-right"
-                />
-                <p className="text-xs text-gray-500 mt-1">ئەگەر بەتاڵ بێت، 1 خولەک بۆ هەر پرسیارێک دادەنرێت.</p>
-              </motion.div>
-            )}
-
-            {/* Available Exams List */}
-            {availableExams.length > 0 && selectedSubject ? (
-              <motion.div
-                key="available-exams"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="bg-slate-50 p-4 rounded-xl shadow-inner border border-slate-100"
-              >
-                <label className="block text-sm font-semibold text-gray-700 mb-3">تاقیکردنەوە بەردەستەکان:</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {availableExams.map(exam => (
-                    <motion.button
-                      key={exam.id}
-                      onClick={() => handleStartQuiz(exam)}
-                      whileHover={{ scale: 1.02, boxShadow: "0 4px 8px rgba(0,0,0,0.1)" }}
-                      whileTap={{ scale: 0.98 }}
-                      className="flex flex-col items-start p-4 rounded-lg bg-white border border-blue-200 text-right shadow-sm hover:shadow-md transition-all duration-200"
-                    >
-                      <span className="text-lg font-semibold text-blue-700">{exam.title}</span>
-                      <span className="text-sm text-gray-600">ژمارەی پرسیارەکان: {exam.questions.length}</span>
-                      <span className="text-xs text-gray-500">{exam.subject} - {exam.track}</span>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-            ) : (
-              selectedSubject && (
+            <AnimatePresence>
+              {hintsUsed[q.id] && q.hint && (
                 <motion.div
-                  key="no-exams"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center text-gray-500 text-base py-4"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="mt-2 text-sm rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-2"
                 >
-                  هیچ تاقیکردنەوەیەک نەدۆزرایەوە بۆ ئەم بابەت/لقە.
+                  {q.hint}
                 </motion.div>
-              )
-            )}
-          </motion.div>
-        )}
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
-        {/* Quiz Interface */}
-        {quizStarted && currentExam && (
-          <motion.div
-            key="quiz-active"
-            variants={sectionVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="space-y-6"
-          >
-            {/* Quiz Header (Title + Timer + Exit Button) */}
-            <div className="flex justify-between items-center bg-blue-50 p-4 rounded-xl shadow-inner border border-blue-100">
-              <h3 className="text-xl font-bold text-blue-800">{currentExam.title}</h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-blue-700 font-semibold">
-                  <Clock size={20} />
-                  <span>{formatTime(timerSeconds)}</span>
-                </div>
-                <motion.button
-                  onClick={handleExitQuiz}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition flex items-center gap-1"
-                >
-                  <LogOut size={18} /> لابردن
-                </motion.button>
+        <div className="mt-3 space-y-2">
+          {q.shuffledOptions.map((opt) => {
+            const selected = chosen === opt;
+            const correct = opt === q.correctAnswer;
+            let base =
+              "w-full text-right rounded-xl border px-3 py-2 text-sm transition flex items-center gap-2 ";
+            if (showFeedback) {
+              if (correct)
+                base +=
+                  "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300";
+              else if (selected && !correct)
+                base +=
+                  "bg-rose-50 dark:bg-rose-900/20 border-rose-300 dark:border-rose-600 text-rose-700 dark:text-rose-300";
+              else
+                base +=
+                  "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200";
+            } else
+              base += selected
+                ? "bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-600 text-sky-700 dark:text-sky-300"
+                : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:border-sky-300";
+
+            return (
+              <button
+                key={opt}
+                onClick={() => {
+                  choose(q.id, opt);
+                  setActiveQ(q.id);
+                }}
+                disabled={showResults}
+                className={base}
+              >
+                <input
+                  type="radio"
+                  checked={selected}
+                  onChange={() => {}}
+                  className="ml-2 h-4 w-4 accent-sky-600"
+                  disabled={showResults}
+                />
+                <span className="flex-1 text-right">{opt}</span>
+                <AnimatePresence>
+                  {showFeedback && correct && (
+                    <motion.span
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                    >
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                    </motion.span>
+                  )}
+                  {showFeedback && selected && !correct && (
+                    <motion.span
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                    >
+                      <XCircle size={18} className="text-rose-600" />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* explanation */}
+        <AnimatePresence>
+          {((mode === "practice" && answers[q.id]) ||
+            (showResults && showAllExplanations)) && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mt-3 rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-900/20 p-3 text-sm"
+            >
+              <div className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                <Lightbulb size={16} /> وەڵامی ڕاست: {q.correctAnswer}
+              </div>
+              <div
+                className="mt-2 text-amber-900 dark:text-amber-200 leading-relaxed"
+                dangerouslySetInnerHTML={{
+                  __html: q.explanation
+                    .replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>')
+                    .replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>'),
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* notes */}
+        <div className="mt-3">
+          <label className="text-xs text-zinc-500 flex items-center gap-1">
+            <NotebookPen size={14} /> تێبینی بۆ ئەم پرسیارە
+          </label>
+          <textarea
+            value={notes[q.id] || ""}
+            onChange={(e) => changeNote(q.id, e.target.value)}
+            placeholder="لێرە تێبینی بنووسە…"
+            className="mt-1 w-full rounded-xl border bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-sm p-2 resize-y min-h-[60px]"
+            disabled={showResults && mode === "exam"}
+          ></textarea>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Share modal
+  const ShareScoreModal = () => {
+    const scoreText =
+      `ئەنجامی تاقیکردنەوەی "${exam?.title}":\n\n` +
+      `ڕاست: ${detailedScore.correct} / ${detailedScore.total}\n` +
+      `هەڵە: ${detailedScore.incorrect}\n` +
+      `بەجێماوە: ${detailedScore.unanswered}\n` +
+      `کاتی تەواو: ${formatTime(detailedScore.timeSpent)}\n` +
+      `لەسەدا: %${detailedScore.percentage}`;
+
+    const handleDownloadImage = () => {
+      alert("بۆ وێنە، سکرینشۆت بگرە لەسەر ئەم کارتە. (ئامرازی دابەزاندنی وێنە لە ناو ئەم ئامادەکارییەدا نییە)");
+    };
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={() => setShowShareModal(false)}
+        className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50 cursor-pointer"
+      >
+        <motion.div
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-xl text-center cursor-default"
+        >
+          <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-50 mb-4">
+            هاوبەشی‌کردنی ئەنجام
+          </h3>
+
+          <div className="bg-gradient-to-br from-emerald-100 to-white dark:from-emerald-950/30 dark:to-zinc-950/40 border border-emerald-200 dark:border-emerald-700 rounded-xl p-5 mb-5 space-y-3">
+            <p className="text-lg font-bold text-emerald-800 dark:text-emerald-300">
+              {exam?.title}
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <div className="flex flex-col items-center">
+                <span className="text-5xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {detailedScore.correct}
+                </span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  ڕاست
+                </span>
+              </div>
+              <div className="text-4xl font-extrabold text-zinc-400">/</div>
+              <div className="flex flex-col items-center">
+                <span className="text-5xl font-extrabold text-zinc-800 dark:text-zinc-200">
+                  {detailedScore.total}
+                </span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  پرسیار
+                </span>
               </div>
             </div>
+            <p className="text-3xl font-bold text-sky-600 dark:text-sky-400 mt-2">
+              %{detailedScore.percentage}
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+              <span>
+                هەڵە:{" "}
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
+                  {detailedScore.incorrect}
+                </span>
+              </span>
+              <span>
+                بەجێماوە:{" "}
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  {detailedScore.unanswered}
+                </span>
+              </span>
+              <span className="col-span-2">
+                کاتی تەواو:{" "}
+                <span className="font-semibold text-sky-600 dark:text-sky-400">
+                  {formatTime(detailedScore.timeSpent)}
+                </span>
+              </span>
+            </div>
+          </div>
 
-            {/* Question Navigation Dots */}
-            <div className="flex flex-wrap justify-center gap-2 py-3 bg-gray-50 rounded-xl shadow-inner border border-gray-100">
-              {currentExam.questions.map((q, idx) => (
-                <motion.button
-                  key={q.id}
-                  onClick={() => setCurrentQuestionIndex(idx)}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold
-                    ${idx === currentQuestionIndex
-                      ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400/50' // Current question
-                      : (showResults && userAnswers[q.id] === q.correctAnswer)
-                        ? 'bg-green-500 text-white' // Correctly answered
-                        : (showResults && userAnswers[q.id] && userAnswers[q.id] !== q.correctAnswer)
-                          ? 'bg-red-500 text-white' // Incorrectly answered
-                          : userAnswers[q.id]
-                            ? 'bg-blue-200 text-blue-800' // Answered but not yet checked
-                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300' // Unanswered
-                    }`}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => copyToClipboard(scoreText)}
+              className="w-full px-5 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 flex items-center justify-center gap-2 transition"
+            >
+              <Clipboard size={18} /> کۆپی‌کردنی ئەنجام (دەق)
+            </button>
+            <button
+              onClick={handleDownloadImage}
+              className="w-full px-5 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center gap-2 transition"
+            >
+              <Download size={18} /> دابەزاندنی وێنەی ئەنجام
+            </button>
+            <p className="text-xs text-zinc-500 mt-2 flex items-center justify-center gap-1">
+              <Info size={14} className="shrink-0" />
+              بۆ وێنە سکرینشۆت بگرە.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowShareModal(false)}
+            className="absolute top-3 right-3 p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
+          >
+            <XCircle size={20} />
+          </button>
+        </motion.div>
+      </motion.div>
+    );
+  };
+
+  // ---------------- RENDER ----------------
+  return (
+    <div dir="rtl" className={`${kuFont} space-y-4`}>
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-40">
+        <div className="backdrop-blur bg-white/85 dark:bg-zinc-900/85 border-b border-white/10">
+          <div className="mx-auto max-w-5xl px-3 py-2">
+            {currentView === "examPicker" || currentView === "historyList" ? (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {/* Subject */}
+                <div>
+                  <label className="text-[11px] text-zinc-500">بابەت</label>
+                  <select
+                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                  >
+                    <option value="">— هەموو —</option>
+                    {subjects.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Track */}
+                <div>
+                  <label className="text-[11px] text-zinc-500">شاخە</label>
+                  <select
+                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
+                    value={selectedTrack}
+                    onChange={(e) => setSelectedTrack(e.target.value)}
+                  >
+                    <option value="">— هەموو —</option>
+                    {tracks.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Difficulty */}
+                <div>
+                  <label className="text-[11px] text-zinc-500">ئاست</label>
+                  <select
+                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
+                    value={difficultyFilter}
+                    onChange={(e) => setDifficultyFilter(e.target.value)}
+                  >
+                    <option value="">— هەموو —</option>
+                    {difficulties.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Mode */}
+                <div>
+                  <label className="text-[11px] text-zinc-500">دۆخ</label>
+                  <select
+                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value)}
+                  >
+                    <option value="practice">توێژینەوە</option>
+                    <option value="exam">تاقیکردنەوە</option>
+                  </select>
+                </div>
+                {/* Minutes */}
+                <div>
+                  <label className="text-[11px] text-zinc-500">خوله‌ک</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="خوله‌ک"
+                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-right text-zinc-800 dark:text-zinc-200"
+                    value={manualMinutes}
+                    onChange={(e) => setManualMinutes(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (currentView === "activeExam" || currentView === "resultsView") && (
+              <div className="flex items-center justify-between gap-3 py-1">
+                <div className="text-sm font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-2">
+                  <Clock size={18} /> {formatTime(seconds)}
+                </div>
+                <div className="flex-1 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                  <div
+                    className={`h-full ${showResults ? "bg-emerald-500" : "bg-sky-500"}`}
+                    style={{
+                      width: `${(Object.keys(answers).length / (questions.length || 1)) * 100}%`,
+                      transition: "width .3s ease",
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={exitExam}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-red-500 text-white hover:bg-red-600 flex items-center gap-1"
                 >
-                  {/* Using index for numbers */}
-                  {idx + 1}
+                  <LogOut size={14} /> دەرچوون
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Kurdish Hero */}
+      {currentView === "examPicker" && (
+        <div className="px-3">
+          <div className="mx-auto max-w-5xl rounded-2xl bg-gradient-to-l from-sky-900/40 via-zinc-900/50 to-zinc-900/70 border border-white/10 p-4 md:p-5 mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="text-xl md:text-2xl font-extrabold text-zinc-50">بەشی تاقیکردنەوە</h1>
+                <p className="text-sm text-zinc-400 mt-1">
+                  هەڵبژاردن، تاقیکردنەوە و هەڵسەنگاندن — بە پشتیوانی زمانی کوردی و دەستگەیشتنی ئاسان.
+                </p>
+              </div>
+              <div className="text-xs md:text-sm text-sky-200 bg-sky-600/15 ring-1 ring-sky-500/30 rounded-xl px-3 py-2">
+              به‌شێوه‌یه‌كی خوودكارانه‌ هه‌ڵده‌گیرێت.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto max-w-5xl px-3">
+        {/* Exam Picker */}
+        {currentView === "examPicker" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-50">
+                تاقیکردنەوەکان
+              </h2>
+              <button
+                onClick={goToHistoryList}
+                className="px-3 py-1.5 rounded-lg text-xs bg-sky-600 text-white hover:bg-sky-700 flex items-center gap-1 transition"
+              >
+                <History size={14} /> ئەنجامەکانم
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredExams.map((e) => (
+                <motion.button
+                  key={e.id}
+                  variants={card}
+                  initial="hidden"
+                  animate="show"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => startExam(e)}
+                  className="text-right rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-4 shadow hover:shadow-md transition"
+                >
+                  <div className="text-sm text-zinc-500">
+                    {e.subject} • {e.track}
+                  </div>
+                  <div className="font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+                    {e.title}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1">
+                    ژمارەی پرسیار: {e.questions.length}
+                  </div>
                 </motion.button>
               ))}
             </div>
 
-
-            {/* Question Display */}
-            {currentQuestion && (
-              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200 space-y-4">
-                <p className="text-lg font-semibold text-gray-800">
-                  پرسیار {currentQuestionIndex + 1} لە {currentExam.questions.length}:
-                </p>
-                {currentQuestion.image && (
-                  <img src={currentQuestion.image} alt="Question visual" className="w-full max-h-60 object-contain rounded-lg mb-4" />
-                )}
-                <div className="text-xl font-medium text-gray-900 leading-relaxed q-text" dangerouslySetInnerHTML={{ __html: currentQuestion.questionText.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} />
-
-                <div className="space-y-3 mt-5">
-                  {/* Use shuffledOptions for consistent order */}
-                  {currentQuestion.shuffledOptions.map((option, idx) => {
-                    const isSelected = userAnswers[currentQuestion.id] === option;
-                    const isCorrect = currentQuestion.correctAnswer === option;
-                    const isUserIncorrect = isSelected && !isCorrect;
-
-                    return (
-                      <motion.label
-                        key={idx}
-                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all duration-200
-                          ${getOptionClass(option)}
-                          ${(showLiveExplanation || showResults) && (isCorrect || isUserIncorrect) ? 'transform scale-[1.01] transition-transform' : ''}
-                        `}
-                        whileHover={!(showLiveExplanation || showResults) ? { scale: 1.01, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" } : {}}
-                        whileTap={!(showLiveExplanation || showResults) ? { scale: 0.99 } : {}}
-                      >
-                        <input
-                          type="radio"
-                          name={`question-${currentQuestion.id}`}
-                          value={option}
-                          checked={isSelected}
-                          onChange={() => handleAnswerChange(currentQuestion.id, option)}
-                          className="ml-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                          disabled={showResults} // Disable input if results are shown (prevents changing answers after submit)
-                        />
-                        <span className="text-gray-800 font-medium flex-grow">{option}</span>
-                        {/* Show icons if live feedback or full results OR in practice mode if an answer is selected for current question */}
-                        {((examMode === 'practice' && showLiveExplanation && userAnswers[currentQuestion.id]) || showResults) && ( // show icon if live explanation and user has selected an answer
-                          <AnimatePresence>
-                            {isCorrect && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0 }}
-                                transition={{ duration: 0.2 }}
-                              >
-                                <CheckCircle2 size={20} className="text-green-600 mr-2" />
-                              </motion.div>
-                            )}
-                            {isUserIncorrect && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0 }}
-                                transition={{ duration: 0.2 }}
-                              >
-                                <XCircle size={20} className="text-red-600 mr-2" />
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        )}
-                      </motion.label>
-                    );
-                  })}
-                </div>
-
-                {/* Show Live Explanation Button (Only in Practice Mode if an answer is selected) */}
-                {examMode === 'practice' && userAnswers[currentQuestion.id] && !showResults && (
-                    <motion.button
-                        onClick={() => setShowLiveExplanation(prev => !prev)}
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-full font-semibold hover:bg-yellow-700 transition mx-auto mt-4"
-                    >
-                        <Lightbulb size={20} />
-                        {showLiveExplanation ? 'شاردنەوەی وەڵام' : 'بینینی وەڵامی دروست و شیکار'}
-                    </motion.button>
-                )}
-
-
-                {/* Navigation and Actions */}
-                <div className="flex flex-wrap justify-between gap-3 mt-6 pt-4 border-t border-gray-100">
-                  <motion.button
-                    onClick={handlePreviousQuestion}
-                    disabled={currentQuestionIndex === 0 || showResults}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                  >
-                    <ChevronRight size={18} /> پرسیاری پێشوو
-                  </motion.button>
-                  
-                  {currentQuestionIndex === currentExam.questions.length - 1 ? (
-                    <motion.button
-                      onClick={handleSubmitQuiz}
-                      disabled={showResults}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                    >
-                      ناردن <CheckCircle2 size={18} />
-                    </motion.button>
-                  ) : (
-                    <motion.button
-                      onClick={handleNextQuestion}
-                      disabled={showResults}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                    >
-                      پرسیاری داهاتوو <ChevronLeft size={18} />
-                    </motion.button>
-                  )}
-                </div>
-              </div>
+            {filteredExams.length === 0 && (
+              <p className="text-center text-zinc-500 py-8">
+                هیچ تاقیکردنەوەیەک نەدۆزرایەوە.
+              </p>
             )}
+          </div>
+        )}
 
-            {/* Live Solution and Explanation Section (for current question) */}
-            <AnimatePresence>
-              {showLiveExplanation && currentQuestion && (
-                <motion.div
-                  key="live-explanation"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="bg-green-50 p-6 rounded-xl shadow-md border border-green-200 mt-4 space-y-4"
-                >
-                  <h4 className="text-xl font-bold text-green-700 flex items-center gap-2">
-                    <CheckCircle2 size={24} /> وەڵامی دروست:
-                  </h4>
-                  <p className="text-lg font-semibold text-green-800">{currentQuestion.correctAnswer}</p>
+        {/* History List */}
+        {currentView === "historyList" && (
+          <HistoricalResultsPage
+            results={historicalResults}
+            onViewResult={viewHistoricalResult}
+            onGoBack={() => setCurrentView("examPicker")}
+          />
+        )}
 
-                  <h4 className="text-xl font-bold text-purple-700 flex items-center gap-2">
-                    <Lightbulb size={24} /> شیکار:
-                  </h4>
-                  {currentQuestion.explanationImage && (
-                    <img src={currentQuestion.explanationImage} alt="Explanation Visual" className="w-full max-h-80 object-contain rounded-lg mb-4" />
-                  )}
-                  <div className="text-base text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: currentQuestion.explanation.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} />
-                </motion.div>
+        {/* Active / Results */}
+        {(currentView === "activeExam" || currentView === "resultsView") && exam && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base sm:text-lg font-extrabold text-zinc-900 dark:text-zinc-100">
+                {exam.title}
+              </h3>
+              {!showResults && (
+                <span className="text-xs text-zinc-500">
+                  {Object.keys(answers).length}/{questions.length} تەواو
+                </span>
               )}
-            </AnimatePresence>
+            </div>
 
-            {/* Results Summary (if showResults is true) */}
             <AnimatePresence>
               {showResults && (
                 <motion.div
-                  key="results-summary"
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="bg-blue-100 p-6 rounded-xl shadow-md border border-blue-200 mt-6 text-center space-y-3"
+                  exit={{ opacity: 0, y: -8 }}
+                  className="rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-4 shadow space-y-4"
                 >
-                  <h3 className="text-2xl font-bold text-blue-800">ئەنجامی تاقیکردنەوە</h3>
-                  <p className="text-xl font-semibold text-gray-700">
-                    {score.correct} لە {score.total} پرسیار دروست بوون!
-                  </p>
+                  <div className="flex items-center gap-2 text-sm font-bold text-zinc-800 dark:text-zinc-100">
+                    <BarChart3 size={18} /> لێکۆڵینەوە
+                  </div>
 
-                  {/* Toggle to show/hide all correct answers */}
-                  <motion.button
-                    onClick={() => setShowOverallExplanation(prev => !prev)} // Controls display of all answers
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-full font-semibold hover:bg-yellow-700 transition mx-auto mt-4"
-                  >
-                    <Lightbulb size={20} />
-                    {showOverallExplanation ? 'شاردنەوەی وەڵامەکان' : 'بینینی وەڵامی دروست بۆ هەموو پرسیارەکان'}
-                  </motion.button>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center">
+                      <div className="text-xs text-zinc-500">کۆتا ئەنجام</div>
+                      <div className="text-lg font-extrabold text-zinc-900 dark:text-zinc-100">
+                        {detailedScore.correct}/{detailedScore.total}
+                      </div>
+                      <div className="text-emerald-600 dark:text-emerald-400 font-bold text-xl mt-1">
+                        %{detailedScore.percentage}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center">
+                      <div className="text-xs text-zinc-500">ڕاست</div>
+                      <div className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {detailedScore.correct}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center">
+                      <div className="text-xs text-zinc-500">هەڵە</div>
+                      <div className="text-lg font-extrabold text-rose-600 dark:text-rose-400">
+                        {detailedScore.incorrect}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center">
+                      <div className="text-xs text-zinc-500">بەجێماوە</div>
+                      <div className="text-lg font-extrabold text-amber-600 dark:text-amber-400">
+                        {detailedScore.unanswered}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center col-span-2 sm:col-span-1">
+                      <div className="text-xs text-zinc-500">کاتی تەواو</div>
+                      <div className="text-lg font-extrabold text-sky-600 dark:text-sky-400">
+                        {formatTime(detailedScore.timeSpent)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center col-span-2 sm:col-span-1">
+                      <div className="text-xs text-zinc-500">تەواوی/پرسیار</div>
+                      <div className="text-lg font-extrabold text-sky-600 dark:text-sky-400">
+                        {totals.avgTimePerQuestion}s
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Display all correct answers and user's answers */}
-                  <AnimatePresence>
-                    {showOverallExplanation && (
-                      <motion.div
-                        key="all-answers-detailed"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="text-right mt-6 p-4 bg-white rounded-xl border border-gray-200 space-y-4 overflow-hidden"
-                      >
-                        <h4 className="text-xl font-bold text-gray-800 border-b pb-2 mb-4">هەموو وەڵامەکان:</h4>
-                        {currentExam.questions.map((q, idx) => (
-                          <div key={q.id} className="border-b border-gray-100 pb-3 mb-3 last:border-b-0 last:pb-0 last:mb-0">
-                            <p className="font-semibold text-gray-900">پرسیار {idx + 1}: <span dangerouslySetInnerHTML={{ __html: q.questionText.replace(/\$\$(.*?)\$\$/g, '<span class="latex-math">$$$1$$</span>').replace(/\$(.*?)\$/g, '<span class="latex-math">$1</span>') }} /></p>
-                            <p className="text-sm text-gray-600 flex items-center">
-                              وەڵامی تۆ: <span className={`mr-2 font-medium ${userAnswers[q.id] === q.correctAnswer ? 'text-green-600' : 'text-red-600'}`}>
-                                {userAnswers[q.id] || 'وەڵام نەدراوەتەوە'}
-                              </span>
-                              {userAnswers[q.id] === q.correctAnswer ? (
-                                <CheckCircle2 size={16} className="text-green-600" />
-                              ) : (
-                                <XCircle size={16} className="text-red-600" />
-                              )}
-                            </p>
-                            <p className="text-sm text-green-700 flex items-center">
-                              وەڵامی دروست: <span className="mr-2 font-medium">{q.correctAnswer}</span>
-                            </p>
-                            <motion.button
-                              onClick={() => {
-                                setCurrentQuestionIndex(idx);
-                                setShowResults(false); // Exit results view
-                                setShowLiveExplanation(true); // Show explanation for this question
-                                // Optional: scroll to top of quiz interface
-                                const quizInterface = document.getElementById('quiz-active-section');
-                                if (quizInterface) quizInterface.scrollIntoView({ behavior: 'smooth' });
-                              }}
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              className="text-blue-500 text-xs mt-1 hover:underline flex items-center gap-1 mx-auto"
+                  <div className="pt-2 border-t border-white/10">
+                    <div className="flex items-center gap-2 text-sm font-bold text-zinc-800 dark:text-zinc-100 mb-2">
+                      <BookOpen size={18} /> ئەنجام بەپێی ئاست
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {Object.entries(totals.byDiff).map(([k, v]) =>
+                        v.t > 0 ? (
+                          <div
+                            key={k}
+                            className="rounded-xl border border-white/10 bg-zinc-50 dark:bg-zinc-800 p-3 text-center"
+                          >
+                            <div className="text-xs text-zinc-500">{k}</div>
+                            <div className="text-lg font-extrabold text-zinc-900 dark:text-zinc-100">
+                              {v.c}/{v.t}
+                            </div>
+                            <div
+                              className={`font-bold text-xl mt-1 ${
+                                v.c / v.t > 0.7
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : v.c / v.t > 0.4
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-rose-600 dark:text-rose-400"
+                              }`}
                             >
-                              <Lightbulb size={14} /> بینینی شیکار
-                            </motion.button>
+                              %{((v.c / v.t) * 100).toFixed(0)}
+                            </div>
                           </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
 
-                  <div className="flex justify-center gap-4 pt-4 border-t border-blue-200 mt-6">
-                    <motion.button
-                      onClick={handleResetQuiz}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                    <label
+                      htmlFor="showWrongOnly"
+                      className="flex items-center gap-2 text-sm font-bold text-zinc-800 dark:text-zinc-100 cursor-pointer"
                     >
-                      دووبارە دەستپێکردنەوە
-                    </motion.button>
+                      <ListChecks size={18} /> تەنیا هەڵەکان پیشانبدە
+                    </label>
+                    <input
+                      type="checkbox"
+                      id="showWrongOnly"
+                      checked={showWrongOnly}
+                      onChange={() => setShowWrongOnly(!showWrongOnly)}
+                      className="h-5 w-5 rounded accent-sky-600"
+                    />
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+
+            <div className="space-y-3">
+              {questions.map((q, idx) => (
+                <QuestionCard key={q.id} q={q} index={idx} />
+              ))}
+            </div>
+
+            {/* Bottom bar */}
+            <div className="sticky bottom-2 z-30">
+              <div className="mx-auto max-w-5xl">
+                <div className="rounded-2xl bg-white/95 dark:bg-zinc-900/95 shadow-lg border border-white/10 p-2 flex items-center justify-between">
+                  {!showResults ? (
+                    <>
+                      <button
+                        onClick={submitAll}
+                        className="flex-1 mx-1 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 flex items-center justify-center gap-2 transition"
+                      >
+                        ناردن <ListChecks size={18} />
+                      </button>
+                      <button
+                        onClick={exitExam}
+                        className="mx-1 px-3 py-2 rounded-xl bg-rose-500 text-white font-semibold hover:bg-rose-600 flex items-center gap-2 transition"
+                      >
+                        دەرچوون <ChevronRight size={16} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="px-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                        {detailedScore.correct} / {detailedScore.total}
+                      </div>
+                      <button
+                        onClick={() => setShowAllExplanations((v) => !v)}
+                        className="flex-1 mx-1 px-4 py-2 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 flex items-center justify-center gap-2 transition"
+                      >
+                        {showAllExplanations
+                          ? "شاردنەوەی ڕوونکردنەوە"
+                          : "پیشاندانی هەموو ڕوونکردنەوەکان"}{" "}
+                        <Lightbulb size={18} />
+                      </button>
+                      <button
+                        onClick={() => setShowShareModal(true)}
+                        className="mx-1 px-3 py-2 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 flex items-center justify-center gap-2 transition"
+                      >
+                        هاوبەشی‌کردن <Share2 size={16} />
+                      </button>
+                      <button
+                        onClick={handleBackFromResults}
+                        className="mx-1 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center gap-2 transition"
+                      >
+                        گەڕانەوە <ChevronLeft size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
+
+      {/* Share Modal */}
+      <AnimatePresence>{showShareModal && <ShareScoreModal />}</AnimatePresence>
     </div>
   );
-};
-
-export default ExamsGrade12;
+}

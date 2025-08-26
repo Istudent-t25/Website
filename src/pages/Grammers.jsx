@@ -1,110 +1,101 @@
-import React, { useState, Fragment, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { BookOpen, Globe, MessageCircle, Youtube, Search, Info, ChevronDown, ChevronUp, Lightbulb, Sparkles } from 'lucide-react'; // Added Sparkles icon
-import { Menu, Transition } from '@headlessui/react';
-
-// Sample data for grammar lessons in English, Kurdish, and Arabic.
+/* ----------------------------- DATA (unchanged) ---------------------------- */
 const grammarData = {
   english: [
     {
       id: 1,
       title: 'Passive Voice',
-      explanation: 'The passive voice is a grammatical construction where the subject of the sentence receives the action rather than performing it. This is often used when the actor is unknown or unimportant.',
-      extraInfo: 'Imagine you want to talk about something that happened, but you don\'t know who did it, or it\'s not important. The passive voice lets you focus on the thing that the action happened to. For example, instead of saying "A student broke the window," you can say "The window was broken." The window is the star of the sentence!',
+      explanation:
+        'The passive voice is a grammatical construction where the subject of the sentence receives the action rather than performing it. This is often used when the actor is unknown or unimportant.',
+      extraInfo:
+        "Imagine you want to talk about something that happened, but you don't know who did it, or it's not important. The passive voice lets you focus on the thing that the action happened to. For example, instead of saying \"A student broke the window,\" you can say \"The window was broken.\" The window is the star of the sentence!",
       rules: [
         '**Rule 1: Form the passive with a form of the verb "to be" + the past participle of the main verb.**',
         '**Rule 2: The object of the active sentence becomes the subject of the passive sentence.**',
-        '**Rule 3: You can mention the original subject using "by + agent," but this is often omitted.**'
+        '**Rule 3: You can mention the original subject using "by + agent," but this is often omitted.**',
       ],
       types: [
         {
           subTitle: 'Passive with a Modal Verb',
-          subExplanation: 'This is formed using a modal verb (can, could, must, should, etc.) + be + past participle.',
-          subExamples: [
-            'Active: You **must clean** the kitchen.',
-            'Passive: The kitchen **must be cleaned**.'
-          ]
+          subExplanation:
+            'This is formed using a modal verb (can, could, must, should, etc.) + be + past participle.',
+          subExamples: ['Active: You **must clean** the kitchen.', 'Passive: The kitchen **must be cleaned**.'],
         },
         {
           subTitle: 'Passive in Different Tenses (Mapping)',
-          subExplanation: 'The passive voice can be used in almost all tenses. The verb "to be" is conjugated to match the tense, and the main verb is always in the past participle form. See the table below for a clear mapping.',
+          subExplanation:
+            'The passive voice can be used in almost all tenses. The verb "to be" is conjugated to match the tense, and the main verb is always in the past participle form. See the table below for a clear mapping.',
           subTable: {
             headers: ['Tense', 'Active Voice Structure', 'Passive Voice Structure'],
             rows: [
               ['Present Simple', 'Subject + Verb', 'Subject + **am/is/are** + Past Participle'],
               ['Past Simple', 'Subject + Verb-ed', 'Subject + **was/were** + Past Participle'],
               ['Present Perfect', 'Subject + has/have + Verb-ed', 'Subject + **has/have been** + Past Participle'],
-              ['Future Simple', 'Subject + will + Verb', 'Subject + **will be** + Past Participle']
-            ]
-          }
+              ['Future Simple', 'Subject + will + Verb', 'Subject + **will be** + Past Participle'],
+            ],
+          },
         },
         {
           subTitle: 'Passive with "get"',
-          subExplanation: 'In informal contexts, "get" is sometimes used instead of "be" to form the passive voice, especially to describe something that happens to someone or something unexpectedly.',
-          subExamples: [
-            'He **got hit** by a car.',
-            'They **got married** in Las Vegas.'
-          ]
+          subExplanation:
+            'In informal contexts, "get" is sometimes used instead of "be" to form the passive voice, especially to describe something that happens to someone or something unexpectedly.',
+          subExamples: ['He **got hit** by a car.', 'They **got married** in Las Vegas.'],
         },
         {
           subTitle: 'Passive of a Reporting Verb',
-          subExplanation: 'This is used to report what people think or say. The common structure is "It is said that..." or "He is thought to be..."',
+          subExplanation:
+            'This is used to report what people think or say. The common structure is "It is said that..." or "He is thought to be..."',
           subExamples: [
             'Active: People **say** that he is a good teacher.',
             'Passive: **It is said** that he is a good teacher.',
-            'Passive: He **is said** to be a good teacher.'
-          ]
-        }
+            'Passive: He **is said** to be a good teacher.',
+          ],
+        },
       ],
       youtubeResources: [
         { name: 'TED-Ed', url: 'https://www.youtube.com/@TEDEd', description: 'Fun, animated lessons on a wide range of topics, including grammar.' },
         { name: 'BBC Learning English', url: 'https://www.youtube.com/@bbclearningenglish', description: 'Daily videos to help you improve your English pronunciation, grammar, and more.' },
-        { name: 'Grammarly', url: 'https://www.youtube.com/@grammarly', description: 'Quick tips and easy-to-understand explanations for common grammar issues.' }
-      ]
+        { name: 'Grammarly', url: 'https://www.youtube.com/@grammarly', description: 'Quick tips and easy-to-understand explanations for common grammar issues.' },
+      ],
     },
     {
       id: 2,
       title: 'Conditional Sentences',
-      explanation: 'Conditional sentences are statements that discuss known factors or hypothetical situations and their consequences. There are four main types.',
-      extraInfo: 'Think of conditional sentences as a "what if" game! You\'re saying, "If this happens, then that will happen." The different types let you talk about real possibilities ("If I study, I will pass") or imaginary ones ("If I were a bird, I would fly").',
+      explanation:
+        'Conditional sentences are statements that discuss known factors or hypothetical situations and their consequences. There are four main types.',
+      extraInfo:
+        "Think of conditional sentences as a \"what if\" game! You're saying, \"If this happens, then that will happen.\" The different types let you talk about real possibilities (\"If I study, I will pass\") or imaginary ones (\"If I were a bird, I would fly\").",
       rules: [
         '**Rule 1: A conditional sentence has two clauses: an "if" clause (the condition) and a main clause (the result).**',
-        '**Rule 2: The order of the clauses can be changed, but a comma is used when the "if" clause comes first.**'
+        '**Rule 2: The order of the clauses can be changed, but a comma is used when the "if" clause comes first.**',
       ],
       types: [
         {
           subTitle: 'Zero Conditional',
           subExplanation: 'Used for facts and general truths. Structure: If + Present Simple, ... Present Simple.',
-          subExamples: [
-            'If you **heat** water to 100°C, it **boils**.'
-          ]
+          subExamples: ['If you **heat** water to 100°C, it **boils**.'],
         },
         {
           subTitle: 'First Conditional',
           subExplanation: 'Used for a likely or possible future outcome. Structure: If + Present Simple, ... will + base verb.',
-          subExamples: [
-            'If it **rains**, we **will stay** inside.'
-          ]
+          subExamples: ['If it **rains**, we **will stay** inside.'],
         },
         {
           subTitle: 'Second Conditional',
-          subExplanation: 'Used for hypothetical or unlikely situations. Structure: If + Past Simple, ... would + base verb.',
-          subExamples: [
-            'If I **were** a millionaire, I **would travel** the world.'
-          ]
+          subExplanation:
+            'Used for hypothetical or unlikely situations. Structure: If + Past Simple, ... would + base verb.',
+          subExamples: ['If I **were** a millionaire, I **would travel** the world.'],
         },
         {
           subTitle: 'Third Conditional',
-          subExplanation: 'Used for imaginary situations in the past. Structure: If + Past Perfect, ... would have + Past Participle.',
-          subExamples: [
-            'If you **had studied**, you **would have passed** the exam.'
-          ]
-        }
+          subExplanation:
+            'Used for imaginary situations in the past. Structure: If + Past Perfect, ... would have + Past Participle.',
+          subExamples: ['If you **had studied**, you **would have passed** the exam.'],
+        },
       ],
       youtubeResources: [
         { name: 'TED-Ed', url: 'https://www.youtube.com/@TEDEd', description: 'Animated lessons that make complex topics easy to understand.' },
-        { name: 'Oxford English Dictionary', url: 'https://www.youtube.com/@OxfordEnglishDictionary', description: 'Explore the history and usage of the English language.' }
-      ]
+        { name: 'Oxford English Dictionary', url: 'https://www.youtube.com/@OxfordEnglishDictionary', description: 'Explore the history and usage of the English language.' },
+      ],
     },
   ],
   kurdish: [
@@ -112,526 +103,301 @@ const grammarData = {
       id: 1,
       title: 'ناوی لێکدراو و سادە',
       explanation: 'ناوی لێکدراو لە دوو وشە یان زیاتر پێکدێت. ناوی سادە تەنها لە یەک وشە پێکدێت و لێک نادرێتەوە.',
-      extraInfo: 'لە زمانی کوردیدا هەندێک وشە تەنها یەک پارچەن وەک "باخ" (باغ). بەڵام هەندێک وشەی تر لە دوو یان زیاتر وشە دروستکراون وەک "باخچەوان" (باغ+چەوان). ئەمەی دووەمیان پێی دەوترێت ناوی لێکدراو، وەک یارییەکی پێکەوەنانی وشە وایە!',
+      extraInfo:
+        'لە زمانی کوردیدا هەندێک وشە تەنها یەک پارچەن وەک "باخ" (باغ). بەڵام هەندێک وشەی تر لە دوو یان زیاتر وشە دروستکراون وەک "باخچەوان" (باغ+چەوان). ئەمەی دووەمیان پێی دەوترێت ناوی لێکدراو، وەک یارییەکی پێکەوەنانی وشە وایە!',
       rules: [
         '**یاسا: ناوی لێکدراو لە دوو وشەی سەربەخۆ دروست دەبێت.**',
-        '**یاسا: دەتوانرێت ناوی لێکدراو لە ناو + کردار، یان ناو + ناو دروست بکرێت.**'
+        '**یاسا: دەتوانرێت ناوی لێکدراو لە ناو + کردار، یان ناو + ناو دروست بکرێت.**',
       ],
-      examples: [
-        'ناوی سادە: **باخ**',
-        'ناوی لێکدراو: **باخچەوان**',
-        'ناوی لێکدراو: **خۆشەویستی**',
-      ],
+      examples: ['ناوی سادە: **باخ**', 'ناوی لێکدراو: **باخچەوان**', 'ناوی لێکدراو: **خۆشەویستی**'],
       youtubeResources: [
         { name: 'مامۆستا نەوزاد', url: 'https://www.youtube.com/results?search_query=مامۆستا+نەوزاد', description: 'مامۆستایەکی بەناوبانگ بۆ ڕێزمانی کوردی.' },
-        { name: 'فێرکاری زمانی کوردی', url: 'https://www.youtube.com/results?search_query=فێرکاری+زمانی+کوردی', description: 'کەناڵێکی تایبەت بە وانەکانی زمانی کوردی.' }
+        { name: 'فێرکاری زمانی کوردی', url: 'https://www.youtube.com/results?search_query=فێرکاری+زمانی+کوردی', description: 'کەناڵێکی تایبەت بە وانەکانی زمانی کوردی.' },
       ],
-      dir: 'rtl'
+      dir: 'rtl',
     },
     {
       id: 2,
       title: 'جێناوی کەسی',
       explanation: 'جێناوی کەسی لەجیاتی ناوی کەسێک دادەنرێت. وەک (من, تۆ, ئەو, ئێمە, ئێوە, ئەوان).',
-      extraInfo: 'کاتێک دەمانەوێت قسە لەسەر کەسێک بکەین و ناوی نەهێنینەوە، جێناو بەکاردێنین. وەک ئەوەی بڵێی "ئەو" لەجیاتی "ئەحمەد." جێناوەکان ڕستەکانمان کورتتر و جوانتر دەکەن.',
-      rules: [
-        '**یاسا: جێناو لە سەرەتای ڕستەدا دێت و بە پێی ژمارە دەگۆڕدرێت.**',
-        '**یاسا: جێناوەکان ڕۆڵی بکەر دەبینن لە ڕستەدا.**'
-      ],
-      examples: [
-        'من **قوتابی**م.',
-        'ئەوان **وەرزشکار**ن.',
-      ],
+      extraInfo:
+        'کاتێک دەمانەوێت قسە لەسەر کەسێک بکەین و ناوی نەهێنینەوە، جێناو بەکاردێنین. وەک ئەوەی بڵێی "ئەو" لەجیاتی "ئەحمەد." جێناوەکان ڕستەکانمان کورتتر و جوانتر دەکەن.',
+      rules: ['**یاسا: جێناو لە سەرەتای ڕستەدا دێت و بە پێی ژمارە دەگۆڕدرێت.**', '**یاسا: جێناوەکان ڕۆڵی بکەر دەبینن لە ڕستەدا.**'],
+      examples: ['من **قوتابی**م.', 'ئەوان **وەرزشکار**ن.'],
       youtubeResources: [
         { name: 'مامۆستا نەوزاد', url: 'https://www.youtube.com/results?search_query=مامۆستا+نەوزاد', description: 'مامۆستایەکی بەناوبانگ بۆ ڕێزمانی کوردی.' },
-        { name: 'فێرکاری زمانی کوردی', url: 'https://www.youtube.com/results?search_query=فێرکاری+زمانی+کوردی', description: 'کەناڵێکی تایبەت بە وانەکانی زمانی کوردی.' }
+        { name: 'فێرکاری زمانی کوردی', url: 'https://www.youtube.com/results?search_query=فێرکاری+زمانی+کوردی', description: 'کەناڵێکی تایبەت بە وانەکانی زمانی کوردی.' },
       ],
-      dir: 'rtl'
+      dir: 'rtl',
     },
   ],
   arabic: [
     {
       id: 1,
       title: 'أقسام الكلام',
-      explanation: 'تتكون اللغة العربية من ثلاثة أقسام رئيسية: الاسم، والفعل، والحرف. لكل منها قواعدها الخاصة التي تحدد موقعها في الجملة.',
-      extraInfo: 'اللغة العربية مثل صندوق ألعاب، فيها ثلاثة أنواع رئيسية من القطع: أسماء (مثل اسمك)، وأفعال (مثل "يجري" أو "يأكل")، وحروف (مثل "في" أو "إلى"). عندما نجمع هذه القطع معًا، نصنع جملة جميلة!',
+      explanation:
+        'تتكون اللغة العربية من ثلاثة أقسام رئيسية: الاسم، والفعل، والحرف. لكل منها قواعدها الخاصة التي تحدد موقعها في الجملة.',
+      extraInfo:
+        'اللغة العربية مثل صندوق ألعاب، فيها ثلاثة أنواع رئيسية من القطع: أسماء (مثل اسمك)، وأفعال (مثل "يجري" أو "يأكل")، وحروف (مثل "في" أو "إلى"). عندما نجمع هذه القطع معًا، نصنع جملة جميلة!',
       rules: [
         '**القاعدة 1: الاسم هو ما دل على معنى غير مقترن بزمن.**',
         '**القاعدة 2: الفعل هو ما دل على حدث مقترن بزمن.**',
-        '**القاعدة 3: الحرف هو ما لا يظهر معناه إلا مع غيره.**'
+        '**القاعدة 3: الحرف هو ما لا يظهر معناه إلا مع غيره.**',
       ],
-      examples: [
-        'الاسم: **محمد**',
-        'الفعل: **كتب**',
-        'الحرف: **في**',
-      ],
+      examples: ['الاسم: **محمد**', 'الفعل: **كتب**', 'الحرف: **في**'],
       youtubeResources: [
         { name: 'د. أيمن السويد', url: 'https://www.youtube.com/results?search_query=د.+أيمن+السويد', description: 'دروس مفصلة في قواعد اللغة العربية.' },
-        { name: 'قناة العربية', url: 'https://www.youtube.com/results?search_query=قناة+العربية', description: 'دروس لغوية مبسطة وممتعة.' }
+        { name: 'قناة العربية', url: 'https://www.youtube.com/results?search_query=قناة+العربية', description: 'دروس لغوية مبسطة وممتعة.' },
       ],
-      dir: 'rtl'
+      dir: 'rtl',
     },
     {
       id: 2,
       title: 'الجملة الاسمية والفعلية',
-      explanation: 'الجملة الاسمية تبدأ باسم وتتكون من مبتدأ وخبر. الجملة الفعلية تبدأ بفعل وتتكون من فعل وفاعل.',
-      extraInfo: 'تخيل أن الجملة لها عائلة. العائلة الاسمية تبدأ باسم (مثل "الشمس"), والعائلة الفعلية تبدأ بفعل (مثل "يقرأ"). كل عائلة لها قواعدها الخاصة، لكنها جميعًا تصنع جملًا رائعة!',
+      explanation:
+        'الجملة الاسمية تبدأ باسم وتتكون من مبتدأ وخبر. الجملة الفعلية تبدأ بفعل وتتكون من فعل وفاعل.',
+      extraInfo:
+        'تخيل أن الجملة لها عائلة. العائلة الاسمية تبدأ باسم (مثل "الشمس"), والعائلة الفعلية تبدأ بفعل (مثل "يقرأ"). كل عائلة لها قواعدها الخاصة، لكنها جميعًا تصنع جملًا رائعة!',
       rules: [
         '**القاعدة 1: الجملة الاسمية تتكون من مبتدأ وخبر، وكلاهما مرفوع.**',
-        '**القاعدة 2: الجملة الفعلية تتكون من فعل وفاعل، وقد تحتوي على مفعول به.**'
+        '**القاعدة 2: الجملة الفعلية تتكون من فعل وفاعل، وقد تحتوي على مفعول به.**',
       ],
-      examples: [
-        'جملة اسمية: **الشمس مشرقة.**',
-        'جملة فعلية: **يقرأ الطالب الدرس.**',
-      ],
+      examples: ['جملة اسمية: **الشمس مشرقة.**', 'جملة فعلية: **يقرأ الطالب الدرس.**'],
       youtubeResources: [
         { name: 'د. أيمن السويد', url: 'https://www.youtube.com/results?search_query=د.+أيمن+السويد', description: 'دروس في النحو والصرف.' },
-        { name: 'قناة العربية', url: 'https://www.youtube.com/results?search_query=قناة+العربية', description: 'شروحات مبسطة للقواعد العربية.' }
+        { name: 'قناة العربية', url: 'https://www.youtube.com/results?search_query=قناة+العربية', description: 'شروحات مبسطة للقواعد العربية.' },
       ],
-      dir: 'rtl'
+      dir: 'rtl',
     },
   ],
 };
 
-const publicTips = {
-  english: [
-    {
-      sectionTitle: 'Building Blocks of Words',
-      tips: [
-        { rule: 'Verb + **tion** = Noun', example: '`educate` → `education`' },
-        { rule: 'Adjective + **ly** = Adverb', example: '`quick` → `quickly`' },
-        { rule: 'Prefix **un** or **in** = "not"', example: '`happy` → `unhappy`' },
-      ],
-    },
-    {
-      sectionTitle: 'Sentence Structure & Agreement',
-      tips: [
-        { rule: 'Adjective comes **before** the noun', example: '`a big house`' },
-        { rule: 'Use **who** for people', example: '`a student who studies hard`' },
-        { rule: 'Use **which** for things', example: '`a book which is interesting`' },
-        { rule: 'Past participle is like past tense for regular verbs', example: '`work` → `worked`' },
-      ],
-    },
-  ],
-  kurdish: [
-    {
-      sectionTitle: 'پێکەوەنانی وشە (Building Words)',
-      tips: [
-        { rule: 'ناوی سادە + پاشگر = ناوی لێکدراو', example: '`کتێب` + `خانە` → `کتێبخانە`' },
-        { rule: 'کردار + پاشگر = ناو', example: '`خوێندن` + `ەوە` → `خوێندنەوە`' },
-      ],
-    },
-    {
-      sectionTitle: 'پێکهاتەی ڕستە (Sentence Structure)',
-      tips: [
-        { rule: 'ڕستەی کوردی: بکەر + بەرکار + کردار', example: '`من` + `کتێب` + `دەخوێنمەوە`' },
-        { rule: 'وشەی `ئەو` بۆ نێر و مێ بەکاردێت', example: '`ئەو کوڕە`، `ئەو کچە`' },
-        { rule: 'جێناو لە سەرەتای ڕستەدا دێت', example: '`من قوتابیم`' },
-      ],
-    },
-  ],
-  arabic: [
-    {
-      sectionTitle: 'قواعد بناء الكلمات (Word-building rules)',
-      tips: [
-        { rule: 'الاسم + الألف واللام = اسم معرفة', example: '`كتاب` → `الكتاب`' },
-        { rule: 'الاسم المذكر ينتهي غالباً بـ تاء مربوطة', example: '`طالبة`' },
-      ],
-    },
-    {
-      sectionTitle: 'أزمنة الأفعال (Verb Tenses)',
-      tips: [
-        { rule: 'الفعل الماضي: حدث وقع وانتهى', example: '`كتبَ`' },
-        { rule: 'الفعل المضارع: حدث يقع الآن أو في المستقبل', example: '`يكتبُ`' },
-      ],
-    },
-    {
-      sectionTitle: 'تكوين الجملة (Sentence Formation)',
-      tips: [
-        { rule: 'الاسم المرفوع هو الفاعل والمبتدأ والخبر', example: '`الشمس مشرقة`' },
-        { rule: 'الحرف لا يأتي إلا في وسط الجملة أو في آخرها', example: '`أذهب إلى المدرسة`' },
-        { rule: 'الأسماء الموصولة تستخدم للربط بين الجمل', example: '`الرجل الذي رأيته`' },
-      ],
-    },
-  ],
-};
+// Removed publicTips as the Pro Tips modal is being removed
+// const publicTips = { ... }; 
 
-// Helper function to get the display name of the current language
-const getLanguageName = (lang) => {
-  switch (lang) {
-    case 'english':
-      return 'English';
-    case 'kurdish':
-      return 'Kurdish';
-    case 'arabic':
-      return 'Arabic';
-    default:
-      return 'Select Language';
-  }
-};
+/* -------------------------------- COMPONENTS ------------------------------- */
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
+// import { useParams } from 'react-router-dom'; // Removed as it was not used consistently or passed
+import {
+  Globe, MessageCircle, BookOpen, Youtube,
+  ChevronDown, ChevronUp, Sparkles, Search // Removed Lightbulb as Pro Tips button is gone
+} from 'lucide-react';
+import { Menu, Transition } from '@headlessui/react';
+import { motion, AnimatePresence } from 'framer-motion'; // For smoother animations
 
-// Helper function to get the icon for the current language
-const getLanguageIcon = (lang) => {
-  switch (lang) {
-    case 'english':
-      return <Globe size={24} />;
-    case 'kurdish':
-      return <MessageCircle size={24} />;
-    case 'arabic':
-      return <BookOpen size={24} />;
-    default:
-      return <Globe size={24} />;
-  }
-};
+// Helper to get language name
+const getLanguageName = (lang) =>
+  lang === 'english' ? 'English' : lang === 'kurdish' ? 'کوردی' : 'عربي';
+// Helper to get language icon
+const getLanguageIcon = (lang) =>
+  lang === 'english' ? <Globe size={16}/> : lang === 'kurdish' ? <MessageCircle size={16}/> : <BookOpen size={16}/>;
 
+// Main Grammar Page Component
 const GrammarPage = () => {
-  const { lang } = useParams();
-  const supportedLanguages = ['english', 'kurdish', 'arabic'];
-  const initialLang = supportedLanguages.includes(lang) ? lang : 'english';
-  
-  const [activeLanguage, setActiveLanguage] = useState(initialLang);
-  const [activeTopicId, setActiveTopicId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showPublicTips, setShowPublicTips] = useState(false);
+  // const { lang } = useParams(); // useParams assumes a router setup, simplifying for direct component usage
+  const supported = ['english','kurdish','arabic'];
+  // Default to 'english' or a valid language from local storage, or 'kurdish'
+  const [activeLanguage, setActiveLanguage] = useState(() => {
+    const savedLang = localStorage.getItem('activeGrammarLanguage');
+    return supported.includes(savedLang) ? savedLang : 'english';
+  });
 
-  // Update the active language if the URL parameter changes
+  const [activeTopic, setActiveTopic] = useState(null);
+  const [search, setSearch] = useState('');
+  // Removed showTips state as the Pro Tips modal is being removed
+  // const [showTips, setShowTips] = useState(false);
+
+  // Persist active language selection
   useEffect(() => {
-    if (supportedLanguages.includes(lang)) {
-      setActiveLanguage(lang);
-    }
-  }, [lang]);
+    localStorage.setItem('activeGrammarLanguage', activeLanguage);
+  }, [activeLanguage]);
 
-  // Filter content based on search query
-  const filteredContent = grammarData[activeLanguage].filter(topic =>
-    topic.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (topic.explanation && topic.explanation.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Set initial language from URL params (if router were active)
+  // useEffect(()=>{ if(supported.includes(lang)) setActiveLanguage(lang); },[lang]); // Commented out for now
 
-  const handleTopicToggle = (id) => {
-    setActiveTopicId(activeTopicId === id ? null : id);
-  };
-  
-  // TopicCard component for displaying individual grammar topics
-  const TopicCard = ({ id, title, explanation, extraInfo, rules, types, examples, youtubeResources, dir }) => {
-    const isTopicVisible = activeTopicId === id;
-    const isRtl = dir === 'rtl';
-
-    return (
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-[1.005]">
-        <button 
-          onClick={() => handleTopicToggle(id)}
-          className="flex justify-between items-center w-full p-4 text-left focus:outline-none focus:ring- focus:ring-purple-300 transition-colors duration-200 hover:bg-gray-50"
-        >
-          <div>
-            <h3 className={`text-xl md:text-2xl font-extrabold text-gray-900 ${isRtl ? 'text-right' : 'text-left'}`}>{title}</h3>
-            <p className={`text-sm md:text-base text-gray-600 mt-1 ${isRtl ? 'text-right' : 'text-left'}`}>{explanation}</p>
-          </div>
-          {isTopicVisible ? <ChevronUp size={24} className="text-purple-600" /> : <ChevronDown size={24} className="text-gray-500" />}
-        </button>
-        
-        {isTopicVisible && (
-          <div className="p-3 border-t border-gray-200 animate-fade-in space-y-8">
-            
-            {/* Mom-to-Child Lesson Section */}
-            {extraInfo && (
-              <div>
-                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-3 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
-                  <Sparkles size={22} className="text-pink-500" /> Insight from the Heart
-                </h4>
-                <div className="bg-gradient-to-r from-pink-50 to-rose-50 p-5 rounded-2xl shadow-inner border border-pink-100">
-                  <p className={`text-pink-800 font-medium text-sm md:text-base ${isRtl ? 'text-right' : 'text-left'} break-words`}>{extraInfo}</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Rules & Structure Section */}
-            {rules && rules.length > 0 && (
-              <div>
-                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Core Rules & Structure:</h4>
-                <ul className={`list-inside space-y-3 text-gray-700 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
-                  {rules.map((rule, index) => (
-                    <li key={index} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* In-depth types and examples Section */}
-            {types && types.length > 0 && (
-              <div className="space-y-6">
-                {types.map((type, index) => (
-                  <div key={index} className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h4 className={`text-base md:text-lg font-semibold text-gray-900 mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>{type.subTitle}</h4>
-                    <p className={`text-sm text-gray-600 mb-3 ${isRtl ? 'text-right' : 'text-left'} break-words`}>{type.subExplanation}</p>
-                    
-                    {/* Render table if it exists */}
-                    {type.subTable ? (
-                      <div className="overflow-x-auto rounded-lg shadow-inner border border-gray-100">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              {type.subTable.headers.map((header, i) => (
-                                <th key={i} scope="col" className={`px-2 py-2 md:px-6 md:py-4 text-xs font-medium text-gray-600 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'} `}> {/* Reduced horizontal padding here */}
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-100">
-                            {type.subTable.rows.map((row, i) => (
-                              <tr key={i} className="hover:bg-blue-50">
-                                {row.map((cell, j) => (
-                                  <td key={j} className={`px-2 py-3 md:px-6 md:py-4 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`}> {/* Reduced horizontal padding here */}
-                                    {cell}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <ul className={`list-inside mt-3 space-y-2 text-gray-800 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
-                        {type.subExamples.map((example, exIndex) => (
-                          <li key={exIndex} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {/* Simple list of examples if no types */}
-            {examples && examples.length > 0 && (
-              <div>
-                <h4 className={`text-base md:text-lg font-semibold text-gray-700 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Examples in Action:</h4>
-                <ul className={`list-inside mt-2 space-y-2 text-gray-700 text-sm md:text-base ${isRtl ? 'text-right list-none' : 'text-left list-disc'}`}>
-                  {examples.map((example, index) => (
-                    <li key={index} className={`leading-relaxed ${isRtl ? 'before:content-["•_"]' : ''} break-words`} dangerouslySetInnerHTML={{ __html: example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* YouTube Resources Section */}
-            {youtubeResources && youtubeResources.length > 0 && (
-              <div className="border-t pt-6 border-gray-200">
-                <h4 className={`text-lg md:text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
-                  <Youtube size={22} className="text-red-500" /> Dive Deeper with Video
-                </h4>
-                <div className="bg-red-50 p-5 rounded-2xl shadow-inner border border-red-100">
-                  <h5 className={`text-sm md:text-md font-semibold text-red-800 mb-3 ${isRtl ? 'text-right' : 'text-left'}`}>Recommended Channels & Playlists:</h5>
-                  <ul className={`space-y-3 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    {youtubeResources.map((resource, index) => (
-                      <li key={index}>
-                        <a
-                          href={resource.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-red-600 hover:underline font-medium transition-colors duration-200 flex items-center gap-2"
-                        >
-                          <Youtube size={18} className="text-red-600" /> {resource.name}
-                        </a>
-                        <p className="text-xs md:text-sm text-red-700 opacity-90 mt-1 break-words">{resource.description}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const currentTips = publicTips[activeLanguage];
+  // Determine RTL direction for active language
   const isRtl = activeLanguage === 'kurdish' || activeLanguage === 'arabic';
 
-  return (
-    <div className="p-1 md:p-8 bg-gradient-to-br min-h-screen text-gray-900 antialiased">
-      <header className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-1 transform transition-all duration-300 hover:scale-[1.01] border border-gray-100">
-        {/* Title */}
-        <div className="flex-shrink-0 text-center sm:text-left">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-900 tracking-tight">Grammar Navigator <Sparkles size={28} className="inline-block text-purple-500 animate-pulse" /></h1>
-          <p className="text-sm sm:text-base lg:text-lg text-gray-600 mt-1">Unlock the Power of English, Kurdish & Arabic</p>
-        </div>
+  // Filter topics based on search query
+  const topics = grammarData[activeLanguage] || [];
+  const filtered = useMemo(()=>{
+    if(!search) return topics;
+    const q = search.toLowerCase();
+    return topics.filter(t=>t.title.toLowerCase().includes(q)||(t.explanation||'').toLowerCase().includes(q) || (t.extraInfo||'').toLowerCase().includes(q));
+  },[search,topics]);
 
-        {/* Search Bar, Language Dropdown and Tips Button */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-          {/* Search Bar */}
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              placeholder="Search topics..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full border-2 border-purple-300 focus:border-purple-600 focus:ring-4 focus:ring-purple-200 focus:outline-none transition-all duration-200 text-base shadow-sm"
-            />
-            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
+  // Topic Card Component - improved styling and RTL support
+  const TopicCard = ({id,title,explanation,extraInfo,rules,examples,types,youtubeResources,dir})=>{
+    const open = activeTopic===id;
+    const rtl = dir==='rtl'||isRtl; // Prioritize topic-specific dir, then global activeLanguage dir
+
+    return(
+      <motion.div
+        layout // Animates layout changes smoothly
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+        dir={rtl?'rtl':'ltr'}
+        className="bg-zinc-900/60 backdrop-blur rounded-2xl border border-zinc-700 shadow-lg overflow-hidden group hover:border-purple-600 transition-all duration-300"
+      >
+        <button onClick={()=>setActiveTopic(open?null:id)}
+          className="w-full flex justify-between items-center p-4 text-left hover:bg-zinc-800/70 transition">
+          <div className={`${rtl ? 'text-right' : 'text-left'}`}>
+            <h3 className="font-bold text-purple-300 text-lg group-hover:text-purple-200">{title}</h3>
+            <p className="text-xs text-zinc-400 mt-1">{explanation}</p>
           </div>
-
-          {/* Language Dropdown */}
-          <Menu as="div" className="relative inline-block text-left w-full sm:w-auto">
-            <div>
-              <Menu.Button className="inline-flex justify-center items-center w-full rounded-full border border-purple-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-purple-500 transition-colors duration-200">
-                {getLanguageIcon(activeLanguage)}
-                <span className="ml-2">{getLanguageName(activeLanguage)}</span>
-                <ChevronDown size={20} className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-              </Menu.Button>
-            </div>
-
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
+          {open
+            ? <ChevronUp size={20} className="text-purple-400 group-hover:text-purple-300 transition-transform duration-200 transform rotate-180" />
+            : <ChevronDown size={20} className="text-zinc-500 group-hover:text-purple-400 transition-transform duration-200" />
+          }
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="p-4 space-y-4 text-sm text-zinc-200 overflow-hidden" // Added overflow-hidden for smooth height transition
             >
-              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-fade-in">
-                <div className="py-1">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <a
-                        href="#"
-                        onClick={() => setActiveLanguage('english')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
-                      >
-                        <Globe size={20} className="mr-3 text-blue-500" />
-                        English
-                      </a>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <a
-                        href="#"
-                        onClick={() => setActiveLanguage('kurdish')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
-                      >
-                        <MessageCircle size={20} className="mr-3 text-green-500" />
-                        Kurdish
-                      </a>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <a
-                        href="#"
-                        onClick={() => setActiveLanguage('arabic')}
-                        className={`flex items-center px-4 py-2 text-sm ${active ? 'bg-purple-100 text-gray-900' : 'text-gray-700'}`}
-                      >
-                        <BookOpen size={20} className="mr-3 text-red-500" />
-                        Arabic
-                      </a>
-                    )}
-                  </Menu.Item>
+              {extraInfo && (
+                <div className="bg-gradient-to-r from-purple-900/40 to-pink-900/30 p-3 rounded-xl border border-purple-700/40">
+                  <Sparkles className={`inline text-pink-400 ${rtl ? 'ml-1' : 'mr-1'}`} /> {extraInfo}
                 </div>
-              </Menu.Items>
-            </Transition>
-          </Menu>
-
-          {/* Grammar Tips Button */}
-          <button
-            onClick={() => setShowPublicTips(!showPublicTips)}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-purple-300 focus:ring-offset-2"
-          >
-            <Lightbulb size={24} />
-            Pro Tips
-          </button>
-        </div>
-      </header>
-      {/* End of the new header section */}
-
-      <div className="mx-auto max-w-7xl">
-        {/* Grammar Tips Pop-up */}
-        {showPublicTips && (
-          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-md">
-            <div dir={isRtl ? 'rtl' : 'ltr'} className="bg-white p-6 md:p-12 rounded-3xl shadow-2xl w-full h-full md:max-w-4xl md:max-h-[85vh] relative overflow-y-auto transform scale-95 md:scale-100 transition-transform duration-300 ease-out border-4 border-purple-300">
-              <button
-                onClick={() => setShowPublicTips(false)}
-                className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors duration-200 p-2 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                aria-label="Close tips"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-              </button>
-              <h3 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-5 flex items-center gap-3">
-                <Lightbulb size={36} className="text-purple-500" /> Essential Grammar Tips
-              </h3>
-              <p className="text-base md:text-lg text-gray-700 mb-8">
-                Unlock common patterns and helpful shortcuts to master grammar with ease.
-              </p>
-              
-              <div className="space-y-10">
-                {currentTips.map((section, index) => (
-                  <div key={index}>
-                    <h4 className="text-xl md:text-2xl font-bold text-gray-800 mb-5 border-b-2 pb-2 border-purple-200">{section.sectionTitle}</h4>
-                    <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-purple-50">
-                          <tr>
-                            <th scope="col" className={`px-4 py-3 md:px-6 md:py-4 text-xs font-semibold text-purple-700 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Rule</th>
-                            <th scope="col" className={`px-4 py-3 md:px-6 md:py-4 text-xs font-semibold text-purple-700 uppercase tracking-wider ${isRtl ? 'text-right' : 'text-left'}`}>Example</th>
-                          </tr>
+              )}
+              {rules?.length > 0 && (
+                <div className={`space-y-1 ${rtl ? 'text-right' : 'text-left'}`}>
+                    <p className="font-bold text-purple-300 mb-2">القواعد / یاساكان / Rules:</p>
+                    <ul className={`${rtl ? 'pr-5' : 'pl-5'} list-disc space-y-1`}>
+                        {rules.map((r, i) => (
+                            <li key={i} dangerouslySetInnerHTML={{ __html: r.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                        ))}
+                    </ul>
+                </div>
+              )}
+              {examples?.length > 0 && (
+                <div className={`space-y-1 ${rtl ? 'text-right' : 'text-left'}`}>
+                    <p className="font-bold text-purple-300 mb-2">الأمثلة / نموونەکان / Examples:</p>
+                    <ul className={`${rtl ? 'pr-5' : 'pl-5'} list-disc space-y-1`}>
+                        {examples.map((e, i) => (
+                            <li key={i} dangerouslySetInnerHTML={{ __html: e.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                        ))}
+                    </ul>
+                </div>
+              )}
+              {types?.length > 0 && types.map((t, i) => (
+                <div key={i} className="bg-zinc-800/60 p-3 rounded-md border border-zinc-700">
+                  <p className="font-semibold text-purple-300">{t.subTitle}</p>
+                  <p className="text-xs text-zinc-400 mt-1">{t.subExplanation}</p>
+                  {t.subExamples && (
+                    <ul className={`${rtl ? 'pr-5' : 'pl-5'} list-disc mt-2 text-xs space-y-1 text-zinc-300`}>
+                      {t.subExamples.map((ex, j) => <li key={j} dangerouslySetInnerHTML={{ __html: ex }} />)}
+                    </ul>
+                  )}
+                  {t.subTable && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full divide-y divide-zinc-700 border border-zinc-700 rounded-lg">
+                        <thead className="bg-zinc-800">
+                          <tr>{t.subTable.headers.map((header, hIdx) => (<th key={hIdx} className={`px-4 py-2 text-xs font-medium text-zinc-300 uppercase tracking-wider ${rtl ? 'text-right' : 'text-left'}`}>{header}</th>))}</tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
-                          {section.tips.map((tip, tipIndex) => (
-                            <tr key={tipIndex} className="hover:bg-purple-50 transition-colors duration-150">
-                              <td className={`px-4 py-4 md:px-6 md:py-5 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`} dangerouslySetInnerHTML={{ __html: tip.rule.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                              <td className={`px-4 py-4 md:px-6 md:py-5 text-sm text-gray-800 ${isRtl ? 'text-right' : 'text-left'} break-words`} dangerouslySetInnerHTML={{ __html: tip.example.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                            </tr>
-                          ))}
+                        <tbody className="divide-y divide-zinc-800">
+                          {t.subTable.rows.map((row, rIdx) => (<tr key={rIdx} className="hover:bg-zinc-800/50">{row.map((cell, cIdx) => (<td key={cIdx} className={`px-4 py-2 whitespace-nowrap text-sm text-zinc-200 ${rtl ? 'text-right' : 'text-left'}`} dangerouslySetInnerHTML={{ __html: cell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} ></td>))}</tr>))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                ))}
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* Grammar Content Section */}
-        <div className="space-y-4">
-          {filteredContent.length > 0 ? (
-            filteredContent.map((topic) => (
-              <TopicCard key={topic.id} {...topic} />
-            ))
-          ) : (
-            <p className="text-center text-gray-500 text-lg py-10">No topics found matching your search. Try a different keyword!</p>
+                  )}
+                </div>
+              ))}
+              {youtubeResources?.length > 0 && (
+                <div className="bg-red-900/40 p-3 rounded-lg border border-red-700/40">
+                  <p className="font-bold text-red-300 mb-2 flex items-center">
+                    <Youtube size={16} className={`${rtl ? 'ml-1' : 'mr-1'}`} /> ڤیدیۆکان
+                  </p>
+                  {youtubeResources.map((r, i) => (
+                    <a key={i} href={r.url} target="_blank" rel="noreferrer"
+                      className="block text-sm text-red-400 hover:underline">{r.name}</a>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           )}
+        </AnimatePresence>
+      </motion.div>
+    );
+  };
+
+  return(
+    <div dir={isRtl?'rtl':'ltr'} className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-black min-h-screen text-zinc-100 font-['Inter']">
+      {/* Header - now truly stable and responsive */}
+      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur border-b border-zinc-800 shadow-md">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between p-3 gap-2 sm:gap-0">
+          <h1 className="font-extrabold text-lg flex items-center gap-1 text-purple-300">
+            <Sparkles className="text-purple-400"/> ڕێزمان
+          </h1>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Search input - desktop view */}
+            <div className="relative hidden sm:block flex-grow sm:flex-grow-0">
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="گەڕان…"
+                className="pl-8 pr-2 py-1 rounded-lg bg-zinc-800 text-sm text-zinc-200 border border-zinc-700 focus:ring-2 focus:ring-purple-500 w-full"/>
+              <Search size={16} className="absolute left-2 top-1.5 text-zinc-500"/>
+            </div>
+            {/* Language Selector */}
+            <Menu as="div" className="relative shrink-0">
+              <Menu.Button className="flex items-center gap-1 px-2 py-1 bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-lg text-sm hover:bg-zinc-700 transition">
+                {getLanguageIcon(activeLanguage)} {getLanguageName(activeLanguage)}
+                <ChevronDown size={14}/>
+              </Menu.Button>
+              <Transition as={Fragment}
+                enter="transition ease-out duration-100" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                leave="transition ease-in duration-75" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
+                <Menu.Items className="absolute right-0 mt-1 w-32 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg text-sm z-50 origin-top-right">
+                  {['english','kurdish','arabic'].map(l=>(
+                    <Menu.Item key={l}>
+                      {({active})=>(
+                        <button onClick={()=>setActiveLanguage(l)}
+                          className={`flex items-center gap-1 w-full px-2 py-1 ${active?'bg-zinc-800':''} ${isRtl?'text-right justify-end':'text-left justify-start'}`}>
+                          {getLanguageName(l)} {getLanguageIcon(l)}
+                        </button>
+                      )}
+                    </Menu.Item>
+                  ))}
+                </Menu.Items>
+              </Transition>
+            </Menu>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile search input */}
+      <div className="sm:hidden p-3">
+        <div className="relative">
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="گەڕان…"
+            className="w-full pl-8 pr-2 py-2 rounded-lg bg-zinc-800 text-sm text-zinc-200 border border-zinc-700 focus:ring-2 focus:ring-purple-500"/>
+          <Search size={16} className="absolute left-2 top-2.5 text-zinc-500"/>
         </div>
       </div>
-      {/* CSS for custom animations and overall body font */}
-      <style>
-        {`
-          @keyframes fade-in {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          .animate-fade-in {
-            animation: fade-in 0.4s ease-out forwards;
-          }
-          @keyframes pulse {
-            0%, 100% {
-              transform: scale(1);
-              opacity: 1;
-            }
-            50% {
-              transform: scale(1.05);
-              opacity: 0.8;
-            }
-          }
-          .animate-pulse {
-            animation: pulse 1.5s infinite ease-in-out;
-          }
-        `}
-      </style>
+
+      <main className="max-w-6xl mx-auto p-3 space-y-3">
+        <AnimatePresence mode="wait"> {/* Animate presence of topic cards */}
+          {filtered.length > 0 ? (
+            filtered.map(t=><TopicCard key={t.id} {...t}/>)
+          ) : (
+            <motion.p
+              key="no-results"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center text-zinc-400 py-8"
+            >
+              هیچ ئەنجامێک نەدۆزرایەوە.
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 };
 
 export default GrammarPage;
+

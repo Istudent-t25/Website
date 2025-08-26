@@ -1,614 +1,811 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, PlusCircle, Edit, Trash, Calendar as CalendarIcon, ListTodo, GraduationCap, X, Bell } from 'lucide-react';
+// Schedule.jsx — Responsive Weekly/Day schedule + Homework + Events (dark, RTL)
+// - Mobile-first: Day view timeline, scroll-snap day tabs, sticky quick-add bar
+// - Desktop: Compact weekly grid (smaller min-width), same features as before
+// - LocalStorage persistence for homework & events
+// - Framer Motion animations; Lucide icons
+//
+// Usage: import Schedule from "./pages/Schedule.jsx";
 
-// Define default days in Kurdish, starting from Sunday for consistency with JS getDay()
-const defaultDays = ["یەکشەممە", "دووشەممە", "سێشەممە", "چوارشەممە", "پێنجشەممە", "شەممە"];
+import React, { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  GraduationCap,
+  CheckCircle2,
+  Plus,
+  Trash2,
+  AlarmClock,
+  MapPin,
+  Filter,
+  PartyPopper,
+  // Printer, // Removed Printer icon
+  LayoutGrid,
+  List,
+  BookOpen,
+  X,
+} from "lucide-react";
 
-// Event color configurations for one-time events
-const eventColors = {
-  general: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
-  exam: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
-  task: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
-  note: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
+// ---------------- Constants ----------------
+const DAYS = ["شەممە", "یەکشەممە", "دووشەممە", "سێشەممە", "چوارشەممە", "پێنجشەممە", "هەینی"];
+const TIMES = ["08:00", "09:30", "11:00", "12:30", "14:00"]; // grid rows
+
+const WEEKLY_SCHEDULE_INITIAL = { // Renamed to initial to allow modification
+  "شەممە": [
+    { time: "08:00", subject: "بیركاری", teacher: "مامۆستا ئارام", room: "A-301", color: "from-sky-600/30 to-sky-500/20" },
+    { time: "09:30", subject: "کوردی", teacher: "مامۆستا هێمن", room: "B-210", color: "from-emerald-600/30 to-emerald-500/20" },
+  ],
+  "یەکشەممە": [
+    { time: "08:00", subject: "فیزیا", teacher: "مامۆستا هوراز", room: "C-105", color: "from-indigo-600/30 to-indigo-500/20" },
+    { time: "11:00", subject: "ئینگلیزی", teacher: "مامۆستا سارا", room: "A-204", color: "from-fuchsia-600/30 to-fuchsia-500/20" },
+  ],
+  "دووشەممە": [{ time: "09:30", subject: "کیمیا", teacher: "مامۆستا ناز", room: "Lab-2", color: "from-rose-600/30 to-rose-500/20" }],
+  "سێشەممە": [
+    { time: "08:00", subject: "ئەندازیارى", teacher: "مامۆستا رێبوار", room: "D-410", color: "from-amber-600/30 to-amber-500/20" },
+    { time: "12:30", subject: "بیركاری", teacher: "مامۆستا ڕێژین", room: "A-305", color: "from-sky-600/30 to-sky-500/20" },
+  ],
+  "چوارشەممە": [{ time: "11:00", subject: "کوردی", teacher: "مامۆستا دڵشاد", room: "B-110", color: "from-emerald-600/30 to-emerald-500/20" }],
+  "پێنجشەممە": [{ time: "14:00", subject: "فیزیا", teacher: "مامۆستا بەرزان", room: "C-106", color: "from-indigo-600/30 to-indigo-500/20" }],
+  "هەینی": [],
 };
 
-// --- Generic Modal Component ---
-const Modal = ({ isOpen, onClose, children, title }) => {
-  if (!isOpen) return null;
+const SUBJECT_COLORS = [ // Predefined colors for subjects
+  "from-sky-600/30 to-sky-500/20",
+  "from-emerald-600/30 to-emerald-500/20",
+  "from-indigo-600/30 to-indigo-500/20",
+  "from-fuchsia-600/30 to-fuchsia-500/20",
+  "from-rose-600/30 to-rose-500/20",
+  "from-amber-600/30 to-amber-500/20",
+];
 
+const STORAGE_HOMEWORK = "schedule_homework_v1";
+const STORAGE_EVENTS = "schedule_events_v1";
+const STORAGE_WEEKLY_SCHEDULE = "schedule_weekly_schedule_v1"; // New storage key for schedule
+
+const variants = {
+  fade: { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } },
+};
+
+// ---------------- Utils ----------------
+function startOfWeekSaturday(date = new Date(), weekOffset = 0) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 Sun..6 Sat
+  const diffToSat = day === 6 ? 0 : day + 1;
+  d.setDate(d.getDate() - diffToSat + weekOffset * 7);
+  return d;
+}
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function fmtDate(d) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}`;
+}
+function fmtLong(d) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+function nowTimeHHMM() {
+  const n = new Date();
+  const hh = String(n.getHours()).padStart(2, "0");
+  const mm = String(n.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+function isTimeBefore(a, b) {
+  return a.localeCompare(b) < 0;
+}
+function uuid() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return Math.random().toString(36).slice(2);
+}
+
+// ---------------- KPI ----------------
+function KPI({ icon: Icon, label, value, tint = "text-sky-300" }) {
   return (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4" dir="rtl">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 relative transform transition-all duration-300 scale-100 opacity-100">
-        <button
-          onClick={onClose}
-          className="absolute top-4 left-4 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition duration-200 text-gray-600"
-          title="داخستن"
-        >
-          <X size={20} />
-        </button>
-        <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-blue-400 pb-3 text-center">
-          {title}
-        </h3>
-        {children}
-      </div>
+    <div className="flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+      <Icon size={18} className={tint} />
+      <span className="text-xs text-zinc-300">
+        {label}: <span className="font-semibold text-zinc-100">{value}</span>
+      </span>
     </div>
   );
-};
+}
 
-// --- Recurring Schedule Modal Component ---
-const RecurringScheduleModal = ({ isOpen, onClose, onSave, initialData, defaultDays }) => {
-  const [form, setForm] = useState(initialData || { day: 'یەکشەممە', time: '', subject: '' });
-  const [editId, setEditId] = useState(initialData?.id || null);
+// ---------------- Component ----------------
+export default function Schedule() {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [view, setView] = useState("day"); // "day" | "week"
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
+  const [weeklySchedule, setWeeklySchedule] = useState(WEEKLY_SCHEDULE_INITIAL); // State for mutable schedule
+  const [homeworks, setHomeworks] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [hwFilter, setHwFilter] = useState("all");
+  const [newHw, setNewHw] = useState({ subject: "", title: "", due: "", priority: "normal" });
+  const [newEvent, setNewEvent] = useState({ title: "", date: "", time: "", place: "" });
+
+  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
+  const [newSubject, setNewSubject] = useState({
+    day: DAYS[0],
+    time: TIMES[0],
+    subject: "",
+    teacher: "",
+    room: "",
+    color: SUBJECT_COLORS[0],
+  });
+
+  // Set default selected day to today, default view to day on narrow screens
   useEffect(() => {
-    setForm(initialData || { day: 'یەکشەممە', time: '', subject: '' });
-    setEditId(initialData?.id || null);
-  }, [initialData]);
+    const jsDay = new Date().getDay();
+    const index = jsDay === 6 ? 0 : jsDay + 1; // map Sat->0, Sun->1...
+    setSelectedDayIndex(index);
+    if (window.matchMedia("(max-width: 1023px)").matches) setView("day");
+  }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  // Load/persist
+  useEffect(() => {
+    const hw = localStorage.getItem(STORAGE_HOMEWORK);
+    const ev = localStorage.getItem(STORAGE_EVENTS);
+    const ws = localStorage.getItem(STORAGE_WEEKLY_SCHEDULE);
+    if (hw) setHomeworks(JSON.parse(hw));
+    if (ev) setEvents(JSON.parse(ev));
+    if (ws) setWeeklySchedule(JSON.parse(ws)); // Load custom schedule
+  }, []);
+  useEffect(() => localStorage.setItem(STORAGE_HOMEWORK, JSON.stringify(homeworks)), [homeworks]);
+  useEffect(() => localStorage.setItem(STORAGE_EVENTS, JSON.stringify(events)), [events]);
+  useEffect(() => localStorage.setItem(STORAGE_WEEKLY_SCHEDULE, JSON.stringify(weeklySchedule)), [weeklySchedule]); // Persist custom schedule
 
-  const handleSubmit = (e) => {
+  // Week dates
+  const weekStart = useMemo(() => startOfWeekSaturday(new Date(), weekOffset), [weekOffset]);
+  const weekDates = useMemo(() => DAYS.map((_, i) => addDays(weekStart, i)), [weekStart]);
+
+  // KPIs
+  const todayJsIndex = new Date().getDay();
+  const todayIndex = todayJsIndex === 6 ? 0 : todayJsIndex + 1;
+  const todayName = DAYS[todayIndex] || DAYS[0];
+  const todayClasses = weeklySchedule[todayName] || []; // Use mutable schedule
+  const currentHHMM = nowTimeHHMM();
+  const nextClass = todayClasses.find((c) => isTimeBefore(currentHHMM, c.time));
+  const hwDueTodayCount = homeworks.filter((h) => !h.done && h.due && isSameDateStr(h.due, new Date())).length;
+  const eventsThisWeekCount = events.filter((e) => isInWeek(new Date(e.date), weekStart)).length;
+
+  function isSameDateStr(isoStr, d) {
+    const src = new Date(isoStr + "T00:00:00");
+    return src.getFullYear() === d.getFullYear() && src.getMonth() === d.getMonth() && src.getDate() === d.getDate();
+  }
+  function isInWeek(d, start) {
+    const end = addDays(start, 7);
+    return d >= start && d < end;
+  }
+
+  // Homework filtered
+  const filteredHomeworks = useMemo(() => {
+    const today = new Date();
+    return homeworks
+      .slice()
+      .sort((a, b) => (a.due || "").localeCompare(b.due || ""))
+      .filter((h) => {
+        if (hwFilter === "open") return !h.done;
+        if (hwFilter === "done") return !!h.done;
+        if (hwFilter === "today") return h.due && isSameDateStr(h.due, today);
+        if (hwFilter === "overdue") return !h.done && h.due && new Date(h.due) < new Date(today.toDateString());
+        return true;
+      });
+  }, [homeworks, hwFilter]);
+
+  // Actions
+  function addHomework(e) {
     e.preventDefault();
-    if (!form.subject) {
-      // Replaced alert with a custom message approach for better UX in a web app
-      // In a real application, you'd use a state variable to show an error message in the UI.
-      console.error("تکایە ناونیشان پڕبکەوە.");
-      return;
-    }
-    onSave(form, editId);
-    onClose();
-  };
+    if (!newHw.title) return;
+    setHomeworks((prev) => [
+      { id: uuid(), ...newHw, subject: newHw.subject.trim(), title: newHw.title.trim(), done: false, createdAt: new Date().toISOString() },
+      ...prev,
+    ]);
+    setNewHw({ subject: "", title: "", due: "", priority: "normal" });
+  }
+  function toggleHwDone(id) {
+    setHomeworks((prev) => prev.map((h) => (h.id === id ? { ...h, done: !h.done } : h)));
+  }
+  function deleteHw(id) {
+    setHomeworks((prev) => prev.filter((h) => h.id !== id));
+  }
+  function addEvent(e) {
+    e.preventDefault();
+    if (!newEvent.title || !newEvent.date) return;
+    setEvents((prev) => [{ id: uuid(), ...newEvent, createdAt: new Date().toISOString() }, ...prev]);
+    setNewEvent({ title: "", date: "", time: "", place: "" });
+  }
+  function deleteEvent(id) {
+    setEvents((prev) => prev.filter((ev) => ev.id !== id));
+  }
 
+  function addScheduleSubject(e) {
+    e.preventDefault();
+    if (!newSubject.subject || !newSubject.teacher || !newSubject.room) return;
+
+    setWeeklySchedule((prevSchedule) => {
+      const updatedDaySchedule = [...(prevSchedule[newSubject.day] || []), { ...newSubject, id: uuid() }];
+      // Sort by time
+      updatedDaySchedule.sort((a, b) => a.time.localeCompare(b.time));
+      return {
+        ...prevSchedule,
+        [newSubject.day]: updatedDaySchedule,
+      };
+    });
+    setNewSubject({
+      day: DAYS[0],
+      time: TIMES[0],
+      subject: "",
+      teacher: "",
+      room: "",
+      color: SUBJECT_COLORS[0],
+    });
+    setShowAddSubjectModal(false);
+  }
+
+  const hwPill = (p) =>
+    p === "high"
+      ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/30"
+      : p === "low"
+      ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
+      : "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/30";
+
+  // ---------------- Render ----------------
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editId ? "دەستکاریکردنی وانەی هەفتانە" : "زیادکردنی وانەی هەفتانە"}>
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="relative">
-          <select
-            name="day"
-            value={form.day}
-            onChange={handleChange}
-            className="block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none transition duration-200 ease-in-out bg-white text-gray-800 text-base pl-8"
-          >
-            {defaultDays.map(day => (
-              <option key={day} value={day}>{day}</option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center px-3 text-gray-700">
-            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-              <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-            </svg>
+    <div dir="rtl" className="min-h-screen w-full bg-gradient-to-br from-zinc-950 via-zinc-950 to-black text-zinc-100 flex flex-col">
+      {/* Hero */}
+      <motion.div variants={variants.fade} initial="hidden" animate="show" className="relative overflow-hidden rounded-b-3xl bg-gradient-to-l from-indigo-950 via-zinc-950 to-zinc-950 ring-1 ring-white/10 p-3 md:p-6 mb-5">
+        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="absolute -right-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="relative grid gap-4 lg:grid-cols-3 lg:items-center w-full">
+          <div className="lg:col-span-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-50 tracking-tight flex items-center gap-2">
+              <CalendarDays size={22} className="text-sky-300" />
+              خشتەی هەفتانە، ئەرک و ڕووداو
+            </h1>
+            <p className="mt-2 text-zinc-400 text-sm">بەپێی شاشە خۆکارانە نیشاندراو: ڕستەی ڕۆژ یان خشتەی تەواو.</p>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <KPI icon={Clock3} label="وانەی ئەمڕۆ" value={todayClasses.length} />
+              <KPI icon={GraduationCap} label="داهاتووی ئەمڕۆ" value={nextClass ? `${nextClass.subject} – ${nextClass.time}` : "هیچ"} tint="text-emerald-300" />
+              <KPI icon={CheckCircle2} label="ئەرکی ئەمڕۆ" value={hwDueTodayCount} tint="text-amber-300" />
+              <KPI icon={PartyPopper} label="ڕووداوەکانی ئەم هەفتە" value={eventsThisWeekCount} tint="text-pink-300" />
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="lg:justify-self-end flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
+            <button onClick={() => setWeekOffset(weekOffset - 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="previous week">
+              <ChevronRight />
+            </button>
+            <div className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm text-zinc-300">{fmtLong(weekStart)} — {fmtLong(addDays(weekStart, 6))}</div>
+            <button onClick={() => setWeekOffset(0)} className="rounded-xl bg-sky-600/20 ring-1 ring-sky-500/30 hover:bg-sky-600/30 px-3 py-2 text-sm text-sky-200">
+              ئەم هەفتە
+            </button>
+            <button onClick={() => setWeekOffset(weekOffset + 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="next week">
+              <ChevronLeft />
+            </button>
+
+            <div className="hidden sm:flex items-center gap-2">
+              {/* Removed Print Button */}
+              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden flex">
+                <button
+                  onClick={() => setView("day")}
+                  className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "day" ? "bg-white/10 text-white" : "text-zinc-300"}`}
+                  title="ڕستەی ڕۆژ"
+                >
+                  <List size={16} /> ڕۆژ
+                </button>
+                <button
+                  onClick={() => setView("week")}
+                  className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "week" ? "bg-white/10 text-white" : "text-zinc-300"}`}
+                  title="خشتەی هەفتە"
+                >
+                  <LayoutGrid size={16} /> هەفتە
+                </button>
+              </div>
+            </div>
+            {/* New button to open Add Subject Modal */}
+            <button onClick={() => setShowAddSubjectModal(true)} className="rounded-xl bg-purple-600/20 ring-1 ring-purple-500/30 hover:bg-purple-600/30 px-3 py-2 text-sm text-purple-200 flex items-center gap-1">
+              <Plus size={16} /> بابەت
+            </button>
           </div>
         </div>
-        <input
-          type="time"
-          name="time"
-          placeholder="کات (ئیختیاری)"
-          value={form.time}
-          onChange={handleChange}
-          className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent transition duration-200 ease-in-out text-right text-gray-800 text-base"
-        />
-        <input
-          type="text"
-          name="subject"
-          placeholder="بابەت (پێویستە)"
-          value={form.subject}
-          onChange={handleChange}
-          className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent transition duration-200 ease-in-out text-right text-gray-800 text-base"
-          required
-        />
-        <button
-          type="submit"
-          className="col-span-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-3 rounded-lg shadow-lg hover:from-blue-700 hover:to-indigo-800 transition duration-300 ease-in-out transform hover:scale-105 font-bold text-lg mt-4"
-        >
-          {editId ? "نوێکردنەوەی وانە" : "زیادکردنی وانە"}
-        </button>
-      </form>
-    </Modal>
-  );
-};
 
+ 
+      </motion.div>
 
-// --- Main Scheduleapp Component ---
-const Scheduleapp = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date()); // Default to today
-  const [events, setEvents] = useState(() => {
-    const savedEvents = localStorage.getItem('dashboardCalendarEvents');
-    return savedEvents ? JSON.parse(savedEvents) : {};
-  });
-  const [weeklyRecurringItems, setWeeklyRecurringItems] = useState(() => {
-    const savedRecurring = localStorage.getItem('dashboardWeeklyRecurringItems');
-    return savedRecurring ? JSON.parse(savedRecurring) : {};
-  });
-
-  const [form, setForm] = useState({
-    date: new Date().toISOString().split('T')[0], // Default form date to today
-    time: '',
-    title: '',
-    type: 'general'
-  });
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false); // For one-time events
-  const [editEventId, setEditEventId] = useState(null);
-
-  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false); // For recurring schedules
-  const [editRecurringData, setEditRecurringData] = useState(null);
-
-  // Save events and recurring items to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('dashboardCalendarEvents', JSON.stringify(events));
-  }, [events]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboardWeeklyRecurringItems', JSON.stringify(weeklyRecurringItems));
-  }, [weeklyRecurringItems]);
-
-
-  // Update form date when selectedDate changes in calendar
-  useEffect(() => {
-    if (selectedDate) {
-      setForm(prevForm => ({
-        ...prevForm,
-        date: selectedDate.toISOString().split('T')[0]
-      }));
-    }
-  }, [selectedDate]);
-
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-    const days = [];
-
-    const startDay = firstDayOfMonth.getDay(); // 0 for Sunday
-    for (let i = 0; i < startDay; i++) {
-      days.push(null);
-    }
-
-    for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
-      days.push(new Date(year, month, i));
-    }
-
-    return days;
-  };
-
-  const goToPrevMonth = () => {
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  // --- One-Time Event Handlers ---
-  const handleDayClick = (day) => {
-    if (day) {
-      setSelectedDate(day);
-      const dateString = day.toISOString().split('T')[0];
-      setForm({
-        date: dateString,
-        time: '',
-        title: '',
-        type: 'general'
-      });
-      setIsFormModalOpen(true); // Open event modal on day click
-      setEditEventId(null);
-    }
-  };
-
-  const handleFormChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleAddEvent = (e) => {
-    e.preventDefault();
-    if (!form.title || !form.date) {
-      console.error("تکایە ناونیشان و بەروار پڕبکەوە."); // Use console.error instead of alert
-      return;
-    }
-
-    const eventDateKey = form.date;
-    const newEvent = {
-      id: editEventId || Date.now(),
-      title: form.title,
-      time: form.time,
-      type: form.type,
-    };
-
-    setEvents(prevEvents => {
-      const updatedEvents = { ...prevEvents };
-      if (!updatedEvents[eventDateKey]) {
-        updatedEvents[eventDateKey] = [];
-      }
-
-      if (editEventId) {
-        updatedEvents[eventDateKey] = updatedEvents[eventDateKey].map(event =>
-          event.id === editEventId ? newEvent : event
-        );
-      } else {
-        updatedEvents[eventDateKey].push(newEvent);
-      }
-      return updatedEvents;
-    });
-
-    // Reset form and close it
-    setForm({ date: '', time: '', title: '', type: 'general' });
-    setIsFormModalOpen(false);
-    setEditEventId(null);
-  };
-
-  const handleEditEvent = (dateKey, eventId) => {
-    const eventToEdit = events[dateKey]?.find(event => event.id === eventId);
-    if (eventToEdit) {
-      setSelectedDate(new Date(dateKey)); // Set selected date to the event's date
-      setForm({
-        date: dateKey,
-        time: eventToEdit.time,
-        title: eventToEdit.title,
-        type: eventToEdit.type,
-      });
-      setEditEventId(eventId);
-      setIsFormModalOpen(true);
-    }
-  };
-
-  const handleDeleteEvent = (dateKey, eventId) => {
-    // Replaced window.confirm with a custom message in console, as window.confirm is not ideal in a real app
-    console.warn("دڵنیایت کە دەتەوێت ئەم تۆمارە بسڕیتەوە؟ (Confirmation in console for now)");
-    // In a real application, you'd use a custom modal for user confirmation.
-    
-    setEvents(prevEvents => {
-      const updatedEvents = { ...prevEvents };
-      updatedEvents[dateKey] = updatedEvents[dateKey]?.filter(event => event.id !== eventId);
-      if (updatedEvents[dateKey]?.length === 0) {
-        delete updatedEvents[dateKey];
-      }
-      return updatedEvents;
-    });
-  };
-
-  // --- Recurring Schedule Handlers ---
-  const handleOpenRecurringModal = (data = null) => {
-    setEditRecurringData(data);
-    setIsRecurringModalOpen(true);
-  };
-
-  const handleSaveRecurringItem = (itemData, editId) => {
-    setWeeklyRecurringItems(prevItems => {
-      const updatedItems = { ...prevItems };
-      if (!updatedItems[itemData.day]) {
-        updatedItems[itemData.day] = [];
-      }
-
-      const newItem = { ...itemData, id: editId || Date.now() };
-
-      if (editId) {
-        // Find the specific item and update it
-        updatedItems[itemData.day] = updatedItems[itemData.day].map(item =>
-          item.id === editId ? newItem : item
-        );
-      } else {
-        // Add new item
-        updatedItems[itemData.day].push(newItem);
-      }
-      return updatedItems;
-    });
-  };
-
-  const handleDeleteRecurringItem = (day, itemId) => {
-    console.warn("دڵنیایت کە دەتەوێت ئەم وانە دووبارەبووە بسڕیتەوە؟ (Confirmation in console for now)");
-    // In a real application, you'd use a custom modal for user confirmation.
-    setWeeklyRecurringItems(prevItems => {
-      const updatedItems = { ...prevItems };
-      updatedItems[day] = updatedItems[day].filter(item => item.id !== itemId);
-      if (updatedItems[day].length === 0) {
-        delete updatedItems[day];
-      }
-      return updatedItems;
-    });
-  };
-
-
-  const selectedDayEvents = selectedDate ? events[selectedDate.toISOString().split('T')[0]] || [] : [];
-
-  const upcomingExams = Object.keys(events)
-    .flatMap(dateKey =>
-      events[dateKey].filter(event => event.type === 'exam' && new Date(dateKey) >= new Date())
-                     .map(event => ({ ...event, dateKey }))
-    )
-    .sort((a, b) => new Date(a.dateKey) - new Date(b.dateKey))
-    .slice(0, 5); // Show next 5 upcoming exams
-
-  return (
-    // Outer container: full screen height and width, no scroll on the main window.
-    // Flex column layout to distribute vertical space among header and main content.
-    <div dir="rtl" className="h-screen w-screen flex flex-col items-center antialiased overflow-hidden p-4 sm:p-1">
-      {/* Inner container: takes full available space, also flex column to manage header and main */}
-      <div className="w-full h-full flex flex-col rounded-3xl shadow-2xl ring-1 ring-blue-100 bg-gray-50">
-        <header className="text-black p-6 sm:p-2 flex flex-col sm:flex-row justify-between items-center rounded-t-3xl shadow-lg mb-4 mx-auto w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-          <h1 className="text-3xl sm:text-3xl font-extrabold drop-shadow-lg tracking-wide mb-2 sm:mb-0">
-            <CalendarIcon size={35} className="inline-block ml-2 text-white" /> خشتەی ژیانی من
-          </h1>
-          <button
-            onClick={() => { setIsFormModalOpen(true); setEditEventId(null); setForm({ date: selectedDate.toISOString().split('T')[0], time: '', title: '', type: 'general' }); }}
-            className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 transition duration-300 ease-in-out transform hover:scale-105 font-medium text-base tracking-wide"
-          >
-            <PlusCircle size={20} /> زیادکردنی بۆنە
-          </button>
-        </header>
-        {/* Main content area: takes remaining vertical space, grid for layout */}
-        <main className="p-4 sm:p-4 flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 rounded-b-3xl overflow-hidden">
-          {/* Calendar section */}
-          <section className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 border border-gray-200 flex flex-col">
-            <div className="flex justify-between items-center mb-4 border-b-2 border-blue-300 pb-2 flex-shrink-0">
-              <button onClick={goToNextMonth} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition duration-200 ease-in-out">
-                <ChevronRight size={24} className="text-gray-700" />
+      {/* DAY TABS (always shown; useful in both views) */}
+      <div className="sticky top-0 z-10 px-3 md:px-6 mb-5">
+        <div className="backdrop-blur bg-zinc-950/80 ring-1 ring-white/10 rounded-2xl px-2 py-2 overflow-x-auto flex gap-2 snap-x snap-mandatory w-full">
+          {DAYS.map((d, i) => {
+            const isToday = weekOffset === 0 && i === todayIndex;
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDayIndex(i)}
+                className={`snap-start whitespace-nowrap text-sm px-3 py-2 rounded-xl ring-1 transition ${
+                  selectedDayIndex === i ? "bg-sky-600/30 text-sky-100 ring-sky-500/30" : "bg-white/5 text-zinc-300 ring-white/10"
+                }`}
+              >
+                {d} <span className="text-zinc-500 text-xs">· {fmtDate(weekDates[i])}</span>
+                {isToday && <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 ring-1 ring-emerald-500/20">ئەمسە</span>}
               </button>
-              <h2 className="text-3xl font-bold text-gray-800">
-                {currentDate.toLocaleString('ckb-IQ', { month: 'long', year: 'numeric' })}
-              </h2>
-              <button onClick={goToPrevMonth} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition duration-200 ease-in-out">
-                <ChevronLeft size={24} className="text-gray-700" />
-              </button>
-            </div>
+            );
+          })}
+        </div>
+      </div>
 
-            <div className="grid grid-cols-7 text-center font-semibold text-gray-600 text-sm mb-4 flex-shrink-0">
-              {defaultDays.map(day => (
-                <div key={day} className="py-2">{day}</div>
-              ))}
-            </div>
+      {/* MAIN LAYOUT */}
+      <div className="flex-1 px-3 md:px-6 pb-6 overflow-y-auto"> {/* Added flex-1 and overflow-y-auto */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
 
-            {/* Calendar days grid: allows individual day content to overflow but the grid itself fits */}
-            <div className="grid grid-cols-7 gap-1 flex-grow overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
-              {getDaysInMonth(currentDate).map((day, index) => (
-                <div
-                  key={index}
-                  className={`p-1 rounded-lg cursor-pointer transition duration-150 ease-in-out flex flex-col items-center relative
-                              ${day ? 'hover:bg-blue-50' : 'bg-gray-50 cursor-default'}
-                              ${day && selectedDate && day.toDateString() === selectedDate.toDateString() ? 'bg-blue-100 ring-2 ring-blue-400' : ''}
-                              ${day && day.toDateString() === new Date().toDateString() ? 'border-2 border-purple-500 font-bold text-purple-700' : ''}`}
-                  onClick={() => handleDayClick(day)}
-                >
-                  <span className={`font-semibold text-base z-10 ${day && day.toDateString() === new Date().toDateString() ? 'text-purple-700' : 'text-gray-800'}`}>
-                    {day ? day.getDate() : ''}
-                  </span>
-                  {day && events[day.toISOString().split('T')[0]] && (
-                    <div className="mt-0.5 space-y-0.5 w-full text-right z-10">
-                      {events[day.toISOString().split('T')[0]].slice(0, 1).map(event => ( // Show max 1 event
-                        <div
-                          key={event.id}
-                          className={`text-xs px-1 py-0.5 rounded-sm whitespace-nowrap overflow-hidden text-ellipsis
-                                      ${eventColors[event.type]?.bg} ${eventColors[event.type]?.text}`}
-                          title={`${event.time ? event.time + ' - ' : ''}${event.title}`}
-                        >
-                          {event.time && <span className="ml-1">{event.time}</span>}
-                          {event.title}
+          {/* Schedule column */}
+          <motion.div variants={variants.fade} initial="hidden" animate="show" className="lg:col-span-7">
+            {view === "week" ? (
+              // WEEK GRID (reduced min width for better fit)
+              <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                <div className="px-5 pt-5 pb-3">
+                  <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
+                    <CalendarDays size={18} className="text-sky-300" /> خشتەی هەفتانە
+                  </h3>
+                  <p className="text-sm text-zinc-400">شێوەی ستوونی؛ بخەرە سەرەوە بۆ بینینی هەموو ڕیزەکان.</p>
+                </div>
+                <div className="px-2 pb-5 overflow-x-auto">
+                  <div className="min-w-[680px] grid grid-cols-8 gap-2 pr-3">
+                    {/* times */}
+                    <div className="text-right">
+                      <div className="h-10" />
+                      {TIMES.map((t) => (
+                        <div key={t} className="h-20 text-xs text-zinc-500 flex items-start justify-end pr-2 pt-2">
+                          {t}
                         </div>
                       ))}
-                      {events[day.toISOString().split('T')[0]].length > 1 && (
-                        <div className="text-xs text-gray-500 mt-0.5">... زیاتر</div>
-                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
 
-          {/* Right Column: Events, Weekly Schedule, Exams - Now using flex-grow for vertical distribution */}
-          <div className="lg:col-span-1 flex flex-col space-y-4 overflow-hidden">
-            {/* Selected Date Events List */}
-            <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 flex-1 flex flex-col">
-              <h3 className="text-2xl font-bold text-gray-800 mb-5 border-b-2 border-blue-400 pb-3 flex-shrink-0">
-                بۆنەکانی: {selectedDate?.toLocaleDateString('ckb-IQ') || new Date().toLocaleDateString('ckb-IQ')}
-              </h3>
-              {/* Content list: now uses overflow-y-auto to manage its own scroll if necessary */}
-              <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
-                {selectedDayEvents.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4 text-sm italic">هیچ بۆنەیەک نییە بۆ ئەم ڕۆژە.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedDayEvents.map(event => (
-                      <div key={event.id}
-                        className={`p-3 rounded-lg flex justify-between items-center shadow-sm hover:shadow-md transition duration-200 ease-in-out
-                                    ${eventColors[event.type]?.bg} ${eventColors[event.type]?.text}`}>
-                        <div>
-                          <div className="font-semibold text-base">{event.title}</div>
-                          {event.time && <div className="text-sm opacity-90">{event.time}</div>}
+                    {/* columns */}
+                    {DAYS.map((day, i) => {
+                      const date = weekDates[i];
+                      const isToday = weekOffset === 0 && i === todayIndex;
+                      const sessions = weeklySchedule[day] || []; // Use mutable schedule
+                      return (
+                        <div key={day} className="rounded-xl bg-white/3 ring-1 ring-white/10 overflow-hidden">
+                          <div className={`h-10 flex items-center justify-between px-3 text-xs ${isToday ? "bg-sky-600/20 ring-1 ring-sky-500/30" : ""}`}>
+                            <span className="text-zinc-300 font-medium">{day}</span>
+                            <span className="text-zinc-500">{fmtDate(date)}</span>
+                          </div>
+                          <div>
+                            {TIMES.map((slot) => {
+                              const cls = sessions.find((s) => s.time === slot);
+                              return (
+                                <div key={slot} className="h-20 border-t border-white/5 relative">
+                                  {cls && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className={`absolute inset-1 rounded-xl p-2 text-xs text-zinc-200 ring-1 ring-white/10 bg-gradient-to-tr ${cls.color}`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-[13px]">{cls.subject}</span>
+                                        <span className="text-[10px] text-zinc-200/80">{slot}</span>
+                                      </div>
+                                      <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-200/90">
+                                        <span className="flex items-center gap-1">
+                                          <BookOpen size={12} className="text-sky-300" /> {cls.teacher}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                          <MapPin size={12} className="text-emerald-300" /> {cls.room}
+                                        </span>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditEvent(selectedDate.toISOString().split('T')[0], event.id)}
-                            className="p-1.5 rounded-full hover:bg-white/30 transition duration-200 ease-in-out"
-                            title="دەستکاری"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteEvent(selectedDate.toISOString().split('T')[0], event.id)}
-                            className="p-1.5 rounded-full hover:bg-white/30 transition duration-200 ease-in-out"
-                            title="سڕینەوە"
-                          >
-                            <Trash size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
+                </div>
               </div>
-            </section>
+            ) : (
+              // DAY TIMELINE (mobile-friendly big taps)
+              <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
+                      <Clock3 size={18} className="text-sky-300" /> وانەکانی {DAYS[selectedDayIndex]}
+                    </h3>
+                    <p className="text-sm text-zinc-400">{fmtLong(weekDates[selectedDayIndex])}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setSelectedDayIndex((i) => Math.max(0, i - 1))} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2">
+                      <ChevronRight />
+                    </button>
+                    <button onClick={() => setSelectedDayIndex((i) => Math.min(6, i + 1))} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2">
+                      <ChevronLeft />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Weekly Schedule Section - Now Dynamic */}
-            <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 flex-1 flex flex-col">
-              <h3 className="text-2xl font-bold text-gray-800 mb-5 border-b-2 border-purple-400 pb-3 flex justify-between items-center flex-shrink-0">
-                <span><ListTodo size={24} className="inline-block ml-2 text-purple-600" /> خشتەی هەفتانە</span>
-                <button
-                  onClick={() => handleOpenRecurringModal()}
-                  className="px-4 py-2 bg-purple-500 text-white rounded-full text-sm hover:bg-purple-600 transition duration-200 ease-in-out shadow-md"
+                <div className="px-5 pb-5">
+                  <ul className="relative pl-0">
+                    {/* vertical line */}
+                    <div className="absolute right-4 top-0 bottom-0 w-0.5 bg-white/10" />
+                    {(weeklySchedule[DAYS[selectedDayIndex]] || []).length ? ( // Use mutable schedule
+                      weeklySchedule[DAYS[selectedDayIndex]].map((cls, idx) => (
+                        <li key={idx} className="relative flex items-start gap-3 py-3">
+                          <div className="mt-1 w-8 h-8 rounded-full bg-white/10 ring-1 ring-white/10 grid place-items-center shrink-0">
+                            <span className="text-[10px] text-zinc-300">{cls.time}</span>
+                          </div>
+                          <div className={`flex-1 rounded-2xl ring-1 ring-white/10 bg-gradient-to-tr ${cls.color} px-3 py-3`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-white">{cls.subject}</span>
+                              <span className="text-[11px] text-zinc-200/90 flex items-center gap-1">
+                                <MapPin size={12} className="text-emerald-300" /> {cls.room}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[12px] text-zinc-100/90 flex items-center gap-2">
+                              <BookOpen size={12} className="text-sky-300" /> {cls.teacher}
+                            </div>
+                          </div>
+                        </li>
+                      ))
+                    ) : (
+                      <p className="text-zinc-500 text-sm py-6 text-center">وانە نییە.</p>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Homework + Events */}
+          <motion.div variants={variants.fade} initial="hidden" animate="show" className="lg:col-span-5 space-y-5">
+            {/* HOMEWORK */}
+            <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
+                    <CheckCircle2 size={18} className="text-amber-300" /> ئەرکەکان (Homework)
+                  </h3>
+                  <p className="text-sm text-zinc-400">زیادکردن/دەستکاریکردن/فلتەرکردن</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={hwFilter} onChange={(e) => setHwFilter(e.target.value)} className="bg-white/5 text-zinc-200 text-xs rounded-xl px-2 py-1 ring-1 ring-white/10">
+                    <option value="all">هەموو</option>
+                    <option value="open">کردارنەکراو</option>
+                    <option value="today">ئەمڕۆ</option>
+                    <option value="overdue">ڕابردوو</option>
+                    <option value="done">تەواو</option>
+                  </select>
+                  <Filter size={16} className="text-zinc-500" />
+                </div>
+              </div>
+
+              {/* Add homework */}
+              <form onSubmit={addHomework} className="px-5 grid grid-cols-1 sm:grid-cols-5 gap-2 pb-3">
+                <input
+                  value={newHw.subject}
+                  onChange={(e) => setNewHw((v) => ({ ...v, subject: e.target.value }))}
+                  placeholder="بابەت"
+                  className="sm:col-span-1 bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10 placeholder:text-zinc-400"
+                />
+                <input
+                  value={newHw.title}
+                  onChange={(e) => setNewHw((v) => ({ ...v, title: e.target.value }))}
+                  placeholder="سەردێر / کار"
+                  className="sm:col-span-2 bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10 placeholder:text-zinc-400"
+                  required
+                />
+                <input
+                  type="date"
+                  value={newHw.due}
+                  onChange={(e) => setNewHw((v) => ({ ...v, due: e.target.value }))}
+                  className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10"
+                />
+                <select
+                  value={newHw.priority}
+                  onChange={(e) => setNewHw((v) => ({ ...v, priority: e.target.value }))}
+                  className="bg-white/5 text-zinc-100 text-sm rounded-xl px-2 py-2 ring-1 ring-white/10"
                 >
-                  <PlusCircle size={16} className="inline-block ml-1" /> زیادکردنی وانەی هەفتانە
-                </button>
-              </h3>
-              {/* Content list: now uses overflow-y-auto to manage its own scroll if necessary */}
-              <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
-                <div className="space-y-4">
-                  {defaultDays.map(day => (
-                    <div key={day} className="border-b border-gray-100 pb-3 last:border-b-0">
-                      <h4 className="font-semibold text-lg text-gray-700 mb-2">{day}</h4>
-                      <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                        {(weeklyRecurringItems[day] || []).length > 0 ? (
-                          weeklyRecurringItems[day].map((item, idx) => (
-                            <li key={item.id} className="flex items-center justify-between group p-1.5 rounded-md hover:bg-gray-50 transition duration-200 ease-in-out">
-                              <span className="flex items-center">
-                                  <span className="ml-2 text-purple-400">•</span> {item.time && <span className="mr-2 font-medium">{item.time} - </span>}{item.subject}
-                              </span>
-                              <span className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                  <button
-                                      onClick={() => handleOpenRecurringModal({ ...item, day })}
-                                      className="p-1 rounded-full hover:bg-gray-200 text-gray-600"
-                                      title="دەستکاری"
-                                  >
-                                      <Edit size={14} />
-                                  </button>
-                                  <button
-                                      onClick={() => handleDeleteRecurringItem(day, item.id)}
-                                      className="p-1 rounded-full hover:bg-gray-200 text-gray-600"
-                                      title="سڕینەوە"
-                                  >
-                                      <Trash size={14} />
-                                  </button>
-                              </span>
-                            </li>
-                          ))
-                        ) : (
-                          <li className="text-gray-500 italic">هیچ شتێک دیارینەکراوە.</li>
-                        )}
-                      </ul>
-                    </div>
-                  ))}
+                  <option value="low">کەم</option>
+                  <option value="normal">ئاسایی</option>
+                  <option value="high">بەرز</option>
+                </select>
+
+                {/* Submit button for homework form, centered on mobile */}
+                <div className="sm:col-span-5 flex justify-center sm:justify-end mt-2">
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto inline-flex items-center gap-1 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 px-4 py-2 text-white text-sm"
+                  >
+                    <Plus size={16} /> زیادکردن
+                  </button>
                 </div>
-              </div>
-            </section>
+              </form>
 
-            {/* Upcoming Exams Section */}
-            <section className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 flex-1 flex flex-col">
-              <h3 className="text-2xl font-bold text-gray-800 mb-5 border-b-2 border-red-400 pb-3 flex-shrink-0">
-                <GraduationCap size={24} className="inline-block ml-2 text-red-600" /> تاقیکردنەوە داهاتووەکان
-              </h3>
-              {/* Content list: now uses overflow-y-auto to manage its own scroll if necessary */}
-              <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
-                {upcomingExams.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4 text-sm italic">هیچ تاقیکردنەوەیەکی داهاتوو نییە.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {upcomingExams.map(event => (
-                      <div key={event.id}
-                        className={`p-3 rounded-lg flex justify-between items-center shadow-sm hover:shadow-md transition duration-200 ease-in-out
-                                    ${eventColors[event.type]?.bg} ${eventColors[event.type]?.text}`}>
-                        <div>
-                          <div className="font-semibold text-base">
-                            <span className="ml-2 text-red-500"><Bell size={18} className="inline-block" /></span>
-                            {event.title}
-                          </div>
-                          <div className="text-sm opacity-90 mt-1">
-                            بەروار: {new Date(event.dateKey).toLocaleDateString('ckb-IQ')}
-                            {event.time && <span className="mr-4"> کات: {event.time}</span>}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditEvent(event.dateKey, event.id)}
-                            className="p-1.5 rounded-full hover:bg-white/30 transition duration-200 ease-in-out"
-                            title="دەستکاری"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteEvent(event.dateKey, event.id)}
-                            className="p-1.5 rounded-full hover:bg-white/30 transition duration-200 ease-in-out"
-                            title="سڕینەوە"
-                          >
-                            <Trash size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        </main>
 
-        {/* One-Time Event Form Modal */}
-        <Modal isOpen={isFormModalOpen} onClose={() => { setIsFormModalOpen(false); setEditEventId(null); setForm({ date: selectedDate.toISOString().split('T')[0], time: '', title: '', type: 'general' }); }} title={editEventId ? "دەستکاریکردنی بۆنە" : "زیادکردنی بۆنەی نوێ"}>
-          <form onSubmit={handleAddEvent} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="date"
-              name="date"
-              value={form.date}
-              onChange={handleFormChange}
-              className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent transition duration-200 ease-in-out text-right text-gray-800 text-base"
-              required
-            />
-            <input
-              type="time"
-              name="time"
-              placeholder="کات (ئیختیاری)"
-              value={form.time}
-              onChange={handleFormChange}
-              className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent transition duration-200 ease-in-out text-right text-gray-800 text-base"
-            />
-            <input
-              type="text"
-              name="title"
-              placeholder="ناونیشانی بۆنە (پێویستە)"
-              value={form.title}
-              onChange={handleFormChange}
-              className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent transition duration-200 ease-in-out text-right text-gray-800 text-base"
-              required
-            />
-            <div className="relative">
-              <select
-                name="type"
-                value={form.type}
-                onChange={handleFormChange}
-                className="block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none transition duration-200 ease-in-out bg-white text-gray-800 text-base pl-8"
-              >
-                <option value="general">گشتی</option>
-                <option value="exam">تاقیکردنەوە</option>
-                <option value="task">کار</option>
-                <option value="note">تێبینی</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center px-3 text-gray-700">
-                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
+              {/* List */}
+              <div className="px-5 pb-5">
+                <AnimatePresence initial={false}>
+                  {filteredHomeworks.length ? (
+                    filteredHomeworks.map((h) => {
+                      const overdue = !h.done && h.due && new Date(h.due) < new Date(new Date().toDateString());
+                      return (
+                        <motion.div key={h.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-zinc-900/60 ring-1 ring-white/10 p-3 flex items-center gap-3">
+                          <button
+                            onClick={() => toggleHwDone(h.id)}
+                            className={`w-6 h-6 rounded-md grid place-items-center ring-1 ${h.done ? "bg-emerald-600/80 ring-emerald-500/40" : "bg-white/5 ring-white/10"}`}
+                            title={h.done ? "گەڕاندنەوە" : "کردنەوە"}
+                          >
+                            {h.done ? <CheckCircle2 size={16} /> : <span className="block w-3 h-3 rounded-sm bg-white/20" />}
+                          </button>
+
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {h.subject && <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 ring-1 ring-white/10 text-zinc-300">{h.subject}</span>}
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full ${hwPill(h.priority)}`}>{h.priority === "high" ? "بەرز" : h.priority === "low" ? "کەم" : "ئاسایی"}</span>
+                              {h.due && (
+                                <span className={`text-[11px] px-2 py-0.5 rounded-full ring-1 ${overdue ? "bg-rose-500/15 text-rose-300 ring-rose-400/30" : "bg-white/5 text-zinc-300 ring-1 ring-white/10"}`}>
+                                  <AlarmClock size={12} className="inline ml-1" /> {h.due}
+                                </span>
+                              )}
+                            </div>
+                            <div className={`text-sm mt-1 ${h.done ? "line-through text-zinc-500" : "text-zinc-100"}`}>{h.title}</div>
+                          </div>
+
+                          <button onClick={() => deleteHw(h.id)} className="text-zinc-500 hover:text-rose-400">
+                            <Trash2 size={18} />
+                          </button>
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-zinc-500 text-sm py-6 text-center">
+                      هیچ ئەرکێک نییە بەم فلتەریەدا.
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
-            <button
-              type="submit"
-              className="col-span-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-3 rounded-lg shadow-lg hover:from-blue-700 hover:to-indigo-800 transition duration-300 ease-in-out transform hover:scale-105 font-bold text-lg mt-4"
-            >
-              {editEventId ? "نوێکردنەوەی بۆنە" : "زیادکردنی بۆنە"}
-            </button>
-          </form>
-        </Modal>
 
-        {/* Recurring Schedule Form Modal */}
-        <RecurringScheduleModal
-          isOpen={isRecurringModalOpen}
-          onClose={() => setIsRecurringModalOpen(false)}
-          onSave={handleSaveRecurringItem}
-          initialData={editRecurringData}
-          defaultDays={defaultDays}
-        />
+            {/* EVENTS */}
+            <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+              <div className="px-5 pt-5 pb-3">
+                <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
+                  <PartyPopper size={18} className="text-pink-300" /> ڕووداوەکان (Events)
+                </h3>
+                <p className="text-sm text-zinc-400">خوێندنگە، یارییەکان، کوبوونەوە و هتد.</p>
+              </div>
+
+              {/* Add event */}
+              <form onSubmit={addEvent} className="px-5 grid grid-cols-1 sm:grid-cols-6 gap-2 pb-3">
+                <input value={newEvent.title} onChange={(e) => setNewEvent((v) => ({ ...v, title: e.target.value }))} placeholder="سەردێری ڕووداو" className="sm:col-span-2 bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10 placeholder:text-zinc-400" required />
+                <input type="date" value={newEvent.date} onChange={(e) => setNewEvent((v) => ({ ...v, date: e.target.value }))} className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10" required />
+                <input type="time" value={newEvent.time} onChange={(e) => setNewEvent((v) => ({ ...v, time: e.target.value }))} className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10" />
+                <input value={newEvent.place} onChange={(e) => setNewEvent((v) => ({ ...v, place: e.target.value }))} placeholder="شوێن (ئارەزوومەندانە)" className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10 placeholder:text-zinc-400" />
+                <div className="flex items-center col-span-1 sm:col-span-full"> {/* Made button full width on mobile */}
+                  <button type="submit" className="w-full inline-flex items-center justify-center gap-1 rounded-xl bg-sky-600/80 hover:bg-sky-600 px-3 py-2 text-white text-sm">
+                    <Plus size={16} /> زیادکردن
+                  </button>
+                </div>
+              </form>
+
+              {/* Events list */}
+              <div className="px-5 pb-5">
+                <AnimatePresence initial={false}>
+                  {events.length ? (
+                    events
+                      .slice()
+                      .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
+                      .map((ev) => (
+                        <motion.div key={ev.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-zinc-900/60 ring-1 ring-white/10 p-3 flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-pink-500/15 ring-1 ring-pink-400/30 grid place-items-center text-pink-300 text-xs">
+                            <div className="leading-tight text-center">
+                              <div>{ev.date?.slice(5, 10)?.replace("-", "/") || "--/--"}</div>
+                              <div className="text-[10px]">{ev.time || "--:--"}</div>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm text-zinc-100 font-semibold">{ev.title}</div>
+                            <div className="text-xs text-zinc-400 flex items-center gap-3 mt-1">
+                              {ev.place && (
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin size={12} /> {ev.place}
+                                </span>
+                              )}
+                              {isInWeek(new Date(ev.date), weekStart) && <span className="text-emerald-300">ئەم هەفتە</span>}
+                            </div>
+                          </div>
+                          <button onClick={() => deleteEvent(ev.id)} className="text-zinc-500 hover:text-rose-400">
+                            <Trash2 size={18} />
+                          </button>
+                        </motion.div>
+                      ))
+                  ) : (
+                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-zinc-500 text-sm py-6 text-center">
+                      هیچ ڕووداوێک نییە.
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
+
+      {/* Mobile quick-add bar */}
+      <div className="lg:hidden fixed bottom-3 left-3 right-3 z-20">
+        <div className="rounded-2xl bg-zinc-900/80 ring-1 ring-white/10 backdrop-blur px-3 py-2 flex items-center justify-between gap-2"> {/* Added gap-2 here */}
+          <button
+            onClick={() => {
+              // focus title input
+              const el = document.querySelector('input[placeholder="سەردێر / کار"]');
+              el?.focus();
+            }}
+            className="flex-1 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors" // Removed mr-2, added font-semibold, transition
+          >
+            <Plus size={16} /> ئەرک
+          </button>
+          <button
+            onClick={() => {
+              const el = document.querySelector('input[placeholder="سەردێری ڕووداو"]');
+              el?.focus();
+            }}
+            className="flex-1 rounded-xl bg-sky-600/80 hover:bg-sky-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors" // Removed ml-2, added font-semibold, transition
+          >
+            <Plus size={16} /> ڕووداو
+          </button>
+          {/* New Subject button for mobile quick-add bar */}
+          <button
+            onClick={() => setShowAddSubjectModal(true)}
+            className="flex-1 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors"
+          >
+            <Plus size={16} /> بابەت
+          </button>
+        </div>
+      </div>
+
+      {/* Add Subject Modal */}
+      <AnimatePresence>
+        {showAddSubjectModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowAddSubjectModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-md rounded-2xl bg-zinc-900 border border-zinc-700 shadow-xl p-6 text-right space-y-4"
+            >
+              <h3 className="text-xl font-extrabold text-zinc-50 mb-4">زیادکردنی وانەی نوێ</h3>
+              
+              <form onSubmit={addScheduleSubject} className="space-y-4">
+                <div>
+                  <label htmlFor="subjectDay" className="block text-sm font-medium text-zinc-300 mb-1">ڕۆژ</label>
+                  <select
+                    id="subjectDay"
+                    value={newSubject.day}
+                    onChange={(e) => setNewSubject((v) => ({ ...v, day: e.target.value }))}
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 focus:ring-2 focus:ring-purple-500"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="subjectTime" className="block text-sm font-medium text-zinc-300 mb-1">کات</label>
+                  <select
+                    id="subjectTime"
+                    value={newSubject.time}
+                    onChange={(e) => setNewSubject((v) => ({ ...v, time: e.target.value }))}
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 focus:ring-2 focus:ring-purple-500"
+                  >
+                    {TIMES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="subjectName" className="block text-sm font-medium text-zinc-300 mb-1">بابەت</label>
+                  <input
+                    id="subjectName"
+                    type="text"
+                    value={newSubject.subject}
+                    onChange={(e) => setNewSubject((v) => ({ ...v, subject: e.target.value }))}
+                    placeholder="ناوی بابەت"
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="teacherName" className="block text-sm font-medium text-zinc-300 mb-1">مامۆستا</label>
+                  <input
+                    id="teacherName"
+                    type="text"
+                    value={newSubject.teacher}
+                    onChange={(e) => setNewSubject((v) => ({ ...v, teacher: e.target.value }))}
+                    placeholder="ناوی مامۆستا"
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="roomName" className="block text-sm font-medium text-zinc-300 mb-1">ژوور</label>
+                  <input
+                    id="roomName"
+                    type="text"
+                    value={newSubject.room}
+                    onChange={(e) => setNewSubject((v) => ({ ...v, room: e.target.value }))}
+                    placeholder="ژووری وانە"
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="subjectColor" className="block text-sm font-medium text-zinc-300 mb-1">ڕەنگ</label>
+                  <div className="grid grid-cols-6 gap-2">
+                    {SUBJECT_COLORS.map((colorClass, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setNewSubject((v) => ({ ...v, color: colorClass }))}
+                        className={`h-8 w-full rounded-md bg-gradient-to-tr ${colorClass} ${
+                          newSubject.color === colorClass ? "ring-2 ring-purple-400 ring-offset-2 ring-offset-zinc-900" : ""
+                        }`}
+                        title={`ڕەنگ ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6"> {/* Changed to flex-col on mobile */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSubjectModal(false)}
+                    className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-700 text-zinc-200 font-semibold hover:bg-zinc-600 transition"
+                  >
+                    داخستن
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition"
+                  >
+                    زیادکردن
+                  </button>
+                </div>
+              </form>
+
+              <button
+                onClick={() => setShowAddSubjectModal(false)}
+                className="absolute top-3 left-3 p-2 rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition"
+                aria-label="داخستن"
+              >
+                <X size={20} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
-
-export default Scheduleapp;
+}
