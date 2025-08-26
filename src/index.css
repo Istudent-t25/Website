@@ -142,3 +142,5 @@ body {
 /* Optional: hide scrollbars visually but keep scrollability (not recommended globally)
 .hide-scroll::-webkit-scrollbar { display: none; }
 .hide-scroll { scrollbar-width: none; } */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
