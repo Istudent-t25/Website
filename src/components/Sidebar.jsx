@@ -190,46 +190,51 @@ export default function Sidebar({
         {/* Free links (no dropdowns) */}
         <div className="mt-2">
           <div className={cls.sectionLabel}>ڕێزمان</div>
-        <div className="space-y-1">
-          <Item
-            to="/grammar/"
-            icon={FileText}
-            label="ڕیزمان - Grammar - القواعد"
-            active={isActive("/grammar")}
-          />
-        </div>
+          <div className="space-y-1">
+            <Item
+              to="/grammar/"
+              icon={FileText}
+              label="ڕیزمان - Grammar - القواعد"
+              active={isActive("/grammar")}
+              onClick={onClose}
+            />
+          </div>
 
           <div className={cls.sectionLabel}>تاقیکردنەوە</div>
-        <div className="space-y-1">
-          <Item
-            to="/exams/bank"
-            icon={BookMarked}
-            label="بانكی پرسار"
-            active={isActive("/exams/bank")}
-          />
-          <Item
-            to="/exams/grade12"
-            icon={GraduationCap}
-            label="پۆلی ١٢ (نیشتیمانی)"
-            active={isActive("/exams/grade12")}
-          />
-          <Item
-            to="/schedule"
-            icon={CalendarDays}
-            label="خشتەی هەفتانە"
-            active={isActive("/schedule")}
-          />
-        </div>
+          <div className="space-y-1">
+            <Item
+              to="/exams/bank"
+              icon={BookMarked}
+              label="بانكی پرسار"
+              active={isActive("/exams/bank")}
+              onClick={onClose}
+            />
+            <Item
+              to="/exams/grade12"
+              icon={GraduationCap}
+              label="پۆلی ١٢ (نیشتیمانی)"
+              active={isActive("/exams/grade12")}
+              onClick={onClose}
+            />
+            <Item
+              to="/schedule"
+              icon={CalendarDays}
+              label="خشتەی هەفتانە"
+              active={isActive("/schedule")}
+              onClick={onClose}
+            />
+          </div>
 
-         <div className={cls.sectionLabel}>دەنگ</div>
-        <div className="space-y-1">
-          <Item
-            to="/sounds"
-            icon={Headphones}
-            label="ده‌نگه‌كان (ئینگلیزی)"
-            active={isActive("/sounds")}
-          />
-        </div>
+          <div className={cls.sectionLabel}>دەنگ</div>
+          <div className="space-y-1">
+            <Item
+              to="/sounds"
+              icon={Headphones}
+              label="ده‌نگه‌كان (ئینگلیزی)"
+              active={isActive("/sounds")}
+              onClick={onClose}
+            />
+          </div>
 
           <div className={cls.sectionLabel}>هەژمار</div>
           <div className="space-y-1">

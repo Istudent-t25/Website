@@ -26,7 +26,14 @@ import {
   Clipboard,
   Info,
   History,
-  Trash2, // Added for delete functionality in HistoricalResultsPage
+  Trash2,
+  ChevronDown,
+  BookA,
+  FlaskConical,
+  GraduationCap,
+  Scale,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 // HistoricalResultsPage component is now defined inline to resolve import issues.
@@ -98,6 +105,42 @@ const HistoricalResultsPage = ({ results, onViewResult, onGoBack, onDeleteResult
         </div>
       )}
     </div>
+  );
+};
+
+// ShareScoreModal placeholder component
+const ShareScoreModal = () => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => {}}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-6 shadow-xl w-full max-w-sm"
+      >
+        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+          هاوبەشی‌کردنی ئەنجام
+        </h3>
+        <p className="text-sm text-zinc-500 mt-2">
+          ئەم تایبەتمەندییە هێشتا بەردەست نییە.
+        </p>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {}}
+            className="px-4 py-2 text-sm rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          >
+            داخستن
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -238,6 +281,29 @@ const copyToClipboard = (text) => {
   }
 };
 
+// Subject icon map
+const subjectIcons = {
+  "بیركاری": Scale,
+  "فیزیا": FlaskConical,
+  "کیمیا": BookA,
+  "ئینگلیزی": GraduationCap,
+  "کوردی": NotebookPen,
+};
+
+const getDifficultyColor = (difficulty) => {
+  switch (difficulty) {
+    case "ئاسان":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300";
+    case "مامناوەند":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300";
+    case "سخت":
+      return "bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300";
+    default:
+      return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200";
+  }
+};
+
+
 // Question Card Component - Now memoized and accepts specific props
 const QuestionCard = React.memo(
   ({
@@ -254,7 +320,8 @@ const QuestionCard = React.memo(
     onChangeNote, // Callback for changing note
     onSetActiveQ, // Callback to set active question
     speak, // TTS function
-    showWrongOnly, // FIX: Added showWrongOnly to destructuring
+    showWrongOnly,
+    showAllExplanations,
   }) => {
     // console.log(`Rendering QuestionCard: ${q.id}`); // For debugging re-renders
     const showFeedback = showResults || (mode === "practice" && chosenAnswer);
@@ -277,7 +344,7 @@ const QuestionCard = React.memo(
           </div>
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 mb-2">
-              <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200">
+              <span className={`px-2 py-0.5 rounded-full ${getDifficultyColor(q.difficulty)}`}>
                 {q.difficulty || "مامناوەند"}
               </span>
               <button
@@ -455,13 +522,14 @@ export default function ExamsGrade12Pro() {
   const [selectedTrack, setSelectedTrack] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("");
   const [mode, setMode] = useState("practice"); // practice | exam
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // exam state
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [notes, setNotes] = useState({});
-  const [hintsUsed, setHintsUsed] = useState({}); 
+  const [hintsUsed, setHintsUsed] = useState({});
   const [perQSeconds, setPerQSeconds] = useState({});
   const [activeQ, setActiveQ] = useState(null);
 
@@ -910,142 +978,23 @@ export default function ExamsGrade12Pro() {
     show: { opacity: 1, y: 0, transition: { duration: 0.18 } },
   };
 
+  const getSubjectIcon = (subject) => {
+    const IconComponent = subjectIcons[subject];
+    return IconComponent ? <IconComponent size={24} className="text-sky-600 dark:text-sky-400" /> : null;
+  };
+
 
   // ---------------- RENDER ----------------
   return (
     <div dir="rtl" className={`${kuFont} space-y-4`}>
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-40">
-        <div className="backdrop-blur bg-white/85 dark:bg-zinc-900/85 border-b border-white/10">
-          <div className="mx-auto max-w-5xl px-3 py-2">
-            {currentView === "examPicker" || currentView === "historyList" ? (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                {/* Subject */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">بابەت</label>
-                  <select
-                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                  >
-                    <option value="">— هەموو —</option>
-                    {subjects.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* Track */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">شاخە</label>
-                  <select
-                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
-                    value={selectedTrack}
-                    onChange={(e) => setSelectedTrack(e.target.value)}
-                  >
-                    <option value="">— هەموو —</option>
-                    {tracks.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* Difficulty */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">ئاست</label>
-                  <select
-                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
-                    value={difficultyFilter}
-                    onChange={(e) => setDifficultyFilter(e.target.value)}
-                  >
-                    <option value="">— هەموو —</option>
-                    {difficulties.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* Mode */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">دۆخ</label>
-                  <select
-                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value)}
-                  >
-                    <option value="practice">توێژینەوە</option>
-                    <option value="exam">تاقیکردنەوە</option>
-                  </select>
-                </div>
-                {/* Minutes */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">خوله‌ک</label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="خوله‌ک"
-                    className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-right text-zinc-800 dark:text-zinc-200"
-                    value={manualMinutes}
-                    onChange={(e) => setManualMinutes(e.target.value)}
-                  />
-                </div>
-              </div>
-            ) : (currentView === "activeExam" || currentView === "resultsView") && (
-              <div className="flex items-center justify-between gap-3 py-1">
-                <div className="text-sm font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-2">
-                  <Clock size={18} /> {formatTime(seconds)}
-                </div>
-                <div className="flex-1 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                  <div
-                    className={`h-full ${showResults ? "bg-emerald-500" : "bg-sky-500"}`}
-                    style={{
-                      width: `${(Object.keys(answers).length / (questions.length || 1)) * 100}%`,
-                      transition: "width .3s ease",
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={exitExam}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-red-500 text-white hover:bg-red-600 flex items-center gap-1"
-                >
-                  <LogOut size={14} /> دەرچوون
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Kurdish Hero */}
+      {/* Filters as a unified header */}
       {currentView === "examPicker" && (
-        <div className="px-3">
-          <div className="mx-auto max-w-5xl rounded-2xl bg-gradient-to-l from-sky-900/40 via-zinc-900/50 to-zinc-900/70 border border-white/10 p-4 md:p-5 mb-2">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl md:text-2xl font-extrabold text-zinc-50">بەشی تاقیکردنەوە</h1>
-                <p className="text-sm text-zinc-400 mt-1">
-                  هەڵبژاردن، تاقیکردنەوە و هەڵسەنگاندن — بە پشتیوانی زمانی کوردی و دەستگەیشتنی ئاسان.
-                </p>
-              </div>
-              <div className="text-xs md:text-sm text-sky-200 bg-sky-600/15 ring-1 ring-sky-500/30 rounded-xl px-3 py-2">
-              به‌شێوه‌یه‌كی خوودكارانه‌ هه‌ڵده‌گیرێت.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mx-auto max-w-5xl px-3">
-        {/* Exam Picker */}
-        {currentView === "examPicker" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-50">
-                تاقیکردنەوەکان
-              </h2>
+        <div className="rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-4 shadow-md space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-50">
+              تاقیکردنەوەکان
+            </h2>
+            <div className="flex items-center gap-2">
               <button
                 onClick={goToHistoryList}
                 className="px-3 py-1.5 rounded-lg text-xs bg-sky-600 text-white hover:bg-sky-700 flex items-center gap-1 transition"
@@ -1053,37 +1002,125 @@ export default function ExamsGrade12Pro() {
                 <History size={14} /> ئەنجامەکانم
               </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredExams.map((e) => (
-                <motion.button
-                  key={e.id}
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="show"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => startExam(e)}
-                  className="text-right rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-4 shadow hover:shadow-md transition"
-                >
-                  <div className="text-sm text-zinc-500">
-                    {e.subject} • {e.track}
-                  </div>
-                  <div className="font-bold text-zinc-900 dark:text-zinc-100 mt-1">
-                    {e.title}
-                  </div>
-                  <div className="text-xs text-zinc-500 mt-1">
-                    ژمارەی پرسیار: {e.questions.length}
-                  </div>
-                </motion.button>
-              ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {/* Subject */}
+            <div>
+              <label className="text-xs text-zinc-500">بابەت</label>
+              <select
+                className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200 mt-1"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+              >
+                <option value="">— هەموو —</option>
+                {subjects.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
             </div>
+            {/* Track */}
+            <div>
+              <label className="text-xs text-zinc-500">شاخە</label>
+              <select
+                className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200 mt-1"
+                value={selectedTrack}
+                onChange={(e) => setSelectedTrack(e.target.value)}
+              >
+                <option value="">— هەموو —</option>
+                {tracks.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Difficulty */}
+            <div>
+              <label className="text-xs text-zinc-500">ئاست</label>
+              <select
+                className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200 mt-1"
+                value={difficultyFilter}
+                onChange={(e) => setDifficultyFilter(e.target.value)}
+              >
+                <option value="">— هەموو —</option>
+                {difficulties.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Mode */}
+            <div>
+              <label className="text-xs text-zinc-500">دۆخ</label>
+              <select
+                className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-zinc-800 dark:text-zinc-200 mt-1"
+                value={mode}
+                onChange={(e) => setMode(e.target.value)}
+              >
+                <option value="practice">توێژینەوە</option>
+                <option value="exam">تاقیکردنەوە</option>
+              </select>
+            </div>
+            {/* Minutes */}
+            <div>
+              <label className="text-xs text-zinc-500">خوله‌ک</label>
+              <input
+                type="number"
+                min="1"
+                placeholder="خوله‌ک"
+                className="w-full text-sm rounded-lg px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-white/10 text-right text-zinc-800 dark:text-zinc-200 mt-1"
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
-            {filteredExams.length === 0 && (
-              <p className="text-center text-zinc-500 py-8">
-                هیچ تاقیکردنەوەیەک نەدۆزرایەوە.
-              </p>
-            )}
+
+      <div className="mx-auto max-w-5xl px-3">
+        {/* Exam Picker with Filters */}
+        {currentView === "examPicker" && (
+          <div className="space-y-4">
+            <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <AnimatePresence>
+                {filteredExams.length > 0 ? (
+                  filteredExams.map((e) => (
+                    <motion.button
+                      key={e.id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      whileHover={{ y: -4, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => startExam(e)}
+                      className="group flex flex-col items-center text-center rounded-2xl border border-white/10 bg-white dark:bg-zinc-900 p-6 shadow-md hover:shadow-lg transition-all"
+                    >
+                      <div className="p-3 rounded-full bg-sky-100 dark:bg-sky-900/20 group-hover:bg-sky-200 dark:group-hover:bg-sky-800/30 transition-colors mb-4">
+                        {getSubjectIcon(e.subject)}
+                      </div>
+                      <div className="font-bold text-lg text-zinc-900 dark:text-zinc-100 mt-1">
+                        {e.title}
+                      </div>
+                      <div className="text-sm text-zinc-500 mt-1">
+                        {e.subject} • {e.track}
+                      </div>
+                      <div className="text-xs text-zinc-400 mt-2">
+                        ژمارەی پرسیار: {e.questions.length}
+                      </div>
+                    </motion.button>
+                  ))
+                ) : (
+                  <p className="text-center text-zinc-500 py-8 col-span-full">
+                    هیچ تاقیکردنەوەیەک نەدۆزرایەوە.
+                  </p>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </div>
         )}
 
@@ -1233,61 +1270,66 @@ export default function ExamsGrade12Pro() {
                   onChangeNote={changeNote}
                   onSetActiveQ={setActiveQ}
                   speak={speak}
-                  showWrongOnly={showWrongOnly} // Pass showWrongOnly as prop
+                  showWrongOnly={showWrongOnly}
+                  showAllExplanations={showAllExplanations} // FIX: Pass the prop here
                 />
               ))}
             </div>
 
             {/* Bottom bar */}
-            <div className="sticky bottom-2 z-30">
-              <div className="mx-auto max-w-5xl">
-                <div className="rounded-2xl bg-white/95 dark:bg-zinc-900/95 shadow-lg border border-white/10 p-2 flex items-center justify-between">
-                  {!showResults ? (
-                    <>
-                      <button
-                        onClick={submitAll}
-                        className="flex-1 mx-1 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 flex items-center justify-center gap-2 transition"
-                      >
-                        ناردن <ListChecks size={18} />
-                      </button>
-                      <button
-                        onClick={exitExam}
-                        className="mx-1 px-3 py-2 rounded-xl bg-rose-500 text-white font-semibold hover:bg-rose-600 flex items-center gap-2 transition"
-                      >
-                        دەرچوون <ChevronRight size={16} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="px-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        {detailedScore.correct} / {detailedScore.total}
-                      </div>
-                      <button
-                        onClick={() => setShowAllExplanations((v) => !v)}
-                        className="flex-1 mx-1 px-4 py-2 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 flex items-center justify-center gap-2 transition"
-                      >
-                        {showAllExplanations
-                          ? "شاردنەوەی ڕوونکردنەوە"
-                          : "پیشاندانی هەموو ڕوونکردنەوەکان"}{" "}
-                        <Lightbulb size={18} />
-                      </button>
-                      <button
-                        onClick={() => setShowShareModal(true)}
-                        className="mx-1 px-3 py-2 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 flex items-center justify-center gap-2 transition"
-                      >
-                        هاوبەشی‌کردن <Share2 size={16} />
-                      </button>
-                      <button
-                        onClick={handleBackFromResults}
-                        className="mx-1 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center gap-2 transition"
-                      >
-                        گەڕانەوە <ChevronLeft size={16} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Bottom bar (mobile-friendly) */}
+<div className="sticky -bottom-5 z-30">
+  <div className="mx-auto max-w-md sm:max-w-5xl">
+    <div className="rounded-2xl bg-white/95 dark:bg-zinc-900/95 shadow-lg border border-white/10 p-2 flex items-center justify-around gap-1">
+      {!showResults ? (
+        <>
+          <button
+            onClick={submitAll}
+            className="flex flex-col items-center justify-center flex-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            <ListChecks size={18} />
+            <span>ناردن</span>
+          </button>
+          <button
+            onClick={exitExam}
+            className="flex flex-col items-center justify-center flex-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-rose-500 text-white hover:bg-rose-600"
+          >
+            <ChevronRight size={18} />
+            <span>دەرچوون</span>
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-col items-center px-2 py-1 text-xs font-semibold text-zinc-800 dark:text-zinc-50">
+            <span>{detailedScore.correct}/{detailedScore.total}</span>
+          </div>
+          <button
+            onClick={() => setShowAllExplanations(v => !v)}
+            className="flex flex-col items-center justify-center flex-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600"
+          >
+            <Lightbulb size={18} />
+            <span>{showAllExplanations ? "شاردنەوە" : "شیكار"}</span>
+          </button>
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="flex flex-col items-center justify-center flex-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+          >
+            <Share2 size={18} />
+            <span>هاوبەشی</span>
+          </button>
+          <button
+            onClick={handleBackFromResults}
+            className="flex flex-col items-center justify-center flex-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          >
+            <ChevronLeft size={18} />
+            <span>گەڕانەوە</span>
+          </button>
+        </>
+      )}
+    </div>
+  </div>
+</div>
+
           </div>
         )}
       </div>
