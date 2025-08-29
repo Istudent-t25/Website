@@ -1,55 +1,83 @@
-import { Menu, Search, Sun, Moon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Search, Home, Library, BookMarked, CalendarDays, Settings } from "lucide-react";
 
-export default function Header({ onMenuClick, headerHeight = 56 }) {
+const tabs = [
+  { to: "/", label: "سەرەکی", icon: Home },
+  { to: "/students/grade12", label: "بابەتەکان", icon: Library },
+  { to: "/exams", label: "پرسارەکان", icon: BookMarked },
+  { to: "/schedule", label: "خشتە", icon: CalendarDays },
+  { to: "/settings", label: "ڕێکخستن", icon: Settings },
+];
+
+function isActive(path, to) {
+  if (to === "/") return path === "/";
+  return path === to || path.startsWith(to.replace(/\/$/, ""));
+}
+
+export default function Header({ onHeightChange }) {
+  const loc = useLocation();
+  const ref = useRef(null);
   const [search, setSearch] = useState("");
-  const [dark, setDark] = useState(
-    () =>
-      document.documentElement.classList.contains("dark") ||
-      window.matchMedia?.("(prefers-color-scheme: dark)").matches
-  );
 
+  // report header height (desktop only)
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    if (!ref.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.target?.offsetHeight || 64;
+      onHeightChange?.(h);
+    });
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, [onHeightChange]);
 
   return (
     <header
-      className="fixed top-0 inset-x-0 z-40 backdrop-blur bg-white/80 dark:bg-zinc-900/80 border-b border-white/10 px-4 py-2 flex items-center justify-between gap-4"
-      style={{
-        height: `calc(env(safe-area-inset-top) + ${headerHeight}px)`,
-        paddingTop: "env(safe-area-inset-top)",
-      }}
+      ref={ref}
+      className="hidden md:flex fixed top-0 inset-x-0 z-40 border-b border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      {/* Mobile Menu */}
-      <button className="md:hidden text-zinc-700 dark:text-zinc-200" onClick={onMenuClick} aria-label="Open menu">
-        <Menu size={24} />
-      </button>
+      <div className="w-full max-w-7xl mx-auto h-16 px-4 flex items-center justify-between gap-4">
+        {/* Right: Title */}
+        <h1 className="text-xl font-bold text-sky-600 dark:text-sky-400 whitespace-nowrap">
+          من خوێندکارم
+        </h1>
 
-      {/* Title */}
-      <h1 className="text-lg md:text-xl font-bold text-sky-600 dark:text-sky-400 whitespace-nowrap">
-        من خوێندکارم
-      </h1>
+        {/* Center: Menu tabs */}
+        <nav className="flex-1 flex justify-center">
+          <div className="flex items-center gap-1 rounded-xl bg-white/70 dark:bg-zinc-800/70 backdrop-blur px-2 py-1 border border-white/10 shadow-sm">
+            {tabs.map(({ to, label, icon: Icon }) => {
+              const active = isActive(loc.pathname, to);
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    active
+                      ? "bg-sky-500/15 text-sky-900 dark:text-sky-100 ring-1 ring-sky-400/40"
+                      : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/70 dark:hover:bg-zinc-700/60"
+                  }`}
+                  title={label}
+                >
+                  <Icon size={18} className="text-sky-600 dark:text-sky-400" />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
 
-      {/* Search */}
-      <div className="relative flex-1 max-w-xs hidden sm:block">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="گەڕان..."
-          className="w-full bg-zinc-100 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-100 rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-        />
-        <Search size={18} className="absolute left-3 top-2.5 text-zinc-400" />
+        {/* Left: Search */}
+        <div className="relative w-64">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="گەڕان..."
+            className="w-full bg-zinc-100 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-100 rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+          <Search size={18} className="absolute left-3 top-2.5 text-zinc-400" />
+        </div>
       </div>
-
-      {/* Theme Toggle */}
-      <button
-        onClick={() => setDark((v) => !v)}
-        className="p-2 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
-        aria-label="Toggle theme"
-      >
-        {dark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-zinc-700 dark:text-zinc-200" />}
-      </button>
     </header>
   );
 }

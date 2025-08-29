@@ -1,11 +1,7 @@
-// Schedule.jsx — Responsive Weekly/Day schedule + Homework + Events (dark, RTL)
-// - Mobile-first: Day view timeline, scroll-snap day tabs, sticky quick-add bar
-// - Desktop: Compact weekly grid (smaller min-width), same features as before
-// - LocalStorage persistence for homework & events
-// - Framer Motion animations; Lucide icons
+// ============================== Schedule.jsx - Next-Gen Design ==============================
+// This version focuses on a more immersive, dynamic layout with a layered, glassmorphism feel.
+// The design uses overlapping panels and subtle glows to create a sense of depth.
 //
-// Usage: import Schedule from "./pages/Schedule.jsx";
-
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -21,7 +17,6 @@ import {
   MapPin,
   Filter,
   PartyPopper,
-  // Printer, // Removed Printer icon
   LayoutGrid,
   List,
   BookOpen,
@@ -30,9 +25,9 @@ import {
 
 // ---------------- Constants ----------------
 const DAYS = ["شەممە", "یەکشەممە", "دووشەممە", "سێشەممە", "چوارشەممە", "پێنجشەممە", "هەینی"];
-const TIMES = ["08:00", "09:30", "11:00", "12:30", "14:00"]; // grid rows
+const TIMES = ["08:00", "09:30", "11:00", "12:30", "14:00"];
 
-const WEEKLY_SCHEDULE_INITIAL = { // Renamed to initial to allow modification
+const WEEKLY_SCHEDULE_INITIAL = {
   "شەممە": [
     { time: "08:00", subject: "بیركاری", teacher: "مامۆستا ئارام", room: "A-301", color: "from-sky-600/30 to-sky-500/20" },
     { time: "09:30", subject: "کوردی", teacher: "مامۆستا هێمن", room: "B-210", color: "from-emerald-600/30 to-emerald-500/20" },
@@ -51,7 +46,7 @@ const WEEKLY_SCHEDULE_INITIAL = { // Renamed to initial to allow modification
   "هەینی": [],
 };
 
-const SUBJECT_COLORS = [ // Predefined colors for subjects
+const SUBJECT_COLORS = [
   "from-sky-600/30 to-sky-500/20",
   "from-emerald-600/30 to-emerald-500/20",
   "from-indigo-600/30 to-indigo-500/20",
@@ -62,7 +57,7 @@ const SUBJECT_COLORS = [ // Predefined colors for subjects
 
 const STORAGE_HOMEWORK = "schedule_homework_v1";
 const STORAGE_EVENTS = "schedule_events_v1";
-const STORAGE_WEEKLY_SCHEDULE = "schedule_weekly_schedule_v1"; // New storage key for schedule
+const STORAGE_WEEKLY_SCHEDULE = "schedule_weekly_schedule_v1";
 
 const variants = {
   fade: { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } },
@@ -71,7 +66,7 @@ const variants = {
 // ---------------- Utils ----------------
 function startOfWeekSaturday(date = new Date(), weekOffset = 0) {
   const d = new Date(date);
-  const day = d.getDay(); // 0 Sun..6 Sat
+  const day = d.getDay();
   const diffToSat = day === 6 ? 0 : day + 1;
   d.setDate(d.getDate() - diffToSat + weekOffset * 7);
   return d;
@@ -106,7 +101,22 @@ function uuid() {
   return Math.random().toString(36).slice(2);
 }
 
-// ---------------- KPI ----------------
+// ---------------- UI Components ----------------
+// Updated Panel for a more pronounced glassmorphism effect
+function GlassPanel({ className = "", children }) {
+  return (
+    <div
+      className={
+        "rounded-3xl bg-white/5 backdrop-blur-3xl ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)] " +
+        "relative overflow-hidden transition-transform duration-300 hover:scale-[1.01] " +
+        className
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
 function KPI({ icon: Icon, label, value, tint = "text-sky-300" }) {
   return (
     <div className="flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
@@ -121,10 +131,10 @@ function KPI({ icon: Icon, label, value, tint = "text-sky-300" }) {
 // ---------------- Component ----------------
 export default function Schedule() {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [view, setView] = useState("day"); // "day" | "week"
+  const [view, setView] = useState("day");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
-  const [weeklySchedule, setWeeklySchedule] = useState(WEEKLY_SCHEDULE_INITIAL); // State for mutable schedule
+  const [weeklySchedule, setWeeklySchedule] = useState(WEEKLY_SCHEDULE_INITIAL);
   const [homeworks, setHomeworks] = useState([]);
   const [events, setEvents] = useState([]);
   const [hwFilter, setHwFilter] = useState("all");
@@ -144,7 +154,7 @@ export default function Schedule() {
   // Set default selected day to today, default view to day on narrow screens
   useEffect(() => {
     const jsDay = new Date().getDay();
-    const index = jsDay === 6 ? 0 : jsDay + 1; // map Sat->0, Sun->1...
+    const index = jsDay === 6 ? 0 : jsDay + 1;
     setSelectedDayIndex(index);
     if (window.matchMedia("(max-width: 1023px)").matches) setView("day");
   }, []);
@@ -156,11 +166,11 @@ export default function Schedule() {
     const ws = localStorage.getItem(STORAGE_WEEKLY_SCHEDULE);
     if (hw) setHomeworks(JSON.parse(hw));
     if (ev) setEvents(JSON.parse(ev));
-    if (ws) setWeeklySchedule(JSON.parse(ws)); // Load custom schedule
+    if (ws) setWeeklySchedule(JSON.parse(ws));
   }, []);
   useEffect(() => localStorage.setItem(STORAGE_HOMEWORK, JSON.stringify(homeworks)), [homeworks]);
   useEffect(() => localStorage.setItem(STORAGE_EVENTS, JSON.stringify(events)), [events]);
-  useEffect(() => localStorage.setItem(STORAGE_WEEKLY_SCHEDULE, JSON.stringify(weeklySchedule)), [weeklySchedule]); // Persist custom schedule
+  useEffect(() => localStorage.setItem(STORAGE_WEEKLY_SCHEDULE, JSON.stringify(weeklySchedule)), [weeklySchedule]);
 
   // Week dates
   const weekStart = useMemo(() => startOfWeekSaturday(new Date(), weekOffset), [weekOffset]);
@@ -170,7 +180,7 @@ export default function Schedule() {
   const todayJsIndex = new Date().getDay();
   const todayIndex = todayJsIndex === 6 ? 0 : todayJsIndex + 1;
   const todayName = DAYS[todayIndex] || DAYS[0];
-  const todayClasses = weeklySchedule[todayName] || []; // Use mutable schedule
+  const todayClasses = weeklySchedule[todayName] || [];
   const currentHHMM = nowTimeHHMM();
   const nextClass = todayClasses.find((c) => isTimeBefore(currentHHMM, c.time));
   const hwDueTodayCount = homeworks.filter((h) => !h.done && h.due && isSameDateStr(h.due, new Date())).length;
@@ -225,14 +235,12 @@ export default function Schedule() {
   function deleteEvent(id) {
     setEvents((prev) => prev.filter((ev) => ev.id !== id));
   }
-
   function addScheduleSubject(e) {
     e.preventDefault();
     if (!newSubject.subject || !newSubject.teacher || !newSubject.room) return;
 
     setWeeklySchedule((prevSchedule) => {
       const updatedDaySchedule = [...(prevSchedule[newSubject.day] || []), { ...newSubject, id: uuid() }];
-      // Sort by time
       updatedDaySchedule.sort((a, b) => a.time.localeCompare(b.time));
       return {
         ...prevSchedule,
@@ -260,65 +268,67 @@ export default function Schedule() {
   // ---------------- Render ----------------
   return (
     <div dir="rtl" className="min-h-screen w-full bg-gradient-to-br from-zinc-950 via-zinc-950 to-black text-zinc-100 flex flex-col">
-      {/* Hero */}
-      <motion.div variants={variants.fade} initial="hidden" animate="show" className="relative overflow-hidden rounded-b-3xl bg-gradient-to-l from-indigo-950 via-zinc-950 to-zinc-950 ring-1 ring-white/10 p-3 md:p-6 mb-5">
-        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="absolute -right-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="relative grid gap-4 lg:grid-cols-3 lg:items-center w-full">
-          <div className="lg:col-span-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-50 tracking-tight flex items-center gap-2">
-              <CalendarDays size={22} className="text-sky-300" />
-              خشتەی هەفتانە، ئەرک و ڕووداو
-            </h1>
-            <p className="mt-2 text-zinc-400 text-sm">بەپێی شاشە خۆکارانە نیشاندراو: ڕستەی ڕۆژ یان خشتەی تەواو.</p>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KPI icon={Clock3} label="وانەی ئەمڕۆ" value={todayClasses.length} />
-              <KPI icon={GraduationCap} label="داهاتووی ئەمڕۆ" value={nextClass ? `${nextClass.subject} – ${nextClass.time}` : "هیچ"} tint="text-emerald-300" />
-              <KPI icon={CheckCircle2} label="ئەرکی ئەمڕۆ" value={hwDueTodayCount} tint="text-amber-300" />
-              <KPI icon={PartyPopper} label="ڕووداوەکانی ئەم هەفتە" value={eventsThisWeekCount} tint="text-pink-300" />
+      {/* Ambient glows */}
+      <div aria-hidden className="absolute inset-0 z-0">
+        <div className="absolute -top-16 -left-10 w-72 h-72 rounded-full bg-sky-500/10 blur-3xl animate-[pulse_10s_ease-in-out_infinite]" />
+        <div className="absolute bottom-0 -right-10 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl animate-[pulse_12s_ease-in-out_infinite_2s]" />
+      </div>
+
+      {/* Hero and Controls Container */}
+      <motion.div variants={variants.fade} initial="hidden" animate="show" className="relative p-3 md:p-6 mb-5 z-10">
+        <GlassPanel>
+          <div className="relative grid gap-4 lg:grid-cols-3 lg:items-center p-4 sm:p-6">
+            <div className="lg:col-span-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-50 tracking-tight flex items-center gap-2">
+                <CalendarDays size={22} className="text-sky-300" />
+                خشتەی هەفتانە، ئەرک و ڕووداو
+              </h1>
+              <p className="mt-2 text-zinc-400 text-sm">بەپێی شاشە خۆکارانە نیشاندراو: ڕستەی ڕۆژ یان خشتەی تەواو.</p>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <KPI icon={Clock3} label="وانەی ئەمڕۆ" value={todayClasses.length} />
+                <KPI icon={GraduationCap} label="داهاتووی ئەمڕۆ" value={nextClass ? `${nextClass.subject} – ${nextClass.time}` : "هیچ"} tint="text-emerald-300" />
+                <KPI icon={CheckCircle2} label="ئەرکی ئەمڕۆ" value={hwDueTodayCount} tint="text-amber-300" />
+                <KPI icon={PartyPopper} label="ڕووداوەکانی ئەم هەفتە" value={eventsThisWeekCount} tint="text-pink-300" />
+              </div>
             </div>
-          </div>
 
-          {/* Controls */}
-          <div className="lg:justify-self-end flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
-            <button onClick={() => setWeekOffset(weekOffset - 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="previous week">
-              <ChevronRight />
-            </button>
-            <div className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm text-zinc-300">{fmtLong(weekStart)} — {fmtLong(addDays(weekStart, 6))}</div>
-            <button onClick={() => setWeekOffset(0)} className="rounded-xl bg-sky-600/20 ring-1 ring-sky-500/30 hover:bg-sky-600/30 px-3 py-2 text-sm text-sky-200">
-              ئەم هەفتە
-            </button>
-            <button onClick={() => setWeekOffset(weekOffset + 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="next week">
-              <ChevronLeft />
-            </button>
+            {/* Controls */}
+            <div className="lg:justify-self-end flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
+              <button onClick={() => setWeekOffset(weekOffset - 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="previous week">
+                <ChevronRight />
+              </button>
+              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm text-zinc-300 whitespace-nowrap">{fmtLong(weekStart)} — {fmtLong(addDays(weekStart, 6))}</div>
+              <button onClick={() => setWeekOffset(0)} className="rounded-xl bg-sky-600/20 ring-1 ring-sky-500/30 hover:bg-sky-600/30 px-3 py-2 text-sm text-sky-200 whitespace-nowrap">
+                ئەم هەفتە
+              </button>
+              <button onClick={() => setWeekOffset(weekOffset + 1)} className="rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 px-2 py-2" aria-label="next week">
+                <ChevronLeft />
+              </button>
 
-            <div className="hidden sm:flex items-center gap-2">
-              {/* Removed Print Button */}
-              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden flex">
-                <button
-                  onClick={() => setView("day")}
-                  className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "day" ? "bg-white/10 text-white" : "text-zinc-300"}`}
-                  title="ڕستەی ڕۆژ"
-                >
-                  <List size={16} /> ڕۆژ
-                </button>
-                <button
-                  onClick={() => setView("week")}
-                  className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "week" ? "bg-white/10 text-white" : "text-zinc-300"}`}
-                  title="خشتەی هەفتە"
-                >
-                  <LayoutGrid size={16} /> هەفتە
+              <div className="hidden sm:flex items-center gap-2 ml-auto">
+                <div className="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden flex">
+                  <button
+                    onClick={() => setView("day")}
+                    className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "day" ? "bg-white/10 text-white" : "text-zinc-300"}`}
+                    title="ڕستەی ڕۆژ"
+                  >
+                    <List size={16} /> ڕۆژ
+                  </button>
+                  <button
+                    onClick={() => setView("week")}
+                    className={`px-3 py-2 text-sm flex items-center gap-1 ${view === "week" ? "bg-white/10 text-white" : "text-zinc-300"}`}
+                    title="خشتەی هەفتە"
+                  >
+                    <LayoutGrid size={16} /> هەفتە
+                  </button>
+                </div>
+                <button onClick={() => setShowAddSubjectModal(true)} className="rounded-xl bg-purple-600/20 ring-1 ring-purple-500/30 hover:bg-purple-600/30 px-3 py-2 text-sm text-purple-200 flex items-center gap-1 whitespace-nowrap">
+                  <Plus size={16} /> بابەت
                 </button>
               </div>
             </div>
-            {/* New button to open Add Subject Modal */}
-            <button onClick={() => setShowAddSubjectModal(true)} className="rounded-xl bg-purple-600/20 ring-1 ring-purple-500/30 hover:bg-purple-600/30 px-3 py-2 text-sm text-purple-200 flex items-center gap-1">
-              <Plus size={16} /> بابەت
-            </button>
           </div>
-        </div>
-
- 
+        </GlassPanel>
       </motion.div>
 
       {/* DAY TABS (always shown; useful in both views) */}
@@ -343,14 +353,14 @@ export default function Schedule() {
       </div>
 
       {/* MAIN LAYOUT */}
-      <div className="flex-1 px-3 md:px-6 pb-6 overflow-y-auto"> {/* Added flex-1 and overflow-y-auto */}
+      <div className="flex-1 px-3 md:px-6 pb-6 overflow-y-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
 
           {/* Schedule column */}
-          <motion.div variants={variants.fade} initial="hidden" animate="show" className="lg:col-span-7">
+          <motion.div variants={variants.fade} initial="hidden" animate="show" className="lg:col-span-7 relative">
             {view === "week" ? (
-              // WEEK GRID (reduced min width for better fit)
-              <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+              // WEEK GRID
+              <GlassPanel>
                 <div className="px-5 pt-5 pb-3">
                   <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
                     <CalendarDays size={18} className="text-sky-300" /> خشتەی هەفتانە
@@ -359,7 +369,6 @@ export default function Schedule() {
                 </div>
                 <div className="px-2 pb-5 overflow-x-auto">
                   <div className="min-w-[680px] grid grid-cols-8 gap-2 pr-3">
-                    {/* times */}
                     <div className="text-right">
                       <div className="h-10" />
                       {TIMES.map((t) => (
@@ -368,12 +377,10 @@ export default function Schedule() {
                         </div>
                       ))}
                     </div>
-
-                    {/* columns */}
                     {DAYS.map((day, i) => {
                       const date = weekDates[i];
                       const isToday = weekOffset === 0 && i === todayIndex;
-                      const sessions = weeklySchedule[day] || []; // Use mutable schedule
+                      const sessions = weeklySchedule[day] || [];
                       return (
                         <div key={day} className="rounded-xl bg-white/3 ring-1 ring-white/10 overflow-hidden">
                           <div className={`h-10 flex items-center justify-between px-3 text-xs ${isToday ? "bg-sky-600/20 ring-1 ring-sky-500/30" : ""}`}>
@@ -414,10 +421,10 @@ export default function Schedule() {
                     })}
                   </div>
                 </div>
-              </div>
+              </GlassPanel>
             ) : (
-              // DAY TIMELINE (mobile-friendly big taps)
-              <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+              // DAY TIMELINE
+              <GlassPanel>
                 <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                   <div>
                     <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
@@ -437,15 +444,24 @@ export default function Schedule() {
 
                 <div className="px-5 pb-5">
                   <ul className="relative pl-0">
-                    {/* vertical line */}
                     <div className="absolute right-4 top-0 bottom-0 w-0.5 bg-white/10" />
-                    {(weeklySchedule[DAYS[selectedDayIndex]] || []).length ? ( // Use mutable schedule
+                    {(weeklySchedule[DAYS[selectedDayIndex]] || []).length ? (
                       weeklySchedule[DAYS[selectedDayIndex]].map((cls, idx) => (
                         <li key={idx} className="relative flex items-start gap-3 py-3">
-                          <div className="mt-1 w-8 h-8 rounded-full bg-white/10 ring-1 ring-white/10 grid place-items-center shrink-0">
+                          <motion.div
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            className={`mt-1 w-8 h-8 rounded-full bg-white/10 ring-1 ring-white/10 grid place-items-center shrink-0 shadow-lg`}
+                          >
                             <span className="text-[10px] text-zinc-300">{cls.time}</span>
-                          </div>
-                          <div className={`flex-1 rounded-2xl ring-1 ring-white/10 bg-gradient-to-tr ${cls.color} px-3 py-3`}>
+                          </motion.div>
+                          <motion.div
+                            initial={{ x: 20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`flex-1 rounded-2xl ring-1 ring-white/10 bg-gradient-to-tr ${cls.color} px-3 py-3 relative`}
+                          >
+                            <div className="absolute inset-0 bg-white/5 rounded-2xl -z-10" />
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-bold text-white">{cls.subject}</span>
                               <span className="text-[11px] text-zinc-200/90 flex items-center gap-1">
@@ -455,7 +471,7 @@ export default function Schedule() {
                             <div className="mt-1 text-[12px] text-zinc-100/90 flex items-center gap-2">
                               <BookOpen size={12} className="text-sky-300" /> {cls.teacher}
                             </div>
-                          </div>
+                          </motion.div>
                         </li>
                       ))
                     ) : (
@@ -463,14 +479,14 @@ export default function Schedule() {
                     )}
                   </ul>
                 </div>
-              </div>
+              </GlassPanel>
             )}
           </motion.div>
 
           {/* Homework + Events */}
           <motion.div variants={variants.fade} initial="hidden" animate="show" className="lg:col-span-5 space-y-5">
             {/* HOMEWORK */}
-            <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+            <GlassPanel>
               <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
@@ -520,8 +536,6 @@ export default function Schedule() {
                   <option value="normal">ئاسایی</option>
                   <option value="high">بەرز</option>
                 </select>
-
-                {/* Submit button for homework form, centered on mobile */}
                 <div className="sm:col-span-5 flex justify-center sm:justify-end mt-2">
                   <button
                     type="submit"
@@ -532,7 +546,6 @@ export default function Schedule() {
                 </div>
               </form>
 
-
               {/* List */}
               <div className="px-5 pb-5">
                 <AnimatePresence initial={false}>
@@ -540,7 +553,7 @@ export default function Schedule() {
                     filteredHomeworks.map((h) => {
                       const overdue = !h.done && h.due && new Date(h.due) < new Date(new Date().toDateString());
                       return (
-                        <motion.div key={h.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-zinc-900/60 ring-1 ring-white/10 p-3 flex items-center gap-3">
+                        <motion.div key={h.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3 transition-colors hover:bg-white/10">
                           <button
                             onClick={() => toggleHwDone(h.id)}
                             className={`w-6 h-6 rounded-md grid place-items-center ring-1 ${h.done ? "bg-emerald-600/80 ring-emerald-500/40" : "bg-white/5 ring-white/10"}`}
@@ -575,10 +588,10 @@ export default function Schedule() {
                   )}
                 </AnimatePresence>
               </div>
-            </div>
+            </GlassPanel>
 
             {/* EVENTS */}
-            <div className="rounded-3xl bg-zinc-950/70 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+            <GlassPanel>
               <div className="px-5 pt-5 pb-3">
                 <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
                   <PartyPopper size={18} className="text-pink-300" /> ڕووداوەکان (Events)
@@ -592,7 +605,7 @@ export default function Schedule() {
                 <input type="date" value={newEvent.date} onChange={(e) => setNewEvent((v) => ({ ...v, date: e.target.value }))} className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10" required />
                 <input type="time" value={newEvent.time} onChange={(e) => setNewEvent((v) => ({ ...v, time: e.target.value }))} className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10" />
                 <input value={newEvent.place} onChange={(e) => setNewEvent((v) => ({ ...v, place: e.target.value }))} placeholder="شوێن (ئارەزوومەندانە)" className="bg-white/5 text-zinc-100 text-sm rounded-xl px-3 py-2 ring-1 ring-white/10 placeholder:text-zinc-400" />
-                <div className="flex items-center col-span-1 sm:col-span-full"> {/* Made button full width on mobile */}
+                <div className="flex items-center col-span-1 sm:col-span-full">
                   <button type="submit" className="w-full inline-flex items-center justify-center gap-1 rounded-xl bg-sky-600/80 hover:bg-sky-600 px-3 py-2 text-white text-sm">
                     <Plus size={16} /> زیادکردن
                   </button>
@@ -607,8 +620,8 @@ export default function Schedule() {
                       .slice()
                       .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
                       .map((ev) => (
-                        <motion.div key={ev.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-zinc-900/60 ring-1 ring-white/10 p-3 flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-pink-500/15 ring-1 ring-pink-400/30 grid place-items-center text-pink-300 text-xs">
+                        <motion.div key={ev.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mb-2 last:mb-0 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 flex items-center gap-3 transition-colors hover:bg-white/10">
+                          <div className="w-12 h-12 rounded-xl bg-pink-500/15 ring-1 ring-pink-400/30 grid place-items-center text-pink-300 text-xs shrink-0">
                             <div className="leading-tight text-center">
                               <div>{ev.date?.slice(5, 10)?.replace("-", "/") || "--/--"}</div>
                               <div className="text-[10px]">{ev.time || "--:--"}</div>
@@ -637,34 +650,26 @@ export default function Schedule() {
                   )}
                 </AnimatePresence>
               </div>
-            </div>
+            </GlassPanel>
           </motion.div>
         </div>
       </div>
 
       {/* Mobile quick-add bar */}
       <div className="lg:hidden fixed bottom-3 left-3 right-3 z-20">
-        <div className="rounded-2xl bg-zinc-900/80 ring-1 ring-white/10 backdrop-blur px-3 py-2 flex items-center justify-between gap-2"> {/* Added gap-2 here */}
+        <div className="rounded-2xl bg-zinc-900/80 ring-1 ring-white/10 backdrop-blur px-3 py-2 flex items-center justify-between gap-2">
           <button
-            onClick={() => {
-              // focus title input
-              const el = document.querySelector('input[placeholder="سەردێر / کار"]');
-              el?.focus();
-            }}
-            className="flex-1 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors" // Removed mr-2, added font-semibold, transition
+            onClick={() => document.querySelector('input[placeholder="سەردێر / کار"]')?.focus()}
+            className="flex-1 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors"
           >
             <Plus size={16} /> ئەرک
           </button>
           <button
-            onClick={() => {
-              const el = document.querySelector('input[placeholder="سەردێری ڕووداو"]');
-              el?.focus();
-            }}
-            className="flex-1 rounded-xl bg-sky-600/80 hover:bg-sky-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors" // Removed ml-2, added font-semibold, transition
+            onClick={() => document.querySelector('input[placeholder="سەردێری ڕووداو"]')?.focus()}
+            className="flex-1 rounded-xl bg-sky-600/80 hover:bg-sky-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors"
           >
             <Plus size={16} /> ڕووداو
           </button>
-          {/* New Subject button for mobile quick-add bar */}
           <button
             onClick={() => setShowAddSubjectModal(true)}
             className="flex-1 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white font-semibold text-sm px-3 py-2 flex items-center justify-center gap-1 transition-colors"
@@ -707,7 +712,6 @@ export default function Schedule() {
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label htmlFor="subjectTime" className="block text-sm font-medium text-zinc-300 mb-1">کات</label>
                   <select
@@ -721,7 +725,6 @@ export default function Schedule() {
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label htmlFor="subjectName" className="block text-sm font-medium text-zinc-300 mb-1">بابەت</label>
                   <input
@@ -734,7 +737,6 @@ export default function Schedule() {
                     required
                   />
                 </div>
-
                 <div>
                   <label htmlFor="teacherName" className="block text-sm font-medium text-zinc-300 mb-1">مامۆستا</label>
                   <input
@@ -747,7 +749,6 @@ export default function Schedule() {
                     required
                   />
                 </div>
-
                 <div>
                   <label htmlFor="roomName" className="block text-sm font-medium text-zinc-300 mb-1">ژوور</label>
                   <input
@@ -760,7 +761,6 @@ export default function Schedule() {
                     required
                   />
                 </div>
-
                 <div>
                   <label htmlFor="subjectColor" className="block text-sm font-medium text-zinc-300 mb-1">ڕەنگ</label>
                   <div className="grid grid-cols-6 gap-2">
@@ -777,8 +777,7 @@ export default function Schedule() {
                     ))}
                   </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6"> {/* Changed to flex-col on mobile */}
+                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
                   <button
                     type="button"
                     onClick={() => setShowAddSubjectModal(false)}
@@ -794,7 +793,6 @@ export default function Schedule() {
                   </button>
                 </div>
               </form>
-
               <button
                 onClick={() => setShowAddSubjectModal(false)}
                 className="absolute top-3 left-3 p-2 rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition"

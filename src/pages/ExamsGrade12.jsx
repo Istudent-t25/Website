@@ -6,6 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "react-router-dom"; // Import useLocation
 import {
   Clock,
   CheckCircle2,
@@ -513,6 +514,8 @@ const QuestionCard = React.memo(
 
 
 export default function ExamsGrade12Pro() {
+  const location = useLocation(); // Initialize useLocation to read URL parameters
+
   // navigation
   const [currentView, setCurrentView] = useState("examPicker"); // examPicker | activeExam | resultsView | historyList
   const [lastViewWasHistory, setLastViewWasHistory] = useState(false);
@@ -527,7 +530,7 @@ export default function ExamsGrade12Pro() {
   // exam state
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState({}); // Initialize with empty object
   const [notes, setNotes] = useState({});
   const [hintsUsed, setHintsUsed] = useState({});
   const [perQSeconds, setPerQSeconds] = useState({});
@@ -578,6 +581,83 @@ export default function ExamsGrade12Pro() {
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
   useEffect(() => { lastViewWasHistoryRef.current = lastViewWasHistory; }, [lastViewWasHistory]);
   useEffect(() => { examRef.current = exam; }, [exam]);
+
+
+  // start exam
+  const startExam = useCallback(
+    (ex) => {
+      let qs = ex.questions;
+      if (difficultyFilter)
+        qs = qs.filter((q) => q.difficulty === difficultyFilter);
+      qs = qs.map((q) => ({ ...q, shuffledOptions: shuffle(q.options) }));
+      setExam(ex);
+      setQuestions(qs);
+      setAnswers({});
+      setNotes({});
+      setHintsUsed({});
+      setPerQSeconds({});
+      setActiveQ(qs[0]?.id || null);
+      setShowResults(false);
+      setShowAllExplanations(false);
+      setShowWrongOnly(false);
+
+      const secs = manualMinutes.trim()
+        ? Math.max(1, parseInt(manualMinutes, 10)) * 60
+        : qs.length * 60;
+      setSeconds(secs);
+      setRunning(true);
+      setCurrentView("activeExam");
+      setLastViewWasHistory(false);
+    },
+    [manualMinutes, difficultyFilter]
+  );
+
+  // exit exam
+  const exitExam = useCallback(() => {
+    setExam(null);
+    setQuestions([]);
+    setAnswers({});
+    setNotes({});
+    setHintsUsed({});
+    setPerQSeconds({});
+    setActiveQ(null);
+    setShowResults(false);
+    setShowAllExplanations(false);
+    setRunning(false);
+    setSeconds(0);
+    setShowWrongOnly(false);
+    setCurrentView("examPicker");
+    setLastViewWasHistory(false);
+  }, []);
+
+
+  // --- Read URL parameters and apply initial filters ---
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const subjectParam = queryParams.get('subject');
+    const yearParam = queryParams.get('year');
+    const termParam = queryParams.get('term'); // Term can be used for more specific filtering if needed
+
+    if (subjectParam) {
+      // Find the subject name from the key
+      const subjectName = subjects.find(name => name.toLowerCase() === subjectParam.toLowerCase()) || subjectParam;
+      setSelectedSubject(subjectName);
+      // You might also want to set the mode to 'exam' if coming from a national exam link
+      setMode('exam');
+      // Set the difficulty filter if you have a way to derive it from year/term
+      // For now, we'll keep it general or you can add logic here if specific national exams have fixed difficulties.
+
+      // Automatically find and start the relevant exam if subject and year are provided
+      const foundExam = examsData.find(e =>
+        e.subject === subjectName && // Match by full subject name
+        e.title.includes(yearParam || '') && // A simple way to match year for now, make robust if needed
+        (termParam ? e.title.includes(termParam) : true) // Optional term matching
+      );
+      if (foundExam) {
+        startExam(foundExam);
+      }
+    }
+  }, [location.search, startExam]);
 
 
   // derived lists
@@ -823,52 +903,6 @@ export default function ExamsGrade12Pro() {
     return () => clearInterval(t);
   }, [running, activeQ]);
 
-  // start exam
-  const startExam = useCallback(
-    (ex) => {
-      let qs = ex.questions;
-      if (difficultyFilter)
-        qs = qs.filter((q) => q.difficulty === difficultyFilter);
-      qs = qs.map((q) => ({ ...q, shuffledOptions: shuffle(q.options) }));
-      setExam(ex);
-      setQuestions(qs);
-      setAnswers({});
-      setNotes({});
-      setHintsUsed({});
-      setPerQSeconds({});
-      setActiveQ(qs[0]?.id || null);
-      setShowResults(false);
-      setShowAllExplanations(false);
-      setShowWrongOnly(false);
-
-      const secs = manualMinutes.trim()
-        ? Math.max(1, parseInt(manualMinutes, 10)) * 60
-        : qs.length * 60;
-      setSeconds(secs);
-      setRunning(true);
-      setCurrentView("activeExam");
-      setLastViewWasHistory(false);
-    },
-    [manualMinutes, difficultyFilter]
-  );
-
-  // exit exam
-  const exitExam = useCallback(() => {
-    setExam(null);
-    setQuestions([]);
-    setAnswers({});
-    setNotes({});
-    setHintsUsed({});
-    setPerQSeconds({});
-    setActiveQ(null);
-    setShowResults(false);
-    setShowAllExplanations(false);
-    setRunning(false);
-    setSeconds(0);
-    setShowWrongOnly(false);
-    setCurrentView("examPicker");
-    setLastViewWasHistory(false);
-  }, []);
 
   // events
   const choose = useCallback((qid, option) => {
