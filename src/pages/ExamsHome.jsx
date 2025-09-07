@@ -775,7 +775,7 @@ export default function ExamsPortalPro() {
   const [q, setQ] = useState("");
   const [quickYear, setQuickYear] = useState("");
   // --- New state for the overlay ---
-  const [isUnderConstruction, setIsUnderConstruction] = useState(true); // Set to 'true' to show the overlay
+  const [isUnderConstruction, setIsUnderConstruction] = useState(false); // Set to 'true' to show the overlay
   // --- End of new state ---
 
   const allData = useMemo(() => {

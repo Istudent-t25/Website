@@ -1,309 +1,213 @@
+/* public/service-worker.js
+   Silent auto-update PWA service worker.
+   - App shell precache (index/offline/manifest)
+   - Navigation Preload for faster first paint
+   - Network-first for HTML (ensures new deploy is picked)
+   - Cache-first for images/PDFs/fonts (capped)
+   - Network-first (with timeout) for API
+   - Messages: SKIP_WAITING, CLEAR_CACHES
+*/
 
-/**
- * sw.js — Progressive Web App Service Worker (Full)
- * Features:
- * - App Shell precache (index.html, offline.html, manifest, icons)
- * - Precaches local fonts so they download on install
- * - Runtime caching:
- *    • Images (cache-first)
- *    • PDFs (cache-first, capped)
- *    • Google Fonts CSS (stale-while-revalidate)
- *    • Google Fonts files + local fonts (cache-first)
- *    • API JSON (network-first with timeout, fallback to cache)
- *    • Everything else GET (network-first, fallback to cache)
- * - SPA navigation fallback: cached index.html → offline.html
- * - Commands via postMessage: {type:'SKIP_WAITING'} and {type:'CLEAR_CACHES'}
- */
+const VERSION = 'v2025-09-07-1';          // ← bump on every deploy
+const PRECACHE   = `precache-${VERSION}`;
+const RT_IMG     = `rt-img-${VERSION}`;
+const RT_PDF     = `rt-pdf-${VERSION}`;
+const RT_API     = `rt-api-${VERSION}`;
+const RT_FONT    = `rt-font-${VERSION}`;
+const RT_MISC    = `rt-misc-${VERSION}`;
 
-const VERSION = 'v2025-09-05-full-2';
-const PRECACHE = `precache-${VERSION}`;
-const RUNTIME_IMG = `rt-img-${VERSION}`;
-const RUNTIME_PDF = `rt-pdf-${VERSION}`;
-const RUNTIME_API = `rt-api-${VERSION}`;
-const RUNTIME_FONT = `rt-font-${VERSION}`;
-const RUNTIME_MISC = `rt-misc-${VERSION}`;
-
-// ---- CONFIG ----
 const APP_SHELL = [
-  '/',               // SPA entry
+  '/',
   '/index.html',
   '/offline.html',
-  //  '/pdf-viewer.html',
   '/manifest.webmanifest',
-  // '/favicon.ico',
+  // add your icons if you want: '/icons/pwa-192.png', '/icons/pwa-512.png',
 ];
 
-// >>>>> EDIT THESE TO MATCH YOUR LOCAL FONT FILES <<<<<
-// Example local font files in /public/fonts/
+// optional local fonts to precache
 const FONTS_TO_PRECACHE = [
-  // '/fonts/YourFont-Regular.woff2',
-  // '/fonts/YourFont-Bold.woff2',
+  // '/fonts/Ubuntu-Kurdish-Kurdfont.woff2',
 ];
 
-// Limits to avoid unbounded growth (by entry count)
-const LIMITS = {
-  images: 200,
-  pdfs: 60,
-  fonts: 40,
+const LIMITS = { images: 200, pdfs: 60, fonts: 40 };
+const API_HOSTS = ['api.studentkrd.com'];
+
+// ---------- helpers ----------
+const isNav = (req) =>
+  req.mode === 'navigate' ||
+  (req.destination === '' && (req.headers.get('accept') || '').includes('text/html'));
+
+const isGoogleCSS = (req) => { try { return new URL(req.url).hostname === 'fonts.googleapis.com'; } catch { return false; } };
+const isGoogleFile = (req) => { try { return new URL(req.url).hostname === 'fonts.gstatic.com'; } catch { return false; } };
+const isLocalFont  = (req) => req.destination === 'font' || (new URL(req.url)).pathname.startsWith('/fonts/');
+const isImg = (req) => {
+  if (req.destination === 'image') return true;
+  try {
+    const ext = (new URL(req.url).pathname.split('.').pop() || '').toLowerCase();
+    return ['png','jpg','jpeg','webp','gif','svg','avif'].includes(ext) || (new URL(req.url).hostname.includes('img.youtube.com'));
+  } catch { return false; }
 };
+const isPdf = (req) => { try { return new URL(req.url).pathname.toLowerCase().endsWith('.pdf'); } catch { return false; } };
+const isApi = (req) => { try { return API_HOSTS.includes(new URL(req.url).hostname); } catch { return false; } };
 
-// API hosts to treat as "network-first"
-const API_HOSTS = [
-  'api.studentkrd.com',
-];
+const timeout = (ms, p) => new Promise((res, rej) => {
+  const id = setTimeout(() => rej(new Error('timeout')), ms);
+  p.then((v) => { clearTimeout(id); res(v); }, (e) => { clearTimeout(id); rej(e); });
+});
 
-// ---- UTILITIES ----
-function isNavigation(request) {
-  return request.mode === 'navigate' || (request.destination === '' && request.headers.get('accept')?.includes('text/html'));
-}
-function isImageRequest(request) {
-  if (request.destination === 'image') return true;
-  try {
-    const url = new URL(request.url);
-    const ext = (url.pathname.split('.').pop() || '').toLowerCase();
-    if (['png','jpg','jpeg','webp','gif','svg','avif'].includes(ext)) return true;
-    if (url.hostname.includes('img.youtube.com')) return true;
-  } catch {}
-  return false;
-}
-function isPdfRequest(request) {
-  try {
-    const url = new URL(request.url);
-    return (url.pathname.toLowerCase().endsWith('.pdf'));
-  } catch {}
-  return false;
-}
-function isGoogleFontsStylesheet(request) {
-  try {
-    const url = new URL(request.url);
-    return url.hostname === 'fonts.googleapis.com';
-  } catch {}
-  return false;
-}
-function isGoogleFontsFile(request) {
-  try {
-    const url = new URL(request.url);
-    return url.hostname === 'fonts.gstatic.com';
-  } catch {}
-  return false;
-}
-function isLocalFont(request) {
-  try {
-    const url = new URL(request.url);
-    return (request.destination === 'font') || url.pathname.startsWith('/fonts/');
-  } catch {}
-  return false;
-}
-function isApiRequest(request) {
-  try {
-    const url = new URL(request.url);
-    return API_HOSTS.includes(url.hostname);
-  } catch {}
-  return false;
-}
-function timeout(ms, promise) {
-  return new Promise((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error('timeout')), ms);
-    promise.then((res) => { clearTimeout(id); resolve(res); }, (err) => { clearTimeout(id); reject(err); });
-  });
-}
 async function putWithCap(cacheName, request, response, cap) {
   const cache = await caches.open(cacheName);
   await cache.put(request, response);
   const keys = await cache.keys();
   if (keys.length > cap) {
-    const toDelete = keys.length - cap;
-    for (let i = 0; i < toDelete; i++) {
-      await cache.delete(keys[i]);
-    }
+    for (let i = 0; i < keys.length - cap; i++) await cache.delete(keys[i]);
   }
 }
 
-// ---- LIFECYCLE ----
+// ---------- lifecycle ----------
 self.addEventListener('install', (event) => {
+  // Install new worker, move to "waiting" immediately.
   self.skipWaiting();
   event.waitUntil((async () => {
     const cache = await caches.open(PRECACHE);
-    // Precache app shell
     await cache.addAll(APP_SHELL);
-    // Precache local fonts if any are listed (ignore failures)
-    for (const fontUrl of FONTS_TO_PRECACHE) {
+    for (const f of FONTS_TO_PRECACHE) {
       try {
-        const resp = await fetch(fontUrl, { mode: 'cors' });
-        if (resp && (resp.ok || resp.type === 'opaque')) {
-          await cache.put(fontUrl, resp.clone());
-        }
-      } catch (e) {
-        // Ignore missing dev assets
-      }
+        const r = await fetch(f, { mode: 'cors' });
+        if (r && (r.ok || r.type === 'opaque')) await cache.put(f, r.clone());
+      } catch {}
     }
   })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    // Delete old caches
+    // Enable Navigation Preload where supported.
+    if (self.registration.navigationPreload) {
+      try { await self.registration.navigationPreload.enable(); } catch {}
+    }
+    // Clean old caches.
+    const keep = [PRECACHE, RT_IMG, RT_PDF, RT_API, RT_FONT, RT_MISC];
     const keys = await caches.keys();
-    await Promise.all(
-      keys.filter((k) =>
-        ![PRECACHE, RUNTIME_IMG, RUNTIME_PDF, RUNTIME_API, RUNTIME_FONT, RUNTIME_MISC].includes(k)
-      ).map((k) => caches.delete(k))
-    );
+    await Promise.all(keys.filter(k => !keep.includes(k)).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
 
-// ---- MESSAGES ----
+// ---------- messages ----------
 self.addEventListener('message', (event) => {
-  const { type } = event.data || {};
-  if (type === 'SKIP_WAITING') {
+  const data = event.data || {};
+  if (data.type === 'SKIP_WAITING') {
     self.skipWaiting();
-  } else if (type === 'CLEAR_CACHES') {
+  } else if (data.type === 'CLEAR_CACHES') {
     event.waitUntil((async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
+      await Promise.all(keys.map(k => caches.delete(k)));
     })());
   }
 });
 
-// ---- FETCH ----
+// ---------- fetch ----------
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
 
-  // 1) SPA navigation handling
-  if (isNavigation(request)) {
+  // 1) SPA navigations: network-first (with nav preload), then cache, then offline.html
+  if (isNav(req)) {
     event.respondWith((async () => {
       try {
-        const net = await timeout(4000, fetch(request));
-        // Optionally update cached index
-        const cache = await caches.open(PRECACHE);
-        if (net && net.ok) cache.put('/index.html', net.clone());
+        const preload = await event.preloadResponse;
+        const net = preload || await fetch(req, { cache: 'no-store' });
+        // keep cached index fresh for offline fallback
+        const pc = await caches.open(PRECACHE);
+        pc.put('/index.html', net.clone());
         return net;
-      } catch (e) {
-        // Fallback to cached index, then offline page
-        const cache = await caches.open(PRECACHE);
-        const cachedIndex = await cache.match('/index.html');
-        if (cachedIndex) return cachedIndex;
-        const offline = await cache.match('/offline.html');
-        if (offline) return offline;
-        return new Response('<h1>Offline</h1>', { headers: { 'Content-Type': 'text/html' } });
+      } catch {
+        const pc = await caches.open(PRECACHE);
+        return (await pc.match('/index.html')) ||
+               (await pc.match('/offline.html')) ||
+               new Response('<h1>Offline</h1>', { headers: { 'Content-Type': 'text/html' } });
       }
     })());
     return;
   }
 
-  // 2) Google Fonts CSS (stale-while-revalidate)
-  if (isGoogleFontsStylesheet(request)) {
+  // 2) Google Fonts CSS: stale-while-revalidate
+  if (isGoogleCSS(req)) {
     event.respondWith((async () => {
-      const cache = await caches.open(RUNTIME_FONT);
-      const cached = await cache.match(request);
-      const fetchPromise = fetch(request).then((resp) => {
-        if (resp && resp.ok) cache.put(request, resp.clone());
-        return resp;
-      }).catch(() => cached);
-      return cached || fetchPromise;
+      const c = await caches.open(RT_FONT);
+      const cached = await c.match(req);
+      const fetching = fetch(req).then(r => { if (r && r.ok) c.put(req, r.clone()); return r; }).catch(() => cached);
+      return cached || fetching;
     })());
     return;
   }
 
-  // 3) Google Fonts files + Local fonts (cache-first)
-  if (isGoogleFontsFile(request) || isLocalFont(request)) {
+  // 3) Fonts (Google/local): cache-first (capped)
+  if (isGoogleFile(req) || isLocalFont(req)) {
     event.respondWith((async () => {
-      const cached = await caches.match(request);
+      const cached = await caches.match(req);
       if (cached) return cached;
-      try {
-        const resp = await fetch(request, { mode: 'cors' });
-        if (resp && (resp.ok || resp.type === 'opaque')) {
-          await putWithCap(RUNTIME_FONT, request, resp.clone(), LIMITS.fonts);
-        }
-        return resp;
-      } catch (e) {
-        // If local font was precached, return it
-        const cache = await caches.open(PRECACHE);
-        const fromPrecache = await cache.match(request.url);
-        if (fromPrecache) return fromPrecache;
-        throw e;
-      }
+      const r = await fetch(req, { mode: 'cors' }).catch(() => null);
+      if (r && (r.ok || r.type === 'opaque')) await putWithCap(RT_FONT, req, r.clone(), LIMITS.fonts);
+      return r || cached || Response.error();
     })());
     return;
   }
 
-  // 4) Images (cache-first)
-  if (isImageRequest(request)) {
+  // 4) Images: cache-first (capped)
+  if (isImg(req)) {
     event.respondWith((async () => {
-      const cached = await caches.match(request, { ignoreVary: true, ignoreSearch: false });
+      const cached = await caches.match(req, { ignoreVary: true });
       if (cached) return cached;
-      try {
-        const resp = await fetch(request, { mode: 'cors' });
-        if (resp && (resp.ok || resp.type === 'opaque')) {
-          await putWithCap(RUNTIME_IMG, request, resp.clone(), LIMITS.images);
-        }
-        return resp;
-      } catch (e) {
-        // 1x1 transparent PNG fallback
-        const fallback =
-          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-        return fetch(fallback);
-      }
+      const r = await fetch(req, { mode: 'cors' }).catch(() => null);
+      if (r && (r.ok || r.type === 'opaque')) await putWithCap(RT_IMG, req, r.clone(), LIMITS.images);
+      return r || cached || new Response('', { status: 204 });
     })());
     return;
   }
 
-  // 5) PDFs (cache-first)
-  if (isPdfRequest(request)) {
+  // 5) PDFs: cache-first (capped)
+  if (isPdf(req)) {
     event.respondWith((async () => {
-      const cached = await caches.match(request);
+      const cached = await caches.match(req);
       if (cached) return cached;
-      try {
-        const resp = await fetch(request, { mode: 'cors' });
-        if (resp && (resp.ok || resp.type === 'opaque')) {
-          await putWithCap(RUNTIME_PDF, request, resp.clone(), LIMITS.pdfs);
-        }
-        return resp;
-      } catch (e) {
-        return new Response(
-          JSON.stringify({ error: 'offline', message: 'PDF unavailable offline yet.' }),
-          { headers: { 'Content-Type': 'application/json' }, status: 503 }
-        );
-      }
+      const r = await fetch(req, { mode: 'cors' }).catch(() => null);
+      if (r && (r.ok || r.type === 'opaque')) await putWithCap(RT_PDF, req, r.clone(), LIMITS.pdfs);
+      return r || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' }});
     })());
     return;
   }
 
-  // 6) API (network-first with timeout → cache)
-  if (isApiRequest(request)) {
+  // 6) API: network-first with timeout, fallback to cache
+  if (isApi(req)) {
     event.respondWith((async () => {
-      const cache = await caches.open(RUNTIME_API);
+      const cache = await caches.open(RT_API);
       try {
-        const net = await timeout(4000, fetch(request));
-        if (net && net.ok) cache.put(request, net.clone());
+        const net = await timeout(4000, fetch(req, { cache: 'no-store', credentials: 'include' }));
+        if (net && net.ok) cache.put(req, net.clone());
         return net;
-      } catch (e) {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        return new Response(JSON.stringify({ error: 'offline' }), {
-          headers: { 'Content-Type': 'application/json' }, status: 503
-        });
+      } catch {
+        const cached = await cache.match(req);
+        return cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' }});
       }
     })());
     return;
   }
 
-  // 7) Everything else GET (network-first → cache → offline)
+  // 7) Everything else: network-first → cache → offline
   event.respondWith((async () => {
-    const cache = await caches.open(RUNTIME_MISC);
+    const cache = await caches.open(RT_MISC);
     try {
-      const net = await fetch(request);
-      if (net && net.ok) cache.put(request, net.clone());
+      const net = await fetch(req);
+      if (net && net.ok) cache.put(req, net.clone());
       return net;
-    } catch (e) {
-      const cached = await cache.match(request);
+    } catch {
+      const cached = await cache.match(req);
       if (cached) return cached;
-      // As a last resort, return offline.html for text/html
-      if (request.headers.get('accept')?.includes('text/html')) {
-        const precache = await caches.open(PRECACHE);
-        const offline = await precache.match('/offline.html');
+      if ((req.headers.get('accept') || '').includes('text/html')) {
+        const pc = await caches.open(PRECACHE);
+        const offline = await pc.match('/offline.html');
         if (offline) return offline;
       }
       return new Response('Offline', { status: 503 });
