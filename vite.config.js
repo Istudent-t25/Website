@@ -10,55 +10,43 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      includeAssets: [
+        'favicon.ico', 'robots.txt', 'apple-touch-icon.png',
+        'icons/pwa-192.png', 'icons/pwa-512.png', 'icons/maskable-512.png',
+        'screenshots/desktop-1280x720.png', 'screenshots/mobile-720x1280.png'
+      ],
       manifest: {
         name: 'iStudent',
         short_name: 'iStudent',
         description: 'Books, booklets, videos, papers — all in one place.',
         start_url: '/',
+        scope: '/',
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#0ea5e9',
         icons: [
-          { src: 'icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ],
+        screenshots: [
+          {
+            src: '/screenshots/deskstop-1280x720.png', // Corrected path
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide'
+          },
+          {
+            src: '/screenshots/mobisle-720x1280.png', // Corrected path
+            sizes: '720x1280',
+            type: 'image/png',
+            form_factor: 'narrow'
+          }
         ]
       },
-      workbox: {
-        // cache common static assets
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
-        runtimeCaching: [
-          // API: network-first (change path/domain if needed)
-          {
-            urlPattern: ({ url }) =>
-              url.origin === self.origin && url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5
-            }
-          },
-          // Images: stale-while-revalidate with expiration
-          {
-            urlPattern: ({ request }) => request.destination === 'image',
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'image-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 }
-            }
-          },
-          // Scripts/Styles/Fonts: SWR
-          {
-            urlPattern: ({ request }) =>
-              ['style', 'script', 'font'].includes(request.destination),
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'static-cache' }
-          }
-        ],
-        navigateFallback: '/index.html' // SPA fallback
+      devOptions: {
+        enabled: true // Important for testing in development
       }
     })
   ]
 })
-

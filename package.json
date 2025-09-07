@@ -12,18 +12,23 @@
   "dependencies": {
     "@headlessui/react": "^2.2.7",
     "@radix-ui/react-slot": "^1.2.3",
-    "@tailwindcss/vite": "^4.1.11",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@tailwindcss/vite": "^4.1.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "file-saver": "^2.0.5",
+    "firebase": "^12.2.1",
     "framer-motion": "^12.23.12",
     "html2canvas": "^1.4.1",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.525.0",
+    "pdfjs-dist": "5.3.93",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-pdf": "^10.1.0",
     "react-router-dom": "^7.7.0",
-    "tailwind-variants": "^1.0.0",
-    "tailwindcss": "^4.1.11"
+    "recharts": "^3.1.2",
+    "tailwind-variants": "^1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
@@ -36,9 +41,27 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
     "postcss": "^8.5.6",
+    "sharp": "^0.34.3",
+    "tailwindcss": "^4.1.13",
     "vite": "^7.0.4",
-    "vite-plugin-pwa": "^1.0.2",
+    "vite-plugin-pwa": "^1.0.3",
     "workbox-build": "^7.3.0",
+    "workbox-cacheable-response": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-range-requests": "^7.3.0",
     "workbox-window": "^7.3.0"
-  }
+  },
+  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Istudent-t25/Website.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Istudent-t25/Website/issues"
+  },
+  "homepage": "https://github.com/Istudent-t25/Website#readme"
 }

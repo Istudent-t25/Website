@@ -1,0 +1,61 @@
+/* Minimal styling for react-pdf / PDF.js layers
+   Works across recent react-pdf versions (v6+).
+*/
+
+/* Make canvas crisp and centered */
+.react-pdf__Page__canvas {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto !important;
+}
+
+/* TEXT LAYER (selectable text) */
+.react-pdf__Page__textContent {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  user-select: text;
+  color: transparent; /* real glyphs are drawn on canvas */
+}
+
+.react-pdf__Page__textContent span {
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+  pointer-events: all;
+  color: transparent;
+  /* Allow selection highlight */
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.react-pdf__Page__textContent ::selection {
+  background: rgba(59, 130, 246, 0.35); /* sky-500/35 */
+}
+
+/* ANNOTATIONS (links, form fields) */
+.react-pdf__Page__annotations {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.react-pdf__Page__annotations a {
+  position: absolute;
+  color: #60a5fa; /* sky-400 */
+  text-decoration: underline;
+  pointer-events: all;
+}
+
+/* Page wrapper positioning (ensures text/annotations overlay canvas) */
+.react-pdf__Page {
+  position: relative;
+}
+
+/* Smooth scrolling container */
+.react-pdf__Document {
+  -webkit-overflow-scrolling: touch;
+}

@@ -10,9 +10,6 @@ const PRECACHE_URLS = [
   '/offline.html',     // create this file for offline fallback
   '/favicon.ico',
   '/manifest.webmanifest',
-  // Add built assets if you host with fixed paths (optional):
-  // '/assets/index-xxxx.js',
-  // '/assets/index-xxxx.css',
 ];
 
 // Install: pre-cache app shell

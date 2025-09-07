@@ -774,6 +774,9 @@ export default function ExamsPortalPro() {
   const [subject, setSubject] = useState("math");
   const [q, setQ] = useState("");
   const [quickYear, setQuickYear] = useState("");
+  // --- New state for the overlay ---
+  const [isUnderConstruction, setIsUnderConstruction] = useState(true); // Set to 'true' to show the overlay
+  // --- End of new state ---
 
   const allData = useMemo(() => {
     const nationalItems = Object.values(NATIONAL).flatMap(subj =>
@@ -809,39 +812,92 @@ export default function ExamsPortalPro() {
   }, []);
 
   return (
-    <div dir="rtl" className="space-y-6">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-zinc-900 ring-1 ring-white/10 p-8 sm:p-12">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5" />
-        <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-6">
-          <div className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-sky-500/20 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 sm:w-20 sm:h-20 text-sky-300">
-              <path d="M4 19.5A2.5 2.5 0 016.5 17H20V6.5A2.5 2.5 0 0017.5 4H4v15.5zM12 21v-8a2.5 2.5 0 012.5-2.5h1" />
-              <path d="M18 19.5A2.5 2.5 0 0020.5 17H4v2.5a2.5 2.5 0 002.5 2.5h11a2.5 2.5 0 002.5-2.5z" />
-            </svg>
-          </div>
-          <div className="text-center sm:text-right">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white">ناوچەی زانیاری</h1>
-            <p className="mt-2 text-zinc-400 text-base">
-              بەدوای تاقیکردنەوە نیشتیمانییەکان، کورتکراوەکان، و تاقییەکانی ئەنجامداندا بگەڕێ.
-            </p>
+    <>
+      <div dir="rtl" className="space-y-6">
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-zinc-900 ring-1 ring-white/10 p-8 sm:p-12">
+          <div className="absolute inset-0 bg-grid-pattern opacity-5" />
+          <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-6">
+            <div className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-sky-500/20 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 sm:w-20 sm:h-20 text-sky-300">
+                <path d="M4 19.5A2.5 2.5 0 016.5 17H20V6.5A2.5 2.5 0 0017.5 4H4v15.5zM12 21v-8a2.5 2.5 0 012.5-2.5h1" />
+                <path d="M18 19.5A2.5 2.5 0 0020.5 17H4v2.5a2.5 2.5 0 002.5 2.5h11a2.5 2.5 0 002.5-2.5z" />
+              </svg>
+            </div>
+            <div className="text-center sm:text-right">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white">ناوچەی زانیاری</h1>
+              <p className="mt-2 text-zinc-400 text-base">
+                بەدوای تاقیکردنەوە نیشتیمانییەکان، کورتکراوەکان، و تاقییەکانی ئەنجامداندا بگەڕێ.
+              </p>
+            </div>
           </div>
         </div>
+
+        {/* Sections */}
+        <NationalDrillWrapper /> {/* Use the wrapper component here */}
+        <NotesPanel />
+        <PracticePanel />
+        <FavoritesPanel allItems={allData} favored={readLS("favored", {})} />
+
+        {/* Extra panels */}
+        <SimpleCardsPanel title="وەڵامنامەکان" items={ANSWER_KEYS} icon={FileText} type="answer" />
+        <SimpleCardsPanel title="ئانالیزەکان" items={ANALYSES} icon={FileText} type="analysis" />
+        <SimpleCardsPanel title="کورتکراوەکان" items={SUMMARIES} icon={StickyNote} type="summary" />
+
+        {/* Recents/Favorites summary */}
+        <MetaBar />
       </div>
 
-      {/* Sections */}
-      <NationalDrillWrapper /> {/* Use the wrapper component here */}
-      <NotesPanel />
-      <PracticePanel />
-      <FavoritesPanel allItems={allData} favored={readLS("favored", {})} />
-
-      {/* Extra panels */}
-      <SimpleCardsPanel title="وەڵامنامەکان" items={ANSWER_KEYS} icon={FileText} type="answer" />
-      <SimpleCardsPanel title="ئانالیزەکان" items={ANALYSES} icon={FileText} type="analysis" />
-      <SimpleCardsPanel title="کورتکراوەکان" items={SUMMARIES} icon={StickyNote} type="summary" />
-
-      {/* Recents/Favorites summary */}
-      <MetaBar />
-    </div>
+      {/* --- The full-screen overlay component code is added here directly --- */}
+      <AnimatePresence>
+        {isUnderConstruction && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 backdrop-blur-md bg-zinc-950/70" />
+            
+            <div className="relative z-10 p-8 rounded-3xl border border-white/10 shadow-2xl bg-zinc-900/50 text-white text-center max-w-lg space-y-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mx-auto text-sky-400"
+              >
+                <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+                <path d="M16 21V7" />
+                <path d="M8 21V7" />
+                <path d="M12 21V7" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M6 21v-3" />
+                <path d="M18 21v-3" />
+                <path d="M4 21v-3" />
+                <path d="M20 21v-3" />
+                <path d="M9 21v-3" />
+                <path d="M15 21v-3" />
+                <path d="M12 21v-3" />
+                <path d="M17 21v-3" />
+                <path d="M7 21v-3" />
+                <path d="M19 21v-3" />
+              </svg>
+              <h2 className="text-2xl font-bold">ئه‌م به‌شه‌ لەکارکردندایه‌.</h2>
+              <p className="text-zinc-300">
+                ئەم بەشە لە ماڵپەڕەکەمان لە ئێستادا گەشەپێدەدرێت و بەمزووانە بەردەست دەبێت. سوپاس بۆ ئارامگریت!
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- End of overlay code --- */}
+    </>
   );
 }

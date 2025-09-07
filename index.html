@@ -1,54 +1,48 @@
 <!doctype html>
-<html lang="en" dir="rtl">
+<html lang="en" dir="rtl" class="dark">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
-    />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>iStudent — کتێب، بۆکڵێت، ڤیدیۆ، و پەرتووکان</title>
 
-    <meta name="description" content="iStudent: هەموو شتێک بۆ خوێندکار — کتێب، بۆکڵێت، ڤیدیۆ، پەرتووەکانی تاقیکردنەوە، خشتەی هەفتانە، و زانیاری گرامەری زمانی کوردی/عەرەبی/ئینگلیزی." />
+    <!-- Force dark UI on browsers/system bars -->
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0d12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+    <!-- SEO / social (unchanged) -->
+    <meta name="description" content="iStudent: هەموو شتێک بۆ خوێندکار — کتێب، بۆکڵێت، ڤیدیۆ، پەرتووەکان..." />
     <link rel="canonical" href="https://your-domain.example/" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
-
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="iStudent" />
     <meta property="og:title" content="iStudent — کتێب، مه‌لزه‌مه‌ ڤیدیۆ، و پەرتووکان" />
-    <meta property="og:description" content="پلاتفۆرمی خوێندن بۆ قۆناغ 7–12: کتێب و مه‌لزه‌مه‌ و ڤیدیۆ و پەرتووك، تاقیکردنەوەکانی وزاری 12، و هەموو شتێکی پێویست." />
+    <meta property="og:description" content="پلاتفۆرمی خوێندن بۆ قۆناغ 7–12..." />
     <meta property="og:url" content="https://your-domain.example/" />
     <meta property="og:image" content="/images/cover-1200x630.png" />
-
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="iStudent — کتێب، مه‌لزه‌مه‌، ڤیدیۆ، و پەرتووکان" />
     <meta name="twitter:description" content="هەموو کۆمەڵەبابەتی خوێندن لە یەک شوێن." />
     <meta name="twitter:image" content="/images/cover-1200x630.png" />
 
+    <!-- Icons / manifest -->
     <link rel="icon" href="/icons/pwa-192.png" sizes="192x192" />
     <link rel="icon" href="/icons/pwa-512.png" sizes="512x512" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
-    <meta name="theme-color" content="#09090b" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "iStudent",
-      "url": "https://your-domain.example/",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://your-domain.example/search?q={query}",
-        "query-input": "required name=query"
-      }
-    }
-    </script>
+    <!-- Optional: belt-and-suspenders global dark background -->
+    <style>
+      :root{color-scheme:dark}
+      html,body,#root{background:#0b0d12}
+    </style>
   </head>
-  <body class="bg-gray-100 text-gray-800">
-    <div id="root"></div>
+
+  <!-- CHANGED: use a dark base, not gray-100 -->
+  <body class="bg-zinc-950 text-zinc-100">
+    <div id="root" class="min-h-screen"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

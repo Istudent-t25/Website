@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ku" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PDF</title>
+  <style>
+    :root { --bg:#0b0c10; --fg:#f5f5f6; --ring:#1f2937; --card:#0f1117; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { height:100%; }
+    body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; overflow:hidden; }
+
+    /* Minimal fixed bar (no zoom controls) */
+    .bar { position:fixed; inset:0 0 auto 0; height:44px; display:flex; align-items:center; gap:.5rem;
+      padding:0 .6rem; background:#0d0f15cc; border-bottom:1px solid var(--ring); backdrop-filter:blur(8px); z-index:10; }
+    .title { font-size:.9rem; opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Only this scrolls */
+    #viewer { position:fixed; inset:44px 0 0 0; overflow:auto; overscroll-behavior:contain; padding:.75rem .5rem 1.25rem; touch-action:pan-y; }
+
+    /* Pages */
+    .page { display:grid; place-items:center; width:100%; margin:.5rem auto; }
+    .placeholder {
+      width:min(900px, 98vw);
+      height:70vh; max-height:1200px; min-height:420px;
+      background:linear-gradient(90deg, #0f1117, #10131a);
+      border:1px solid var(--ring); border-radius:.75rem;
+      position:relative; overflow:hidden;
+    }
+    .placeholder::after {
+      content:""; position:absolute; inset:0;
+      background:linear-gradient(90deg, transparent, #ffffff10, transparent);
+      transform:translateX(-100%); animation:sh 1.4s infinite;
+    }
+    @keyframes sh { to { transform:translateX(100%); } }
+
+    canvas { display:block; background:var(--card); border:1px solid var(--ring); border-radius:.75rem; }
+
+    /* Progress bar area */
+    .prog { position:fixed; left:0; right:0; top:44px; height:3px; background:#ffffff12; z-index:12; }
+    .prog>span { display:block; height:100%; width:10%; background:#34d399; transition:width 150ms linear; }
+    .prog.hide { opacity:0; transition:opacity .25s ease; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+</head>
+<body>
+  <div class="bar">
+    <div id="barTitle" class="title">PDF</div>
+  </div>
+  <div id="prog" class="prog"><span id="progFill"></span></div>
+  <main id="viewer" aria-label="PDF viewer"></main>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const fileUrl = qs.get("file");
+    const docTitle = qs.get("t") || "PDF";
+    document.getElementById("barTitle").textContent = docTitle;
+
+    const viewer = document.getElementById("viewer");
+    const prog = document.getElementById("prog");
+    const progFill = document.getElementById("progFill");
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+    const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    let pdfDoc = null;
+    let fitScale = 1;
+    let firstReadyPosted = false;
+
+    function post(msg){ try { window.parent.postMessage(msg, "*"); } catch(e){} }
+
+    async function fetchWithProgress(url) {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const total = Number(res.headers.get("Content-Length")) || 0;
+      const reader = res.body?.getReader?.();
+      if (!reader) {
+        const ab = await res.arrayBuffer();
+        if (total) {
+          const p = Math.round(ab.byteLength/total*100);
+          progFill.style.width = p + "%";
+          post({ type:"pdfviewer:progress", loaded: ab.byteLength, total, percent: p });
+        }
+        return ab;
+      }
+      const chunks = [];
+      let received = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        const percent = total ? (received/total*100) : null;
+        if (percent != null) {
+          const p = Math.round(percent);
+          progFill.style.width = p + "%";
+          post({ type:"pdfviewer:progress", loaded: received, total, percent: p });
+        }
+      }
+      const blob = new Blob(chunks, { type:"application/pdf" });
+      return await blob.arrayBuffer();
+    }
+
+    function pageWrapper() {
+      const wrap = document.createElement("div");
+      wrap.className = "page";
+      const ph = document.createElement("div");
+      ph.className = "placeholder";
+      wrap.appendChild(ph);
+      return { wrap, ph };
+    }
+
+    async function openPdf(url) {
+      if (!url) return;
+
+      // stream with progress
+      let data;
+      try { data = await fetchWithProgress(url); }
+      catch(e) {
+        viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">نەتوانرا PDF بار بکرێت.</div>';
+        return;
+      }
+      pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+
+      // compute fit-to-width from page 1 ONLY (no zoom controls)
+      const p1 = await pdfDoc.getPage(1);
+      const vp1 = p1.getViewport({ scale: 1 });
+      fitScale = viewer.clientWidth / vp1.width;
+
+      // Build lightweight placeholders (no canvases yet)
+      viewer.innerHTML = "";
+      const frag = document.createDocumentFragment();
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const { wrap } = pageWrapper();
+        wrap.dataset.index = i;
+        frag.appendChild(wrap);
+      }
+      viewer.appendChild(frag);
+
+      // Lazy render with IntersectionObserver
+      setupLazyRendering();
+
+      // hide progress bar
+      prog.classList.add("hide");
+    }
+
+    function setupLazyRendering() {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(async (entry) => {
+          if (!entry.isIntersecting) return;
+          const wrap = entry.target;
+          const idx = Number(wrap.dataset.index);
+          if (!idx || wrap.dataset.rendered === "1") return;
+
+          wrap.dataset.rendered = "1";
+
+          // render page when visible
+          const page = await pdfDoc.getPage(idx);
+          const vp = page.getViewport({ scale: fitScale });
+
+          // create canvas
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d", { alpha: false });
+          const ratio = DPR;
+
+          canvas.width  = Math.floor(vp.width * ratio);
+          canvas.height = Math.floor(vp.height * ratio);
+          canvas.style.width = Math.floor(vp.width) + "px";
+          canvas.style.height = Math.floor(vp.height) + "px";
+
+          // swap placeholder with canvas
+          wrap.innerHTML = "";
+          wrap.appendChild(canvas);
+
+          await page.render({
+            canvasContext: ctx,
+            transform: [ratio,0,0,ratio,0,0],
+            viewport: vp
+          }).promise;
+
+          if (!firstReadyPosted) {
+            firstReadyPosted = true;
+            post({ type:"pdfviewer:ready" });
+          }
+        });
+      }, { root: viewer, rootMargin: "500px 0px 800px 0px", threshold: 0.01 });
+
+      // observe all pages
+      viewer.querySelectorAll(".page").forEach(el => io.observe(el));
+
+      // kick-start: scroll a pixel to trigger IO on iOS
+      setTimeout(() => { viewer.scrollTop = viewer.scrollTop + 1; viewer.scrollTop = viewer.scrollTop - 1; }, 50);
+    }
+
+    // Only recompute fitScale if WIDTH actually changed a lot (avoid mobile URL bar height jitters)
+    let lastW = window.innerWidth;
+    let resizeT;
+    window.addEventListener("resize", () => {
+      const w = window.innerWidth;
+      if (Math.abs(w - lastW) < 40) return; // ignore small/height-only changes
+      lastW = w;
+      if (!pdfDoc) return;
+      clearTimeout(resizeT);
+      resizeT = setTimeout(async () => {
+        // Rebuild placeholders; pages will re-render lazily at new width
+        const p1 = await pdfDoc.getPage(1);
+        const vp1 = p1.getViewport({ scale: 1 });
+        fitScale = viewer.clientWidth / vp1.width;
+
+        const scrollYRel = viewer.scrollTop / Math.max(1, viewer.scrollHeight - viewer.clientHeight);
+
+        viewer.innerHTML = "";
+        const frag = document.createDocumentFragment();
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          const { wrap } = pageWrapper();
+          wrap.dataset.index = i;
+          frag.appendChild(wrap);
+        }
+        viewer.appendChild(frag);
+        setupLazyRendering();
+        viewer.scrollTop = scrollYRel * (viewer.scrollHeight - viewer.clientHeight);
+      }, 150);
+    });
+
+    // init
+    openPdf(fileUrl);
+  </script>
+</body>
+</html>

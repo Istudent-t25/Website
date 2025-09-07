@@ -1,15 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Search, Home, Library, BookMarked, CalendarDays, Settings } from "lucide-react";
+import { Search, Home, Library, BookMarked, Book ,CalendarDays, Settings } from "lucide-react";
+
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
-  { to: "/students/grade12", label: "بابەتەکان", icon: Library },
+  { to: "/students", label: "بابەتەکان", icon: Library },
   { to: "/exams", label: "پرسارەکان", icon: BookMarked },
-  { to: "/schedule", label: "خشتە", icon: CalendarDays },
+  { to: "/subjects", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];
-
 function isActive(path, to) {
   if (to === "/") return path === "/";
   return path === to || path.startsWith(to.replace(/\/$/, ""));

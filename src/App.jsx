@@ -1,11 +1,16 @@
-import React, { useState } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+// src/App.jsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Routes, Route, useLocation, Navigate, Outlet } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
-import Header from "./components/Header.jsx";        // desktop-only header
-import BottomNav from "./components/BottomNav.jsx";  // mobile tabs
+import { onAuthStateChanged, onIdTokenChanged, signOut } from "firebase/auth";
+import { auth } from "./lib/firebase";
 
-// pages...
+// Shell
+import Header from "./components/Header.jsx";
+import BottomNav from "./components/BottomNav.jsx";
+
+// Pages
 import Dashboard from "./pages/Dashboard.jsx";
 import Students from "./pages/Students.jsx";
 import ExamsGrade12 from "./pages/ExamsGrade12.jsx";
@@ -16,58 +21,232 @@ import ProfileSettings from "./pages/ProfileSettings.jsx";
 import ExamBank from "./pages/ExamBank.jsx";
 import DeveloperPage from "./pages/DeveloperPage.jsx";
 import ExamsHome from "./pages/ExamsHome.jsx";
-export default function App() {
+import ResourceViewer from "./pages/ResourceViewer.jsx";
+import AuthWizard from "./pages/AuthWizard.jsx";
+import SubjectsPage from "./pages/Subjects.jsx";
+import SubjectContent from "./pages/SubjectContent.jsx";
+
+// NEW: Welcome + PWA tutor page (public)
+import WelcomePWA from "./pages/WelcomePWA.jsx";
+
+/* ─────────────────────────────
+   Auth Context (secure, real)
+   ───────────────────────────── */
+const AuthContext = createContext(null);
+export const useAuth = () => useContext(AuthContext);
+
+function AuthProvider({ children }) {
+  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    const unsubUser = onAuthStateChanged(auth, (u) => {
+      setUser(u || null);
+      setReady(true);
+    });
+    const unsubTok = onIdTokenChanged(auth, async (u) => {
+      if (u) {
+        try {
+          const t = await u.getIdToken(false);
+          setToken(t);
+        } catch {
+          setToken(null);
+        }
+      } else {
+        setToken(null);
+      }
+    });
+    const iv = setInterval(async () => {
+      const u = auth.currentUser;
+      if (u) {
+        try {
+          await u.getIdToken(true);
+        } catch {}
+      }
+    }, 50 * 60 * 1000);
+
+    return () => {
+      unsubUser();
+      unsubTok();
+      clearInterval(iv);
+    };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      ready,
+      signOut: () => signOut(auth),
+    }),
+    [user, token, ready]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/* ─────────────────────────────
+   Helpers for Welcome Gate
+   ───────────────────────────── */
+const LS_HIDE = "welcome_pwa_hide";
+const LS_INSTALLED = "welcome_pwa_installed";
+
+function isStandaloneDisplay() {
+  try {
+    return (
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      // iOS Safari legacy
+      (navigator && (navigator).standalone === true)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Decides whether we should show /welcome (first visit + not installed) */
+function shouldShowWelcomeNow() {
+  const hide = localStorage.getItem(LS_HIDE) === "1";
+  const installedFlag = localStorage.getItem(LS_INSTALLED) === "1";
+  const standalone = isStandaloneDisplay();
+  return !(hide || installedFlag || standalone);
+}
+
+/** Wrap routes so any path auto-redirects to /welcome once, unless hidden/installed */
+function WelcomeGate({ children }) {
+  const location = useLocation();
+  // Don’t redirect if we’re already viewing /welcome
+  if (location.pathname !== "/welcome" && shouldShowWelcomeNow()) {
+    return <Navigate to="/welcome" replace />;
+  }
+  return children;
+}
+
+/* ─────────────────────────────
+   Route Guards
+   ───────────────────────────── */
+function FullscreenLoader() {
+  return (
+    <div className="min-h-[100svh] grid place-items-center bg-zinc-950 text-zinc-100">
+      <div className="animate-pulse text-sm text-zinc-400">چاوەڕێ بکە...</div>
+    </div>
+  );
+}
+
+function RequireAuth() {
+  const { user, ready } = useAuth();
+  const location = useLocation();
+  if (!ready) return <FullscreenLoader />;
+  if (!user) return <Navigate to="/auth" state={{ from: location }} replace />;
+  return <Outlet />;
+}
+
+function RedirectIfAuthed() {
+  const { user, ready } = useAuth();
+  const location = useLocation();
+  if (!ready) return <FullscreenLoader />;
+  if (user) {
+    const backTo = location.state?.from?.pathname || "/";
+    return <Navigate to={backTo} replace />;
+  }
+  return <Outlet />;
+}
+
+/* ─────────────────────────────
+   Animated App Shell (single scroll layer)
+   ───────────────────────────── */
+function AppShell() {
   const location = useLocation();
   const prefersReduced = useReducedMotion();
-  const [headerH, setHeaderH] = useState(0); // desktop header height only (hidden on mobile)
+  const [headerH, setHeaderH] = useState(0);
 
-  const pageMotion = prefersReduced
-    ? { initial: false, animate: false, exit: false }
-    : {
-        initial: { opacity: 0, y: 6 },
-        animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -6 },
-        transition: { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] },
-      };
+  const pageMotion = useMemo(
+    () =>
+      prefersReduced
+        ? { initial: false, animate: false, exit: false }
+        : {
+            initial: { opacity: 0, y: 8 },
+            animate: { opacity: 1, y: 0 },
+            exit: { opacity: 0, y: -8 },
+            transition: { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] },
+          },
+    [prefersReduced]
+  );
 
   return (
-    <div dir="rtl" className="bg-white text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-      {/* Desktop header (hidden on mobile inside the component) */}
+    <div dir="rtl" className="bg-black text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
       <Header onHeightChange={setHeaderH} />
 
-      <div className="min-h-[100dvh] overflow-hidden">
-        <main
-          className="h-[100dvh] overflow-y-auto custom-scroll p-2 md:p-6"
-          style={{
-            WebkitOverflowScrolling: "touch",
-            overscrollBehaviorY: "contain",
-            // paddingTop: headerH ? `${headerH}px` : "0px", // 0 on mobile
-            paddingTop: "20px", // 0 on mobile
-            paddingBottom: "90px", // for bottom nav
-          }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div key={location.pathname} className="w-full" {...pageMotion}>
-              <Routes location={location}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/sounds" element={<SoundsPage />} />
-                <Route path="/grammar/" element={<GrammarPage />} />
-                <Route path="/students/:grade" element={<Students />} />
-                <Route path="/exams/grade12" element={<ExamsGrade12 />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/exams" element={<ExamsHome />} />
-                <Route path="/exams/bank" element={<ExamBank />} />
-                <Route path="/settings" element={<ProfileSettings />} />
-                <Route path="/developer" element={<DeveloperPage />} />
-                <Route path="*" element={<p className="text-center text-red-500">هەڵە: پەڕە نەدۆزرایەوە</p>} />
-              </Routes>
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
+      <main
+        className="min-h-[100svh] overflow-y-auto custom-scroll px-2 md:px-6"
+        style={{
+          paddingTop: 0,
+          // paddingTop: headerH || 0,
+          paddingBottom: "calc(30px + env(safe-area-inset-bottom, 0px))",
+          WebkitOverflowScrolling: "touch",
+          overscrollBehavior: "contain",
+        }}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div key={location.pathname} {...pageMotion}>
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
+      </main>
 
-      {/* Mobile bottom tabs */}
-      <BottomNav />
+      <div className="pb-[env(safe-area-inset-bottom,0px)]">
+        <BottomNav />
+      </div>
     </div>
+  );
+}
+
+/* ─────────────────────────────
+   Main App with secured routing + Welcome gate
+   ───────────────────────────── */
+export default function App() {
+  return (
+    <AuthProvider>
+      <WelcomeGate>
+        <Routes>
+          {/* Public: Welcome + PWA tutorial (auto-shown by WelcomeGate) */}
+          <Route path="/welcome" element={<WelcomePWA afterPath="/auth" />} />
+
+          {/* Public: Auth (redirect away if already signed in) */}
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/auth" element={<AuthWizard />} />
+          </Route>
+
+          {/* Private: everything else */}
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/sounds" element={<SoundsPage />} />
+              <Route path="/grammar" element={<GrammarPage />} />
+              <Route path="/students/" element={<Students />} />
+              <Route path="/exams/grade12" element={<ExamsGrade12 />} />
+              <Route path="/schedule" element={<Schedule />} />
+              <Route path="/exams" element={<ExamsHome />} />
+              <Route path="/exams/bank" element={<ExamBank />} />
+              <Route path="/settings" element={<ProfileSettings />} />
+              <Route path="/developer" element={<DeveloperPage />} />
+              <Route path="/subjects" element={<SubjectsPage />} />
+              <Route path="/subjects/:subject/:category" element={<SubjectContent />} />
+            </Route>
+            <Route path="/viewer" element={<ResourceViewer />} />
+          </Route>
+
+          {/* 404 */}
+          <Route
+            path="*"
+            element={
+              <div className="min-h-[60vh] grid place-items-center">
+                <p className="text-center text-red-500">هەڵە: پەڕە نەدۆزرایەوە</p>
+              </div>
+            }
+          />
+        </Routes>
+      </WelcomeGate>
+    </AuthProvider>
   );
 }

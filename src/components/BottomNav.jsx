@@ -1,11 +1,13 @@
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, Library, BookMarked, CalendarDays, Settings } from "lucide-react";
+import { Home, Library, BookMarked, Settings, Book } from "lucide-react";
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
-  { to: "/students/grade12", label: "بابەتەکان", icon: Library },
+  { to: "/students", label: "بابەتەکان", icon: Library },
   { to: "/exams", label: "پرسارەکان", icon: BookMarked },
-  { to: "/schedule", label: "خشتە", icon: CalendarDays },
+  { to: "/subjects", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];
 
@@ -16,16 +18,23 @@ function isActive(path, to) {
 
 export default function BottomNav() {
   const loc = useLocation();
+  const scrollDir = useScrollDirection();
+
   return (
     <div
       dir="rtl"
-      className="
+      className={`
         md:hidden fixed bottom-0 inset-x-0 z-40
-        bg-white/90 dark:bg-zinc-900/90 backdrop-blur
-        border-t border-white/10
-        rounded-t-2xl shadow-[0_-6px_12px_-4px_rgba(0,0,0,0.2)]
-      "
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
+        backdrop-blur-xl
+        rounded-t-2xl
+        transition-transform duration-300 ease-in-out
+        ${scrollDir === 'down' ? 'translate-y-full' : 'translate-y-0'}
+      `}
+      style={{
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)",
+        background: "rgba(0, 0, 0, 0.3)",
+        boxShadow: "0 -2px 10px rgba(0, 0, 0, 0.4)"
+      }}
     >
       <nav className="mx-auto max-w-xl px-2 py-2 grid grid-cols-5 gap-1">
         {tabs.map(({ to, label, icon: Icon }) => {
@@ -36,8 +45,8 @@ export default function BottomNav() {
               to={to}
               className={`flex flex-col items-center justify-center rounded-lg py-2 transition ${
                 active
-                  ? "text-sky-700 dark:text-sky-300 bg-sky-500/10"
-                  : "text-zinc-600 dark:text-zinc-300"
+                  ? "text-sky-300 bg-sky-500/10"
+                  : "text-zinc-300"
               }`}
               title={label}
             >

@@ -9,22 +9,24 @@
   font-style: normal;
   font-display: swap;
 }
+/* app.css */
+:root { color-scheme: dark; }
+html, body { background:#0b0d12; }
 
-html[dir="rtl"], [dir="rtl"] {
-  font-family: "Ubuntu";
-}
+html[dir="rtl"], [dir="rtl"] { font-family: "Ubuntu"; }
+
+/* Force dark everywhere (forms/scrollbars too) */
 :root {
-  --vh: 1vh;               /* legacy helper if you still use it */
-  color-scheme: light dark; /* let the UA pick form controls accordingly */
+  --vh: 1vh;
+  color-scheme: dark; /* was: light dark */
 }
 
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 
+/* Prevent white flash before CSS/JS */
 html {
-  /* If you use anchor links, header offset is helpful (56px header + notch) */
   scroll-padding-top: calc(env(safe-area-inset-top) + 56px);
+  background: #0a0a0b; /* add */
 }
 
 body {
@@ -36,56 +38,38 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none;
-  background-color: #ffffff;
-  color: #0a0a0a;
+
+  /* DARK as default (fix) */
+  background-color: #0a0a0b; /* was #ffffff */
+  color: #e5e7eb;            /* was #0a0a0a */
 }
 
+/* Optional: still support a 'dark' class (harmless if you don't use it) */
+html.dark body,
 :root.dark body {
-  background-color: #0a0a0b; /* ~ zinc-950 */
-  color: #e5e7eb;            /* tailwind zinc-200-ish */
+  background-color: #0a0a0b;
+  color: #e5e7eb;
 }
 
 /* ====== App Shell Helpers ====== */
-/* your main scroll containers should add `custom-scroll` class */
 .custom-scroll {
-  /* iOS momentum scrolling */
   -webkit-overflow-scrolling: touch;
-
-  /* Keep layout stable when scrollbar shows/hides (Chrome/Edge/FF) */
   scrollbar-gutter: stable both-edges;
-
-  /* Firefox scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(120,120,120,.4) transparent;
 }
+.custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: rgba(120,120,120,.4); border-radius: 9999px; }
+.custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(120,120,120,.55); }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
 
-/* WebKit-based scrollbars (Chrome, Edge, Safari) */
-.custom-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(120,120,120,.4);
-  border-radius: 9999px;
-}
-.custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(120,120,120,.55);
-}
-.custom-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* ====== Safe-area helpers ====== */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
-/* ====== Safe-area helpers (useful if needed on wrappers/drawers) ====== */
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* ====== Focus rings (nicer defaults) ====== */
-:where(button, [role="button"], a, input, textarea, select):focus-visible {
-  outline: 2px solid rgb(56 189 248 / 0.9); /* sky-400-ish */
+/* ====== Focus rings ====== */
+:where(button,[role="button"],a,input,textarea,select):focus-visible {
+  outline: 2px solid rgb(56 189 248 / 0.9);
   outline-offset: 2px;
   border-radius: 8px;
 }
@@ -100,45 +84,48 @@ body {
   }
 }
 
-/* ====== Utility tweaks you might reuse ====== */
+/* ====== Utility tweaks ====== */
 
-/* Glassy surface (if you want subtle cards without shadcn) */
+/* Glassy surface — keep only a dark background (remove the light override) */
 .glass {
   background: color-mix(in oklab, #0a0a0b 80%, transparent);
-  /* in light mode, this becomes a very faint white mix */
-  background: color-mix(in oklab, #ffffff 70%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgb(255 255 255 / 0.08);
   border-radius: 16px;
 }
 
-/* Smooth shadow for panels */
 .soft-shadow {
   box-shadow:
     0 10px 25px -10px rgb(0 0 0 / 0.35),
     0 2px 8px -2px rgb(0 0 0 / 0.25);
 }
 
-/* Card hover lift */
 .lift:hover {
   transform: translateY(-2px);
   transition: transform .18s ease, box-shadow .18s ease;
 }
 
-/* Divider */
 .hr-soft {
   height: 1px;
-  background: linear-gradient(
-    to left,
-    transparent,
-    rgb(255 255 255 / 0.08),
-    transparent
-  );
+  background: linear-gradient(to left, transparent, rgb(255 255 255 / 0.08), transparent);
 }
 
-/* Optional: hide scrollbars visually but keep scrollability (not recommended globally)
-.hide-scroll::-webkit-scrollbar { display: none; }
-.hide-scroll { scrollbar-width: none; } */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.under-construction-overlay {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.08); /* subtle, still dark-friendly */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 9999;
+}
+.message-box {
+  padding: 2rem; background-color: rgba(0,0,0,0.45);
+  border-radius: 12px; color: white; font-family: sans-serif;
+  font-size: 1.5rem; text-align: center;
+  border: 1px solid rgba(255,255,255,0.3);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
