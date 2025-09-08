@@ -32,7 +32,7 @@ export default function BottomNav() {
       `}
       style={{
         paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)",
-        background: "rgba(0, 0, 0, 0.3)",
+        background: "rgba(0, 0, 0, 0.5)",
         boxShadow: "0 -2px 10px rgba(0, 0, 0, 0.4)"
       }}
     >

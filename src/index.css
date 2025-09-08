@@ -129,3 +129,19 @@ html.dark body,
   border: 1px solid rgba(255,255,255,0.3);
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
+/* --- PWA/standalone paint fixes --- */
+.gpu-fix {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* In installed PWA, keep solid bg under glass to avoid black patches */
+@media (display-mode: standalone) {
+  main { background: #0a0a0b !important; }
+  .glass {
+    background: rgba(10,10,11,.72);      /* less transparent than browser mode */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}

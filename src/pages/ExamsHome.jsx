@@ -1,903 +1,736 @@
-// pages/ExamsPortalPro.jsx
-// Exams Portal — EVERYTHING edition (RTL, Tailwind, Framer Motion)
-// - Card 1: National Exam → Subject → Years (collapse) → Terms (or open URL)
-// - Card 2: Important Notes (grid)
-// - Card 3: Practice/Exams list (filters, sort, tags)
-// - Extra panels: Answer Keys, Analyses, Summaries
-// - Sticky mini-filter bar, skeleton loading, Favorites, Solved/Unsolved, Recently Viewed
-// - Share/Copy links, Batch download stub
-//
-// Uses your gradient cover (aspect-video). Colors kept (indigo → sky, zinc, emerald).
-// NOTE: Replace '#' links with real URLs. No server required; state persists via localStorage.
-
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/ExamsHome.jsx — render cards immediately (no more touch-to-show)
+import React, {
+  useEffect, useMemo, useRef, useState, useDeferredValue
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
 import {
-  BookOpenCheck, GraduationCap, ChevronDown, ChevronUp, ExternalLink,
-  Users, FileText, StickyNote, Link as LinkIcon, Filter, Search,
-  Star, StarOff, CheckCircle2, Circle, Clock, Share2, Download, Trash2, Layers, Heart
+  GraduationCap, Search as SearchIcon, ExternalLink, Download, Copy, Check,
+  Calendar, Layers, FlaskConical, Star, StarOff, Filter, Clock, X, ChevronDown,
+  Sparkles, FileText, ClipboardList, ShieldAlert, Hourglass, Wrench
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const EASE = [0.22, 0.61, 0.36, 1];
+// mini normalizer: /storage/...  -> https://api.studentkrd.com/api/v1/dl/...
+const toDl = (raw) => {
+  if (!raw) return "";
+  try {
+    const u = new URL(raw, window.location.origin);
 
-const SUBJECTS = [
-  { key: "math", name: "بیركاری" },
-  { key: "biology", name: "بايۆلۆجی" },
-  { key: "kurdish", name: "زمانی کوردی" },
-  { key: "arabic", name: "زمانی عەڕەبی" },
-  { key: "english", name: "زمانی ئینگلیزی" },
-  { key: "physics", name: "فیزیا" },
-  { key: "chemistry", name: "کیمیا" },
-];
+    // already correct
+    if (/^\/api\/v1\/dl\//i.test(u.pathname)) { u.search = ""; return u.toString(); }
 
-const GRADE_NAME = (g) => (g ? `پۆلی ${g}` : "پۆل");
-
-const typeLabel = (t) =>
-  t === "video" ? "ڤیدیۆ"
-: t === "book" ? "کتێب"
-: t === "booklet" ? "مەڵزەمە"
-: t === "answer" ? "وەڵامنامە"
-: t === "notes" ? "تێبینی"
-: t === "summary" ? "کورتکراوە"
-: t === "analysis" ? "ئانالیز"
-: t === "exam" ? "ئه‌سیله‌"
-: "ناوەرۆک";
-
-/* ---------------- Demo DATA (replace '#' with real links) ---------------- */
-const NATIONAL = {
-  math: {
-    years: [
-      { label: "2021–2022", terms: ["Term 1", "Term 2"] },
-      { label: "2022–2023", href: "#" }, // no terms → go directly
-      { label: "2023–2024", terms: ["Term 1", "Term 2"] },
-    ],
-    termLinks: {
-      "2021–2022": { "Term 1": "#", "Term 2": "#" },
-      "2023–2024": { "Term 1": "#", "Term 2": "#" },
-    },
-  },
-  biology: {
-    years: [
-      { label: "2021–2022", terms: ["Term 1", "Term 2"] },
-      { label: "2022–2023", href: "#" },
-      { label: "2023–2024", terms: ["Term 1", "Term 2"] },
-    ],
-    termLinks: {
-      "2021–2022": { "Term 1": "#", "Term 2": "#" },
-      "2023–2024": { "Term 1": "#", "Term 2": "#" },
-    },
-  },
-  kurdish: { years: [{ label: "2023–2024", href: "#" }], termLinks: {} },
-  arabic:  { years: [{ label: "2023–2024", href: "#" }], termLinks: {} },
-  english: { years: [{ label: "2023–2024", terms: ["Term 1"] }], termLinks: { "2023–2024": { "Term 1": "#" } } },
-  physics: { years: [{ label: "2022–2023", href: "#" }], termLinks: {} },
-  chemistry:{ years: [{ label: "2022–2023", terms: ["Term 2"] }], termLinks: { "2022–2023": { "Term 2": "#" } } },
+    // *.studentkrd.com + /storage/...
+    if (/\.studentkrd\.com$/i.test(u.hostname)) {
+      const m = u.pathname.match(/^\/storage\/(.+)$/i);
+      if (m) {
+        u.hostname = "api.studentkrd.com";
+        u.pathname = `/api/v1/dl/${m[1]}`;
+        u.search = "";
+        return u.toString();
+      }
+    }
+    return u.toString();
+  } catch { return raw; }
 };
 
-// Important notes (grid)
-const NOTES = [
-  { id: "n-bio-hoshyar", subject: "بايۆلۆجی", teacher: "مامۆستا هۆشیار", title: "تێبینی گرنگ — فصل ٣", href: "#", grade: 12, type: "notes" },
-  { id: "n-math-omed",   subject: "بیركاری",  teacher: "مامۆستا ئۆمەد",   title: "پوینتە گرنگ — دیفرانسیال", href: "#", grade: 12, type: "notes" },
-  { id: "n-phys-rawand", subject: "فیزیا",    teacher: "مامۆستا ڕەواند",  title: "کورتکراوە — موجەکان",     href: "#", grade: 12, type: "summary" },
-];
+/* ----------------- Config ----------------- */
+const API_PAPERS_URL = "https://api.studentkrd.com/api/v1/papers";
+const EASE = [0.22, 1, 0.36, 1];
 
-// Practice/Exams (list)
-const PRACTICE = [
-  { id: "p-math-250", subject: "بیركاری", title: "٢٥٠ پرسیاری قورس", teacher: "مامۆستا ئارام", href: "#", tags: ["تمرین"], createdAt: "2024-11-12" },
-  { id: "p-bio-pack", subject: "بايۆلۆجی", title: "کۆمپڵێکشن پرسیار + وەڵام", teacher: "مامۆستا ناز", href: "#", tags: ["بانک"], createdAt: "2025-02-03" },
-  { id: "p-eng-read", subject: "زمانی ئینگلیزی", title: "Reading Practice Set A", teacher: "مامۆستا سارا", href: "#", tags: ["Reading"], createdAt: "2024-06-10" },
-];
-
-// Answer keys / Analyses / Summaries (extra panels)
-const ANSWER_KEYS = [
-  { id: "ak-math-2324-t1", subject: "بیركاری", title: "وەڵامنامە 2023–2024 تێرم ١", href: "#", grade: 12, type: "answer" },
-];
-const ANALYSES = [
-  { id: "an-bio-2122", subject: "بايۆلۆجی", title: "ئانالیزی پرسیارەکانی 2021–2022", href: "#", grade: 12, type: "analysis" },
-];
-const SUMMARIES = [
-  { id: "sm-phys-wave", subject: "فیزیا", title: "کورتکراوە — موجەکان (تێرم ٢)", href: "#", grade: 12, type: "summary" },
-];
-function GradientCover({ title, subtitle, tag }) {
-  return (
-    <div className="relative aspect-video bg-gradient-to-br from-indigo-700 to-sky-600 text-white rounded-2xl overflow-hidden">
-      <div className="absolute inset-0 flex items-center justify-center p-5 text-center">
-        <div className="space-y-1.5">
-          <h3 className="text-lg md:text-xl font-extrabold leading-snug line-clamp-2">{title}</h3>
-          {subtitle && (
-            <p className="text-xs md:text-sm/5 opacity-90 line-clamp-1">{subtitle}</p>
-          )}
-          {tag && (
-            <span className="inline-block text-[11px] px-2 py-0.5 rounded-full ring-1 ring-white/30/60">
-              {tag}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Helpers: persistence ---------------- */
-const readLS = (k, fb) => {
-  try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? fb; } catch { return fb; }
+/* ----------------- LocalStorage helpers ----------------- */
+const lsGet = (k, fb = null) => { try { const v = localStorage.getItem(k); return v ?? fb; } catch { return fb; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v)); } catch {} };
+const getGrade = () => { const v = Number(lsGet("grade", "")); return Number.isFinite(v) && v >= 1 ? v : 12; };
+const GRADE_NAME = (g) => `پۆل ${g}`;
+const normalizeTrack = (raw) => {
+  const s = (raw || "").toString().trim().toLowerCase();
+  const sci = ["scientific","science","zansti","زانستی","وێژەیی","wezheyi","wêjeyî"];
+  const lit = ["literary","adabi","ئەدەبی","ادبی"];
+  if (sci.some(w=>s.includes(w))) return "scientific";
+  if (lit.some(w=>s.includes(w))) return "literary";
+  return "common";
 };
-const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const getTrack = () => normalizeTrack(lsGet("track", "common"));
 
-/* ---------------- Sticky mini-filter bar ---------------- */
-function StickyBar({ subject, setSubject, q, setQ, pinned, togglePin, quickYear, setQuickYear }) {
-  return (
-    <div className="sticky top-0 z-20">
-      <div className="backdrop-blur bg-white/75 dark:bg-zinc-900/75 border border-slate-100 dark:border-white/10 rounded-xl p-2 shadow-sm">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {/* Pinned star */}
-          <button
-            onClick={() => togglePin(subject)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/70 dark:hover:bg-zinc-700"
-            title="بابەتی دڵخواز"
-          >
-            {pinned[subject] ? <Star className="text-amber-400" size={16} /> : <StarOff className="text-zinc-500" size={16} />}
-          </button>
-
-          {/* Quick Subject */}
-          <select
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            {SUBJECTS.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
-          </select>
-
-          {/* Quick Year (for national search/jump) */}
-          <select
-            value={quickYear}
-            onChange={(e) => setQuickYear(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            <option value="">ساڵ</option>
-            {(NATIONAL[subject]?.years || []).map((y) => (
-              <option key={y.label} value={y.label}>{y.label}</option>
-            ))}
-          </select>
-
-          {/* Search */}
-          <div className="relative ml-auto min-w-[10rem]">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="گەڕان بە ناونیشان/مامۆستا/ساڵ…"
-              className="w-full bg-zinc-100 dark:bg-zinc-800 text-[13px] text-zinc-800 dark:text-zinc-100 rounded-xl pr-3 pl-8 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-            <Search size={16} className="absolute left-2.5 top-2.5 text-zinc-400" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Section Card (full-card toggle) ---------------- */
-function SectionCard({ title, subtitle, open, onToggle, icon: Icon }) {
-  return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.16, ease: EASE }}
-      onClick={onToggle}
-      role="button"
-      aria-expanded={open}
-      className="cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-white/10 shadow-sm overflow-hidden"
-    >
-      <div className="flex items-center gap-3 p-4">
-        {Icon && <Icon size={24} className="text-sky-500 flex-shrink-0" />}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-[14px] md:text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
-          <p className="text-[12px] md:text-[13px] text-zinc-500 line-clamp-1">{subtitle}</p>
-        </div>
-        <span className="text-zinc-400 transition-transform duration-200">{open ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</span>
-      </div>
-    </motion.div>
-  );
-}
-
-/* ---------------- Skeleton ---------------- */
-function SkeletonCard() {
-  return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-zinc-900">
-      <div className="animate-pulse">
-        <div className="aspect-video bg-zinc-200/70 dark:bg-zinc-800" />
-        <div className="p-4 space-y-2">
-          <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-5/6" />
-          <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-2/3" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- National Exam Card Component ---------------- */
-// Moved outside NationalDrill to be a direct child of ExamsPortalPro or other top-level components
-// to ensure it is within a Router context.
-function NationalExamCard({ item }) {
-  const navigate = useNavigate(); // Initialize useNavigate
-
-  const handleClick = (e) => {
-    e.preventDefault();
-    // addRecent({ id: `${item.subject}-${item.year}-${item.term}`, title: `${item.subject} - ${item.year} (${item.term})`, href: item.href });
-    // Navigate to ExamsGrade12 with filters, using the correct path from App.jsx
-    navigate(`/exams/grade12?subject=${item.subjectKey}&year=${item.year}&term=${item.term}`);
-  };
-
-  return (
-    <a
-      href={item.href} // Keep href for accessibility/fallback
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group relative overflow-hidden rounded-3xl bg-zinc-950 ring-1 ring-white/10 hover:ring-sky-500 transition-all duration-300 shadow-lg hover:shadow-sky-500/20"
-      onClick={handleClick} // Use handleClick for navigation
-    >
-      <div className="relative p-6 sm:p-8 space-y-4">
-        <div className="absolute inset-0 bg-grid-white/[0.03]"/>
-        <div className="relative z-10">
-          <h3 className="text-2xl font-extrabold text-white">{item.year}</h3>
-          <p className="mt-1 text-sm text-zinc-400">{item.subject} • {item.term}</p>
-        </div>
-        <div className="relative z-10 flex items-center justify-between">
-          <span className="inline-block text-[11px] px-3 py-1 rounded-full bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/25 font-semibold">
-            تاقیکردنەوەی نیشتیمانی
-          </span>
-          <ExternalLink size={20} className="text-zinc-500 group-hover:text-sky-400 transition" />
-        </div>
-      </div>
-    </a>
-  );
-}
-
-
-/* ---------------- National Drill (Main component for National Exams section) ---------------- */
-function NationalDrillWrapper() { // Renamed to avoid using useNavigate directly in a sub-component rendered conditionally
-  const navigate = useNavigate(); // Initialize useNavigate once here
-  const [subject, setSubject] = useState("math");
-  const [q, setQ] = useState("");
-  const [quickYear, setQuickYear] = useState("");
-  const [open, setOpen] = useState(true);
-  const [yearOpen, setYearOpen] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  // filter years by search or quickYear
-  const years = useMemo(() => {
-    const base = (NATIONAL[subject]?.years || []);
-    if (!q && !quickYear) return base;
-    return base.filter((y) => {
-      const s = (q || "").toLowerCase();
-      const passQ = s ? y.label.toLowerCase().includes(s) : true;
-      const passQuick = quickYear ? y.label === quickYear : true;
-      return passQ && passQuick;
-    });
-  }, [subject, q, quickYear]);
-
-  useEffect(() => { setYearOpen(null); }, [subject]);
-
-  const onToggleOpen = () => {
-    setOpen((v) => !v);
-    if (!open) {
-      setLoading(true);
-      setTimeout(() => setLoading(false), 350); // fake load
+/* ----------------- URL helpers (for /storage → /dl) ----------------- */
+const toCU = (raw) => {
+  try {
+    if (!raw) return raw;
+    const u = new URL(raw, window.location.origin);
+    if (/\/(v1\/)?dl\//i.test(u.pathname)) return u.toString();
+    if ((/^api\.studentkrd\.com$/i).test(u.hostname) || (/\.studentkrd\.com$/i).test(u.hostname)) {
+      const m = u.pathname.match(/^\/storage\/(.+)$/i);
+      if (m && m[1]) return `https://api.studentkrd.com/api/v1/dl/${m[1]}`;
     }
-  };
+    return u.toString();
+  } catch { return raw; }
+};
 
-  const handleYearClick = (y, hasTerms) => {
-    if (!hasTerms && y.href) {
-      // If there are no terms but a direct link, navigate directly
-      navigate(`/exams/grade12?subject=${subject}&year=${y.label}`); // Navigate internally
-      return;
+/* ----------------- Utility: Error Boundary ----------------- */
+class ErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError(){ return { hasError: true }; }
+  componentDidCatch(err, info){ console.error("ExamsHome crashed:", err, info); }
+  render(){
+    if (this.state.hasError) return <WIPPanel reason="error" />;
+    return this.props.children;
+  }
+}
+
+/* ----------------- UI atoms ----------------- */
+function Badge({ children, className = "", asButton = false, onClick }) {
+  const base = "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-white/10 bg-white/5";
+  if (asButton) {
+    return (
+      <button type="button" onClick={onClick} className={`${base} hover:bg-white/10 ${className}`}>
+        {children}
+      </button>
+    );
+  }
+  return <span className={`${base} ${className}`}>{children}</span>;
+}
+const Pill = ({ children, className = "" }) => (
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] ring-1 ${className}`}>{children}</span>
+);
+const YearBadge  = ({ ys, ye }) => <Pill className="bg-sky-900/20 ring-sky-800/40 text-sky-300"><Calendar size={12}/> {ys}–{ye}</Pill>;
+const TermBadge  = ({ t }) => <Pill className="bg-emerald-900/20 ring-emerald-800/40 text-emerald-300"><Layers size={12}/> خولی {t}</Pill>;
+const GradeBadge = ({ g }) => <Pill className="bg-indigo-900/20 ring-indigo-800/40 text-indigo-300"><GraduationCap size={12}/> پۆل {g}</Pill>;
+const TrackBadge = ({ tr }) => {
+  const txt = tr === "scientific" ? "زانستی" : tr === "literary" ? "ئەدەبی" : tr === "both" ? "هەردوو" : "گشتی";
+  return <Pill className="bg-fuchsia-900/20 ring-fuchsia-800/40 text-fuchsia-300"><FlaskConical size={12}/> {txt}</Pill>;
+};
+/* NEW: badges for session + date */
+const SessionBadge = ({ s }) => s ? (
+  <Pill className="bg-amber-900/20 ring-amber-800/40 text-amber-300"><Layers size={12}/> بەشی {s}</Pill>
+) : null;
+
+const DateBadge = ({ d }) => {
+  if (!d) return null;
+  let out = "";
+  try {
+    const dt = new Date(d);
+    if (!isNaN(dt.getTime())) {
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      out = `${y}-${m}-${day}`;
     }
-    setYearOpen(yearOpen === y.label ? null : y.label);
-  };
+  } catch {}
+  if (!out) return null;
+  return <Pill className="bg-teal-900/20 ring-teal-800/40 text-teal-300"><Clock size={12}/> {out}</Pill>;
+};
 
+function PillButton({ active, children, onClick, className = "" }) {
   return (
-    <section className="space-y-3">
-      <SectionCard
-        title="تاقیکردنەوەی نیشتیمانی"
-        subtitle="کرتە بکە → بابەت → ساڵ → تێرم (ئەگەر هەبوو)."
-        icon={GraduationCap}
-        open={open}
-        onToggle={onToggleOpen}
-      />
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
-            className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900 space-y-3"
-          >
-            {/* Subject chips */}
-            <div className="flex flex-wrap gap-1.5">
-              {SUBJECTS.map((s) => {
-                const active = subject === s.key;
-                return (
-                  <button
-                    key={s.key}
-                    onClick={() => { setSubject(s.key); setYearOpen(null); }}
-                    className={`px-3 py-1.5 rounded-full text-[12.5px] md:text-[13px] font-medium ring-1 transition
-                      ${active
-                        ? "bg-sky-600 text-white ring-sky-500/50"
-                        : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-sky-50/60 dark:hover:bg-zinc-700/60 ring-white/10"}`}
-                  >
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Years → Terms */}
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                <SkeletonCard /><SkeletonCard /><SkeletonCard />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {years.map((y) => {
-                  const openRow = yearOpen === y.label;
-                  const hasTerms = Array.isArray(y.terms) && y.terms.length > 0;
-                  return (
-                    <div key={y.label} className="rounded-2xl border border-zinc-200/70 dark:border-white/10 overflow-hidden">
-                      <button
-                        onClick={() => handleYearClick(y, hasTerms)}
-                        className="w-full px-3 py-2.5 md:py-3 flex items-center justify-between text-right text-[13.5px] md:text-[14px] font-semibold hover:bg-zinc-50/70 dark:hover:bg-zinc-800/60 transition"
-                        title={hasTerms ? "کردنەوەی تێرمەکان" : "کردنەوەی بەستەر"}
-                      >
-                        <span className="flex items-center gap-2">
-                          <GraduationCap size={18} className="text-sky-500" />
-                          {y.label}
-                        </span>
-                        {hasTerms ? (openRow ? <ChevronUp size={20} /> : <ChevronDown size={20} />) : <ExternalLink size={18} className="text-zinc-400" />}
-                      </button>
-
-                      <AnimatePresence initial={false}>
-                        {hasTerms && openRow && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.18, ease: EASE }}
-                            className="px-3 pb-3"
-                          >
-                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                              {y.terms.map((t) => {
-                                const href = (NATIONAL[subject].termLinks?.[y.label] || {})[t] || "#";
-                                return (
-                                  <NationalExamCard
-                                    key={t}
-                                    item={{
-                                      subject: SUBJECTS.find(s=>s.key===subject)?.name,
-                                      subjectKey: subject, // Pass the key for filtering
-                                      year: y.label,
-                                      term: t,
-                                      href
-                                    }}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
+    <button type="button" onClick={onClick}
+      className={`px-3 py-2 rounded-xl text-sm font-semibold transition-colors border ${
+        active ? "bg-sky-500/10 text-sky-400 border-sky-400/30"
+               : "bg-zinc-900/40 text-zinc-300 border-white/10 hover:bg-zinc-900/70"
+      } ${className}`}>
+      {children}
+    </button>
   );
 }
 
-/* ---------------- Notes (grid) ---------------- */
-function NotesCard({ item }) {
-  // addRecent is not defined here. Ensure it's passed as a prop or defined globally if needed.
-  // For now, removing the call or assuming it's passed down.
-  const handleCardClick = (e) => {
-    e.preventDefault();
-    // if (addRecent) addRecent({ id: item.id, title: item.title, href: item.href });
-    window.open(item.href, "_blank", "noopener,noreferrer");
-  };
-
-  return (
-    <a
-      href={item.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group relative overflow-hidden rounded-3xl border border-teal-200/30 bg-white/50 backdrop-blur-sm shadow-md hover:shadow-xl hover:shadow-teal-400/20 transition-all duration-300"
-      onClick={handleCardClick}
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-transparent z-0" />
-      <div className="relative p-6 space-y-4 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 flex-shrink-0 rounded-full bg-teal-500/15 flex items-center justify-center">
-            <StickyNote size={24} className="text-teal-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-zinc-900 line-clamp-2">{item.title}</h3>
-            <p className="mt-0.5 text-sm text-zinc-600 line-clamp-1">{item.teacher}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-          <span className="px-3 py-1 rounded-full bg-teal-500/10 text-teal-600 ring-1 ring-teal-500/20">{item.subject}</span>
-          <span className="px-3 py-1 rounded-full bg-teal-500/10 text-teal-600 ring-1 ring-teal-500/20">{GRADE_NAME(item.grade)}</span>
-        </div>
-      </div>
-    </a>
-  );
-}
-function NotesPanel() {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+/* ----------------- Hooks ----------------- */
+function useOnClickOutside(ref, handler) {
   useEffect(() => {
-    if (open) { setLoading(true); const t = setTimeout(()=>setLoading(false), 300); return ()=>clearTimeout(t); }
-  }, [open]);
+    const listener = (e) => { if (!ref.current || ref.current.contains(e.target)) return; handler(e); };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
+}
+
+/* ----------------- Cool Dropdown (custom select) ----------------- */
+function Dropdown({ label, value, onChange, options, searchable = false, placeholder = "هەموو", className = "", align = "end" }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useOnClickOutside(ref, () => setOpen(false));
+
+  const filtered = useMemo(() => {
+    const txt = q.trim().toLowerCase();
+    let base = options || [];
+    if (txt) base = base.filter(o => (o.label || "").toLowerCase().includes(txt));
+    return base.slice(0, 300);
+  }, [options, q]);
+
+  const current = options?.find(o => o.value === value);
 
   return (
-    <section className="space-y-3">
-      <SectionCard
-        title="تێبینی گرنگ"
-        subtitle="کرتە بکە → کارتەکانی مامۆستانە ببینە (بابەت بە بابەت)."
-        icon={StickyNote}
-        open={open}
-        onToggle={() => setOpen(v=>!v)}
-      />
+    <div className={`relative ${className}`} ref={ref}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="h-10 inline-flex items-center gap-2 px-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm text-white">
+        <Filter size={16} className="text-sky-300" />
+        <span className="text-[12.5px]">{label}:</span>
+        <span className="font-semibold">{current?.label || placeholder}</span>
+        <ChevronDown size={16} className={`transition ${open?"rotate-180":""}`} />
+      </button>
 
-      <AnimatePresence initial={false}>
+      <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
-            className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15, ease: EASE }}
+            className={`absolute z-50 min-w-[220px] mt-2 ${align === "end" ? "right-0" : "left-0"}`}
           >
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                <SkeletonCard /><SkeletonCard /><SkeletonCard />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {NOTES.map((n) => (
-                  <NotesCard key={n.id} item={n} />
+            <div className="rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur p-2 shadow-2xl">
+              {searchable && (
+                <div className="relative">
+                  <input
+                    autoFocus
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="گەڕان لە هەڵبژاردەکان…"
+                    className="w-full bg-zinc-900/70 border border-white/10 rounded-xl pr-3 pl-8 py-2 text-sm text-zinc-200 outline-none"
+                  />
+                  <SearchIcon size={16} className="absolute left-2.5 top-2.5 text-zinc-500" />
+                </div>
+              )}
+              <div className="max-h-[320px] overflow-auto mt-2 divide-y divide-white/5">
+                {[{ value: "", label: placeholder, count: undefined }, ...filtered].map((o) => (
+                  <button key={o.value || "__all"}
+                    onClick={() => { onChange(o.value); setOpen(false); setQ(""); }}
+                    className={`w-full text-right px-3 py-2 text-sm hover:bg-white/5 rounded-lg flex items-center justify-between ${
+                      (o.value || "") === (value || "") ? "text-sky-300" : "text-zinc-200"
+                    }`}
+                  >
+                    <span className="truncate">{o.label}</span>
+                    {typeof o.count === "number" && (
+                      <span className="text-[11px] text-zinc-400">{o.count}</span>
+                    )}
+                  </button>
                 ))}
               </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
-  );
-}
-
-/* ---------------- Practice/Exams (list with filters/tags/sort) ---------------- */
-function PracticePanel() {
-  const [open, setOpen] = useState(false);
-
-  const solved = readLS("solved", {});
-  const toggleSolved = (id) => { const next = { ...solved, [id]: !solved[id] }; writeLS("solved", next); force(); };
-
-  const favored = readLS("favored", {});
-  const toggleFav = (id) => { const next = { ...favored, [id]: !favored[id] }; writeLS("favored", next); force(); };
-
-  // quick force update
-  const [, setTick] = useState(0);
-  const force = () => setTick((t) => t + 1);
-
-  const list = useMemo(() => {
-    return PRACTICE;
-  }, []);
-
-  return (
-    <section className="space-y-3">
-      <SectionCard
-        title="تاقی ئەنجام / تمرین (PDF)"
-        subtitle="فلتەری تاگەکان، ڕیزکردن، دڵخواز و 'کراوە' بۆ خۆت."
-        icon={BookOpenCheck}
-        open={open}
-        onToggle={() => setOpen(v=>!v)}
-      />
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900 space-y-2"
-          >
-            {/* List */}
-            {list.map((p) => (
-              <PracticeRow
-                key={p.id}
-                item={p}
-                solved={!!solved[p.id]}
-                favored={!!favored[p.id]}
-                onToggleSolved={() => toggleSolved(p.id)}
-                onToggleFav={() => toggleFav(p.id)}
-              />
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
-  );
-}
-
-function PracticeRow({ item, solved, favored, onToggleSolved, onToggleFav }) {
-  // addRecent is not defined here.
-  const handleLinkClick = (e) => {
-    // if (addRecent) addRecent({ id: item.id, title: item.title, href: item.href });
-  };
-  return (
-    <div className="p-4 rounded-2xl bg-zinc-900 ring-1 ring-white/10 space-y-3 transition-all duration-300 hover:ring-sky-500/50 hover:shadow-lg hover:shadow-sky-500/10">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-zinc-100 hover:text-sky-400 transition"
-            onClick={handleLinkClick}>
-            {item.title}
-          </a>
-          <p className="mt-1 text-xs text-zinc-400 flex flex-wrap items-center gap-2">
-            <span>{item.subject}</span>
-            <span className="text-zinc-600">•</span>
-            <span className="inline-flex items-center gap-1"><Users size={12} /> {item.teacher}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onToggleFav} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="دڵخواز">
-            {favored ? <Star className="text-amber-400" size={16} /> : <StarOff size={16} className="text-zinc-500" />}
-          </button>
-          <button onClick={onToggleSolved} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="کراوە">
-            {solved ? <CheckCircle2 className="text-emerald-500" size={16} /> : <Circle size={16} className="text-zinc-500" />}
-          </button>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-800">
-        {item.tags?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {item.tags.map((t, i) => (
-              <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700">{t}</span>
-            ))}
-          </div>
-        )}
-        <a
-          href={item.href} target="_blank" rel="noopener noreferrer"
-          className="ml-auto text-[12px] px-3 py-1.5 rounded-full bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/25 transition-all duration-300 hover:bg-sky-500/25 inline-flex items-center gap-1"
-          onClick={handleLinkClick}
-        >
-          <ExternalLink size={14} /> کردنەوە
-        </a>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Extra Panels: Answer Keys / Analyses / Summaries ---------------- */
-function SimpleCard({ item, icon: Icon, color, colorDark }) {
-  // addRecent is not defined here.
-  const handleCardClick = (e) => {
-    e.preventDefault();
-    // if (addRecent) addRecent({ id: item.id, title: item.title, href: item.href });
-    window.open(item.href, "_blank", "noopener,noreferrer");
-  };
-
-  return (
-    <a
-      href={item.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`group relative overflow-hidden rounded-3xl border border-${colorDark}/30 bg-white/50 backdrop-blur-sm shadow-md hover:shadow-xl hover:shadow-${color}/20 transition-all duration-300`}
-      onClick={handleCardClick}
-    >
-      <div className={`absolute inset-0 bg-gradient-to-br from-${color}-500/10 to-transparent z-0`} />
-      <div className="relative p-6 space-y-4 z-10">
-        <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 flex-shrink-0 rounded-full bg-${color}-500/15 flex items-center justify-center`}>
-            <Icon size={24} className={`text-${color}-400`} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-zinc-900 line-clamp-2">{item.title}</h3>
-            <p className="mt-0.5 text-sm text-zinc-600 line-clamp-1">{item.subject}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-          <span className={`px-3 py-1 rounded-full bg-${color}-500/10 text-${color}-600 ring-1 ring-${color}-500/20`}>{item.type}</span>
-          <span className={`px-3 py-1 rounded-full bg-${color}-500/10 text-${color}-600 ring-1 ring-${color}-500/20`}>{GRADE_NAME(item.grade)}</span>
-        </div>
-      </div>
-    </a>
-  );
-}
-
-function SimpleCardsPanel({ title, items, icon: Icon, type }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (open) { setLoading(true); const t = setTimeout(()=>setLoading(false), 300); return ()=>clearTimeout(t); }
-  }, [open]);
-  const colors = {
-    answer: { name: "emerald", icon: FileText },
-    analysis: { name: "amber", icon: FileText },
-    summary: { name: "rose", icon: StickyNote },
-  };
-
-  return (
-    <section className="space-y-3">
-      <SectionCard
-        title={title}
-        subtitle="کارتی قەشەنگ، کلیک بکە بۆ کردنەوەی پەیوەندیدار."
-        icon={Icon}
-        open={open}
-        onToggle={() => setOpen(v=>!v)}
-      />
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
-            className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-              {loading ? (
-                <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
-              ) : (
-                items.map((n) => (
-                  <SimpleCard
-                    key={n.id}
-                    item={{ ...n, type: typeLabel(n.type || type) }}
-                    icon={colors[type].icon}
-                    color={colors[type].name}
-                    colorDark={colors[type].name}
-                  />
-                ))
+              {value && (
+                <div className="pt-2">
+                  <button onClick={() => { onChange(""); setOpen(false); setQ(""); }}
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 text-zinc-300">
+                    <X size={14}/> سڕینەوەی فلتەر
+                  </button>
+                </div>
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </section>
-  );
-}
-
-/* ---------------- Favorites Panel ---------------- */
-function FavoritesPanel({ allItems, favored }) {
-  const [open, setOpen] = useState(false);
-  const favoriteItems = useMemo(() => {
-    return allItems.filter(item => favored[item.id]);
-  }, [allItems, favored]);
-
-  return (
-    <section className="space-y-3">
-      <SectionCard
-        title="دڵخوازەکان"
-        subtitle="کرتە بکە بۆ بینینی هەموو ئەو بابەتانەی کردووتن بە دڵخواز."
-        icon={Heart}
-        open={open}
-        onToggle={() => setOpen(v => !v)}
-      />
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
-            className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900"
-          >
-            {favoriteItems.length === 0 ? (
-              <p className="text-center text-zinc-500 py-4">
-                هیچ بابەتێک وەک دڵخواز زیاد نەکراوە. لەسەر کارتی بابەتەکە کرتە لە ئەستێرەکە بکە.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {favoriteItems.map((item) => (
-                  <SimpleCard key={item.id} item={item} icon={Star} color="amber" colorDark="amber" />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
-  );
-}
-
-
-/* ---------------- Recents & Favorites (summary bar) ---------------- */
-// Re-added addRecent to the top-level scope or ensure it's passed as a prop if used in sub-components
-function addRecent(r) {
-  const prev = readLS("recents", []);
-  const next = [r, ...prev.filter(x=>x.id!==r.id)].slice(0, 15);
-  writeLS("recents", next);
-}
-
-function MetaBar() {
-  const recents = readLS("recents", []);
-  const favored = readLS("favored", {});
-
-  const favCount = Object.values(favored).filter(Boolean).length;
-
-  if (recents.length === 0 && favCount === 0) return null;
-
-  return (
-    <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 p-3 bg-white dark:bg-zinc-900 text-[12.5px] flex flex-wrap items-center gap-2">
-      <Layers size={14} className="text-sky-500" />
-      {favCount > 0 && <span>دڵخواز: <strong>{favCount}</strong></span>}
-      {recents.length > 0 && (
-        <span className="flex items-center gap-1">
-          <Clock size={14} />
-          دوایین:
-          <span className="flex items-center gap-1">
-            {recents.slice(0,5).map((r,i)=>(
-              <a key={r.id} href={r.href} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted">
-                {i>0 && "، "}{r.title}
-              </a>
-            ))}
-          </span>
-        </span>
-      )}
     </div>
   );
 }
 
-/* ---------------- Share & Download helpers ---------------- */
-function shareLink(item) {
-  const url = item.href || window.location.href;
-  const text = item.title || "Exams";
-  if (navigator.share) {
-    navigator.share({ title: text, url }).catch(()=>{});
-  } else {
-    navigator.clipboard?.writeText(url);
-    alert("بەستەر کۆپی کرا.");
-  }
-}
-function stubBatchDownload() {
-  alert("Batch download: ئەمکردارە دێتە کارا کردنەوە لە داهاتوو (ZIP/pack). لە ئێستادا تکایە تاقیکردنەوەکان یەک بە یەک داگرە.");
-}
+/* ----------------- Item Card ----------------- */
+const TYPE_META = {
+  national_exam: { title: "ئەسیلە نیشتمانی", icon: ClipboardList },
+  important_exam: { title: "ئەسیلە گرنگ", icon: ShieldAlert },
+  important_note: { title: "تێبینی گرنگ", icon: FileText },
+};
 
-function clearRecents() {
-  writeLS("recents", []);
-  alert("لیستی دوایین پاک کرا.");
-}
-export default function ExamsPortalPro() {
-  const [subject, setSubject] = useState("math");
-  const [q, setQ] = useState("");
-  const [quickYear, setQuickYear] = useState("");
-  // --- New state for the overlay ---
-  const [isUnderConstruction, setIsUnderConstruction] = useState(false); // Set to 'true' to show the overlay
-  // --- End of new state ---
-
-  const allData = useMemo(() => {
-    const nationalItems = Object.values(NATIONAL).flatMap(subj =>
-      subj.years.flatMap(year =>
-        year.terms ? year.terms.map(term => {
-          // Find subject name and key based on the current `subj` object in NATIONAL
-          const subjectEntry = SUBJECTS.find(s => {
-            for (const key in NATIONAL) {
-              if (NATIONAL[key] === subj) {
-                return s.key === key;
-              }
-            }
-            return false;
-          });
-          const subjectName = subjectEntry?.name || 'Unknown Subject';
-          const subjectKey = subjectEntry?.key || 'unknown';
-
-          return {
-            id: `${subjectName}-${year.label}-${term}`,
-            title: `${subjectName} — ${year.label} (${term})`,
-            subject: "نیشتیمانی",
-            subjectKey: subjectKey, // Add subjectKey here
-            teacher: "ناونیشانی نیشتیمانی",
-            href: subj.termLinks[year.label][term],
-            type: "exam",
-            grade: 12
-          };
-        }) : []
-      )
-    );
-
-    return [...nationalItems, ...NOTES, ...PRACTICE, ...ANSWER_KEYS, ...ANALYSES, ...SUMMARIES];
-  }, []);
+function ItemCard({ item, favored, onToggleFav }) {
+  const [copied, setCopied] = useState(false);
+  const [hideImg, setHideImg] = useState(false);
+  const M = TYPE_META[item.item_type] || TYPE_META.national_exam;
+  const TypeIcon = (M && M.icon) || ClipboardList;
+  const hasYear = item.year_start && item.year_end;
+  const pdfOK = Boolean(item.pdf_url);
 
   return (
-    <>
-      <div dir="rtl" className="space-y-6">
-        {/* Hero */}
-        <div className="relative overflow-hidden rounded-3xl bg-zinc-900 ring-1 ring-white/10 p-8 sm:p-12">
-          <div className="absolute inset-0 bg-grid-pattern opacity-5" />
-          <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-6">
-            <div className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-sky-500/20 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 sm:w-20 sm:h-20 text-sky-300">
-                <path d="M4 19.5A2.5 2.5 0 016.5 17H20V6.5A2.5 2.5 0 0017.5 4H4v15.5zM12 21v-8a2.5 2.5 0 012.5-2.5h1" />
-                <path d="M18 19.5A2.5 2.5 0 0020.5 17H4v2.5a2.5 2.5 0 002.5 2.5h11a2.5 2.5 0 002.5-2.5z" />
-              </svg>
-            </div>
-            <div className="text-center sm:text-right">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white">ناوچەی زانیاری</h1>
-              <p className="mt-2 text-zinc-400 text-base">
-                بەدوای تاقیکردنەوە نیشتیمانییەکان، کورتکراوەکان، و تاقییەکانی ئەنجامداندا بگەڕێ.
-              </p>
-            </div>
+    <motion.div
+      /* CHANGE: render immediately; no IntersectionObserver dependency */
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, ease: EASE }}
+      whileHover={{ y: -2 }}
+      className="rounded-2xl border border-white/10 bg-zinc-900/60 hover:bg-zinc-900/80 overflow-hidden shadow-sm"
+    >
+      {/* Thumbnail (safe) */}
+      {!hideImg && item.thumb_url ? (
+        <div className="relative w-full aspect-video overflow-hidden">
+          <img
+            src={item.thumb_url}
+            alt={item.title}
+            className="w-full h-full object-cover"
+            onError={() => setHideImg(true)}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
+          <div className="absolute top-2 left-2">
+            <Pill className="bg-white/10 ring-white/20 text-zinc-100">{TYPE_META[item.item_type]?.title || ""}</Pill>
           </div>
         </div>
-
-        {/* Sections */}
-        <NationalDrillWrapper /> {/* Use the wrapper component here */}
-        <NotesPanel />
-        <PracticePanel />
-        <FavoritesPanel allItems={allData} favored={readLS("favored", {})} />
-
-        {/* Extra panels */}
-        <SimpleCardsPanel title="وەڵامنامەکان" items={ANSWER_KEYS} icon={FileText} type="answer" />
-        <SimpleCardsPanel title="ئانالیزەکان" items={ANALYSES} icon={FileText} type="analysis" />
-        <SimpleCardsPanel title="کورتکراوەکان" items={SUMMARIES} icon={StickyNote} type="summary" />
-
-        {/* Recents/Favorites summary */}
-        <MetaBar />
-      </div>
-
-      {/* --- The full-screen overlay component code is added here directly --- */}
-      <AnimatePresence>
-        {isUnderConstruction && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      ) : (
+        <div className="p-3 sm:p-4 pt-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg ring-1 ring-white/10 bg-white/5 flex items-center justify-center">
+              <TypeIcon size={16} className="text-zinc-200" />
+            </div>
+            <Pill className="bg-white/10 ring-white/20 text-zinc-200">{TYPE_META[item.item_type]?.title || ""}</Pill>
+          </div>
+        </div>
+      )}
+      <div className="p-3 sm:p-4">
+        <div className="flex items-start gap-3">
+          {!item.thumb_url && !hideImg && (
+            <div className="w-0.5 self-stretch bg-gradient-to-b from-white/10 via-white/5 to-transparent rounded-full" />
+          )}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-white line-clamp-2">{item.title}</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {hasYear && <YearBadge ys={item.year_start} ye={item.year_end} />}
+              {item.term && <TermBadge t={item.term} />}
+              {/* session + date badges */}
+              <SessionBadge s={item.session_no} />
+              <DateBadge d={item.date || item.created_at} />
+              <GradeBadge g={item.grade} />
+              {item.stream && <TrackBadge tr={item.stream} />}
+              {item.subject?.name && (
+                <Pill className="bg-purple-900/20 ring-purple-800/40 text-purple-300">{item.subject.name}</Pill>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onToggleFav}
+            className="px-2 py-1 rounded-lg text-xs font-semibold border bg-white/10 border-white/20 text-white/90 backdrop-blur hover:bg-white/20"
+            title="دڵخواز"
           >
-            <div className="absolute inset-0 backdrop-blur-md bg-zinc-950/70" />
-            
-            <div className="relative z-10 p-8 rounded-3xl border border-white/10 shadow-2xl bg-zinc-900/50 text-white text-center max-w-lg space-y-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mx-auto text-sky-400"
-              >
-                <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
-                <path d="M16 21V7" />
-                <path d="M8 21V7" />
-                <path d="M12 21V7" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M6 21v-3" />
-                <path d="M18 21v-3" />
-                <path d="M4 21v-3" />
-                <path d="M20 21v-3" />
-                <path d="M9 21v-3" />
-                <path d="M15 21v-3" />
-                <path d="M12 21v-3" />
-                <path d="M17 21v-3" />
-                <path d="M7 21v-3" />
-                <path d="M19 21v-3" />
-              </svg>
-              <h2 className="text-2xl font-bold">ئه‌م به‌شه‌ لەکارکردندایه‌.</h2>
-              <p className="text-zinc-300">
-                ئەم بەشە لە ماڵپەڕەکەمان لە ئێستادا گەشەپێدەدرێت و بەمزووانە بەردەست دەبێت. سوپاس بۆ ئارامگریت!
-              </p>
+            {favored ? (
+              <span className="inline-flex items-center gap-1"><Star size={14} className="text-amber-300" /> لابردن</span>
+            ) : (
+              <span className="inline-flex items-center gap-1"><StarOff size={14} className="text-zinc-400" /> دڵخواز</span>
+            )}
+          </button>
+        </div>
+
+        {pdfOK && (
+          <div className="mt-3 flex items-center gap-2">
+            <Link
+  to={`/viewer?u=${encodeURIComponent(toDl(item.pdf_url))}&t=${encodeURIComponent(item.title || "PDF")}`}
+  className="px-3 py-1.5 rounded-xl bg-zinc-800/60 ring-1 ring-zinc-700/70 text-zinc-100 inline-flex items-center gap-1 text-[12px] hover:bg-zinc-800"
+>
+  <ExternalLink size={14} /> بینین
+</Link>
+
+            <a
+              href={item.pdf_url}
+              download
+              className="px-3 py-1.5 rounded-xl bg-zinc-900/60 ring-1 ring-zinc-700/70 text-zinc-100 inline-flex items-center gap-1 text-[12px] hover:bg-zinc-900"
+            >
+              <Download size={14} /> داگرتن
+            </a>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(item.pdf_url);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1200);
+                } catch {}
+              }}
+              className="px-3 py-1.5 rounded-xl bg-zinc-900/60 ring-1 ring-zinc-700/70 text-zinc-100 inline-flex items-center gap-1 text-[12px] hover:bg-zinc-900"
+            >
+              {copied ? (<><Check size={14} /> کۆپی کرا</>) : (<><Copy size={14} /> کۆپی لینک</>)}
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+/* Small section title */
+function SectionTitle({ icon: Icon, children }) {
+  return (
+    <div className="flex items-center gap-2 text-zinc-300 text-sm font-semibold px-1">
+      {Icon ? <Icon size={14} className="text-sky-300" /> : null}
+      {children}
+    </div>
+  );
+}
+
+/* Spotlight (single "Newest" block) */
+function Spotlight({ items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <SectionTitle icon={Sparkles}>نوێترین</SectionTitle>
+      <div className="mt-2 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
+        {items.map((it, idx) => (
+          <motion.a
+            key={it.id}
+            href={it.pdf_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="snap-start min-w-[260px] max-w-[260px] rounded-xl border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] p-3"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, delay: idx * 0.03 }}
+          >
+            <div className="text-[11px] text-zinc-400">{TYPE_META[it.item_type]?.title}</div>
+            <div className="font-bold text-white text-sm line-clamp-2 mt-1">{it.title}</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {it.year_start && it.year_end && <YearBadge ys={it.year_start} ye={it.year_end} />}
+              {it.term && <TermBadge t={it.term} />}
+            </div>
+          </motion.a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ----------------- Subject Accordion (parent card) ----------------- */
+function SubjectAccordion({ subject, count, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <motion.div layout transition={{ duration: 0.25, ease: EASE }} className="rounded-2xl border border-white/10 bg-white/5 dark:bg-zinc-900/60 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-right px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between hover:bg-white/5"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-2 h-2 rounded-full bg-sky-400" />
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-extrabold text-white truncate">{subject}</h3>
+            <p className="text-[12px] text-zinc-400">{count} فایل</p>
+          </div>
+        </div>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="p-1 rounded-lg bg-white/5 border border-white/10">
+          <ChevronDown size={16} className="text-zinc-300" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: EASE }}
+          >
+            <div className="p-3 sm:p-4">
+              {children}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      {/* --- End of overlay code --- */}
-    </>
+    </motion.div>
+  );
+}
+
+/* ----------------- WIP / Fallback Panel ----------------- */
+function WIPPanel({ reason = "loading" }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-zinc-900/40 backdrop-blur p-6 sm:p-8 text-right">
+      <div className="flex items-start gap-3">
+        <div className="h-12 w-12 rounded-2xl bg-sky-500/20 ring-1 ring-sky-400/40 grid place-items-center">
+          <Hourglass className="w-6 h-6 text-cyan-300" />
+        </div>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold">ئەم پەڕەکە لەسەر کاردایە</h2>
+          <p className="text-sm text-zinc-400 mt-1">
+            {reason === "error" ? "هەڵە ڕویدا — کاتێک ئەم پەڕەیە چاک دەکەین." : "تکایە چاوەڕوان بە. زوو دایەخەینەوە."}
+          </p>
+          <div className="mt-3 inline-flex items-center gap-2 text-[12px] text-zinc-400">
+            <Wrench className="w-4 h-4" /> وەشانێکی کارا — فێتچەکان و فلتەرەکان دەکرێ زیاتر بکرێنەوە.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------- Loading banner ----------------- */
+function LoadingBanner() {
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-white/5 border border-white/10 text-zinc-200"
+         aria-live="polite" aria-busy="true">
+      <Hourglass className="w-4 h-4 animate-spin text-sky-300" />
+      لە بارکردندا...
+    </div>
+  );
+}
+
+/* ----------------- Main Section ----------------- */
+function DocumentsCenter() {
+  const [grade, setGrade] = useState(getGrade());
+  const track = getTrack();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [rows, setRows] = useState([]); // flattened items with type
+
+  // Filters
+  const [q, setQ] = useState("");
+  const dq = useDeferredValue(q.trim().toLowerCase());
+  const [subject, setSubject] = useState("");
+  const [year, setYear] = useState("");
+  const [sort, setSort] = useState("new"); // new | old
+  const [tab, setTab] = useState("all"); // all | national_exam | important_exam | important_note
+
+  // Header grade picker
+  const [showGradePicker, setShowGradePicker] = useState(false);
+  const updateGrade = (g) => { setGrade(g); lsSet("grade", g); };
+
+  // Favorites
+  const [fav, setFav] = useState(new Set(JSON.parse(lsGet("examFav","[]")||"[]")));
+  useEffect(()=>lsSet("examFav", Array.from(fav)),[fav]);
+  const isFav = (id) => fav.has(id);
+  const toggleFav = (id) => setFav(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // Fetch & flatten all paper types
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        setLoading(true); setError("");
+        let page = 1, last = 1, all = [];
+        do {
+          const res = await fetch(`${API_PAPERS_URL}?page=${page}`, { signal: ctrl.signal });
+          if (!res.ok) throw new Error("Failed to load papers");
+          const j = await res.json();
+          all = all.concat(Array.isArray(j?.data) ? j.data : []);
+          last = Number(j?.last_page || 1);
+          page += 1;
+        } while (page <= last);
+
+        const items = all.flatMap((p) => {
+          const pType = (p?.type || "national_exam").toLowerCase();
+          const subjectName = p?.subject?.name || p?.subject?.code || p?.title || "";
+          const it = Array.isArray(p.items) && p.items.length ? p.items : [{
+            id: `single-${p.id}`,
+            year_start: p.year_start || undefined,
+            year_end: p.year_end || undefined,
+            term: p.term || undefined,
+            url: p.pdf_url || p.file_url,
+            created_at: p.created_at,
+            session_no: p.session_no,
+            date: p.date || p.exam_date,
+          }];
+          return it.map(x => ({
+            id: `${p.id}-${x.id}`,
+            item_type: pType,
+            title: subjectName && (x.year_start && x.year_end)
+              ? `${subjectName} — ${x.year_start}-${x.year_end}${x.term?` • خولی ${x.term}`:""}`
+              : (p.title || subjectName || "بەلگە"),
+            subject: p.subject,
+            grade: Number(p.grade),
+            stream: (p.stream || "").toLowerCase() || "both",
+            year_start: x.year_start,
+            year_end: x.year_end,
+            term: x.term,
+            session_no: x.session_no ?? p.session_no ?? null,
+            date: x.date || x.exam_date || p.date || p.exam_date || null,
+            pdf_url: toCU(x.url || p.pdf_url || p.file_url || ""),
+            thumb_url: x.thumb_url || p.thumb_url || null,
+            created_at: x.created_at || p.created_at,
+            _score: Number(x.sort_order || 0)
+              || (Number(x.year_end||0)*100 + Number(x.year_start||0)*10 + Number(x.term||0)),
+          }));
+        });
+        setRows(items);
+      } catch (e) {
+        if (e?.name !== "AbortError") {
+          console.error(e);
+          setError("نەتوانرا بەلگەکان باردابێت.");
+        }
+      } finally { setLoading(false); }
+    })();
+    return () => ctrl.abort();
+  }, []);
+
+  // Track-aware pool (include BOTH with sci/lit) + tab type
+  const pool = useMemo(() => rows.filter(r => {
+    const byGrade = r.grade === Number(grade);
+    const st = (r.stream || "both").toLowerCase();
+    const byTrack = track === "common" ? true : (st === track || st === "both");
+    const byTab = tab === "all" ? true : (r.item_type === tab);
+    return byGrade && byTrack && byTab;
+  }), [rows, grade, track, tab]);
+
+  // Counts by type for tabs
+  const typeCounts = useMemo(() => {
+    const m = { all: 0, national_exam: 0, important_exam: 0, important_note: 0 };
+    for (const r of rows) {
+      const st = (r.stream || "both").toLowerCase();
+      const okTrack = track === "common" ? true : (st === track || st === "both");
+      const okGrade = r.grade === Number(grade);
+      if (okTrack && okGrade) {
+        m.all++; if (m[r.item_type] != null) m[r.item_type]++;
+      }
+    }
+    return m;
+  }, [rows, grade, track]);
+
+  // Subject/Year options
+  const subjectCounts = useMemo(() => {
+    const m = new Map();
+    for (const r of pool) { const k = r.subject?.name || "بی‌ناو"; m.set(k, (m.get(k)||0)+1); }
+    return Array.from(m.entries()).sort((a,b)=>a[0].localeCompare(b[0]));
+  }, [pool]);
+  const yearCounts = useMemo(() => {
+    const m = new Map();
+    for (const r of pool) { const k = `${r.year_start || "?"}–${r.year_end || "?"}`; m.set(k, (m.get(k)||0)+1); }
+    return Array.from(m.entries()).sort((a,b)=>b[0].localeCompare(a[0]));
+  }, [pool]);
+  const subjectOptions = useMemo(() => subjectCounts.map(([label,count]) => ({ value: label, label, count })), [subjectCounts]);
+  const yearOptions = useMemo(() => yearCounts.map(([label,count]) => ({ value: label, label, count })), [yearCounts]);
+
+  // Filter + sort + search
+  const data = useMemo(() => {
+    const filtered = pool.filter(r => {
+      const sOK = !subject || (r.subject?.name || "بی‌ناو").toLowerCase() === subject.toLowerCase();
+      const yOK = !year || `${r.year_start || "?"}–${r.year_end || "?"}` === year;
+      const qOK = !dq || `${r.title} ${r.subject?.name || ""}`.toLowerCase().includes(dq);
+      return sOK && yOK && qOK;
+    });
+    const sorted = filtered.slice().sort((a,b) => {
+      const A = a._score || 0, B = b._score || 0; return sort === "new" ? (B - A) : (A - B);
+    });
+    return sorted;
+  }, [pool, subject, year, dq, sort]);
+
+  // Group by subject (for accordions)
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const it of data) {
+      const key = it.subject?.name || "بی‌ناو"; if (!map.has(key)) map.set(key, []);
+      map.get(key).push(it);
+    }
+    for (const [k, arr] of map.entries())
+      map.set(k, arr.slice().sort((a,b)=> (sort === "new" ? (b._score||0)-(a._score||0) : (a._score||0)-(b._score||0))));
+    return Array.from(map.entries()).sort((a,b)=>a[0].localeCompare(b[0]));
+  }, [data, sort]);
+
+  // Per-accordion visible counts (simple paging)
+  const [visibleMap, setVisibleMap] = useState({});
+  const incVisible = (key) => setVisibleMap((m) => ({ ...m, [key]: (m[key] || 12) + 12 }));
+  useEffect(() => { setVisibleMap({}); }, [subject, year, dq, sort, tab, grade]);
+
+  // UI
+  const searchRef = useRef(null);
+
+  // SHOW WIP ONLY for error or truly empty after load
+  const showWIP =
+    (!!error) || (!loading && !error && rows.length === 0);
+
+  return (
+    <section className="space-y-4" dir="rtl">
+      {/* Header + controls */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white font-bold text-xl">
+            <Sparkles size={20} className="text-sky-300" /> خوێندنگەی پرسیاره‌كان و تێبینیەكان
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge asButton onClick={()=>setShowGradePicker(v=>!v)} className="text-indigo-300">
+              <GraduationCap size={14}/> {GRADE_NAME(grade)} <ChevronDown size={12}/>
+            </Badge>
+            <Badge className="text-fuchsia-300">
+              <FlaskConical size={14}/> {track === "scientific" ? "زانستی" : track === "literary" ? "ئەدەبی" : "گشتی"}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Grade dropdown */}
+        <AnimatePresence>
+          {showGradePicker && (
+            <>
+              <motion.div className="fixed inset-0 z-40" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowGradePicker(false)} />
+              <motion.div
+                initial={{opacity:0, y:-6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}}
+                transition={{duration:0.18}}
+                className="absolute z-50 mt-2 right-40 sm:right-48 rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur p-2 shadow-xl"
+              >
+                <div className="grid grid-cols-3 gap-2 w-[220px]">
+                  {[7,8,9,10,11,12].map(g => (
+                    <button key={g} onClick={()=>{updateGrade(g); setShowGradePicker(false);}}
+                      className={`px-3 py-2 rounded-xl text-sm border ${grade===g?'bg-sky-500/10 text-sky-300 border-sky-400/30':'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}>
+                      {GRADE_NAME(g)}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          <PillButton active={tab==='all'} onClick={()=>setTab('all')}>هەموو <span className="text-zinc-400">({typeCounts.all})</span></PillButton>
+          <PillButton active={tab==='national_exam'} onClick={()=>setTab('national_exam')}>ئەسیلە نیشتمانی <span className="text-zinc-400">({typeCounts.national_exam})</span></PillButton>
+          <PillButton active={tab==='important_exam'} onClick={()=>setTab('important_exam')}>ئەسیلەی گرنگ <span className="text-zinc-400">({typeCounts.important_exam})</span></PillButton>
+          <PillButton active={tab==='important_note'} onClick={()=>setTab('important_note')}>تێبینیە گرنگەکان <span className="text-zinc-400">({typeCounts.important_note})</span></PillButton>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Dropdown label="بابەت" value={subject} onChange={setSubject} options={subjectOptions} searchable placeholder="هەموو بابەتەکان" />
+          <Dropdown label="ساڵ" value={year} onChange={setYear} options={yearOptions} placeholder="هەموو ساڵەکان" />
+          <Dropdown label="ڕیزکردن" value={sort} onChange={setSort} options={[{value:"new",label:"نوێترین"},{value:"old",label:"کۆنترین"}]} placeholder="دیاریكردن" />
+          <div className="relative ml-auto min-w=[12rem] flex-1 sm:flex-none">
+            <input ref={searchRef} value={q} onChange={(e)=>setQ(e.target.value)} placeholder="گەڕان بە ناونیشان/بابەت/ساڵ…"
+              className="w-full h-10 bg-white/5 border border-white/10 rounded-xl pr-3 pl-8 text-sm text-zinc-200 outline-none focus:ring-2 focus:ring-sky-500" />
+            <SearchIcon size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          </div>
+          <Badge className="text-zinc-300"><Clock size={14}/> {data.length} دۆزراوە</Badge>
+        </div>
+
+        {/* Loading banner */}
+        {loading && <LoadingBanner />}
+      </div>
+
+      {/* Content */}
+      {showWIP ? (
+        <WIPPanel reason={error ? "error" : "loading"} />
+      ) : (
+        <div className="space-y-3">
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 animate-pulse h-48" />
+              <div className="rounded-2xl border border-white/10 bg-white/5 animate-pulse h-48" />
+              <div className="rounded-2xl border border-white/10 bg-white/5 animate-pulse h-48" />
+            </div>
+          ) : grouped.length === 0 ? (
+            <div className="py-10 text-center text-zinc-400">ھیچ فایلێك نەدۆزرایەوە. فلتەرەکان یان گەڕان گۆڕە.</div>
+          ) : (
+            grouped.map(([subj, items], idx) => {
+              const key = subj || `s-${idx}`;
+              const show = (visibleMap[key] ?? 12);
+              return (
+                <SubjectAccordion key={key} subject={subj} count={items.length}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {items.slice(0, show).map(it => (
+                      <ItemCard key={it.id} item={it} favored={isFav(it.id)} onToggleFav={() => toggleFav(it.id)} />
+                    ))}
+                  </div>
+                  {items.length > show && (
+                    <div className="pt-3 flex justify-center">
+                      <button onClick={() => incVisible(key)} className="px-4 py-2 rounded-xl text-sm font-semibold bg-white/5 border border-white/10 hover:bg-white/10 text-zinc-200">زیاتر پیشاندان</button>
+                    </div>
+                  )}
+                </SubjectAccordion>
+              );
+            })
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ----------------- Page shell ----------------- */
+export default function ExamsHome() {
+  return (
+    <div dir="rtl" className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900 text-zinc-50 p-3 sm:p-5">
+      <ErrorBoundary>
+        <div className="max-w-6xl mx-auto">
+          <DocumentsCenter />
+        </div>
+      </ErrorBoundary>
+    </div>
   );
 }

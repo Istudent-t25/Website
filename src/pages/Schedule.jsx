@@ -345,7 +345,7 @@ export default function Schedule() {
                 }`}
               >
                 {d} <span className="text-zinc-500 text-xs">· {fmtDate(weekDates[i])}</span>
-                {isToday && <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 ring-1 ring-emerald-500/20">ئەمسە</span>}
+                {isToday && <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 ring-1 ring-emerald-500/20">ئه‌مڕۆ</span>}
               </button>
             );
           })}

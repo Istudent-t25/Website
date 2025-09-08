@@ -209,7 +209,7 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
               <div className="flex items-center justify-between gap-3">
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2">
                   <Sparkles className="text-cyan-300" size={22} />
-                  بەخێربێیت بۆ iStudent — باشترین یارمەتی بۆ خوێندکار
+                  بەخێربێیت بۆ iStudent — باشترین یارمەتیده‌ر بۆ خوێندکار
                 </h1>
                 {appVersion && (
                   <span className="shrink-0 text-[11px] px-2 py-1 rounded-full bg-white/5 ring-1 ring-white/10 text-zinc-300">
@@ -219,7 +219,7 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
               </div>
 
               <p className="mt-2 text-zinc-300 leading-7 text-[15px]">
-                هەموو شتە گرنگەکان لە یەک شوێن: کتێب و بۆکڵێت، ڤیدیۆ، تاقیکردنەوەکان،
+                هەموو شتە گرنگەکان لە یەک شوێن: کتێب و مه‌لزه‌مه‌، ڤیدیۆ، تاقیکردنەوەکان،
                 خشتەی هەفتانە، و هێمای خوێندن. خێرا، ڕوون، و سازگار بۆ مۆبایل و کۆمپیوتەر.
               </p>
 
@@ -313,7 +313,7 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
                   </div>
                 </div>
                 <div className="mt-3 text-[12px] text-zinc-400 text-center">
-                  وێنەکان نمونەیەن — دەتوانیت بە وێنەی ئەپەکەت بگۆڕیت (‎/images/welcome/*)
+                  {/* وێنەکان نمونەیەن — دەتوانیت بە وێنەی ئەپەکەت بگۆڕیت (‎/images/welcome/*) */}
                 </div>
               </div>
             </div>
@@ -324,17 +324,17 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
             <Feature
               icon={<Rocket size={16} className="text-emerald-300" />}
               title="خێرا و سادە"
-              desc="PWA ـە؛ دەستگەیشتنێکی خێرا و کارکردنەکی ڕوون لەسەر هەموو ئامێر."
+              desc="ئێستا وێبسایته‌كه‌ به‌ شێوه‌یی به‌رنامه‌ دابگره‌ و به‌ ئاسانی كاری پێبكه‌،"
             />
             <Feature
               icon={<BookOpenCheck size={16} className="text-sky-300" />}
-              title="کتێب + بۆکڵێت"
+              title="کتێب + مه‌لزه‌مه‌"
               desc="هەموو بابەتەکان، بەڕێکخستن، فلتەرکردن، و گەڕانی خێرا."
             />
             <Feature
               icon={<Search size={16} className="text-indigo-300" />}
               title="گەڕانی زیرەک"
-              desc="بەپێی وانە، قۆناغ، مامۆستا، و شاخ (زانستی/ئەدەبی)."
+              desc="بەپێی وانە، قۆناغ، مامۆستا، و جۆر (زانستی/ئەدەبی)."
             />
             <Feature
               icon={<BellRing size={16} className="text-pink-300" />}
@@ -343,7 +343,7 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
             />
             <Feature
               icon={<Globe size={16} className="text-cyan-300" />}
-              title="کوردی + RTL"
+              title="کوردی"
               desc="بە زمانی کوردی و بە ڕاستەوخۆ ڕێکخستنی راست-بۆ-چەپ."
             />
             <Feature
@@ -366,7 +366,7 @@ export default function WelcomePWA({ afterPath = "/auth" }) {
                 <li>بەکارهێنانی <b>Chrome</b>.</li>
                 <li>ئەگەر دوگمەی <b>Install</b> دەربکەوێت، کلیک بکە.</li>
                 <li>ئەگەر نەبوو: سێ خاڵ <b>(⋮)</b> → <b>Add to Home screen</b> یان <b>Install app</b>.</li>
-                <li><b>Add</b> بکە → ئەپ لە سەرەکی دێت.</li>
+                <li><b>Add</b> بکە → ئەپه‌كه‌ داده‌به‌زێن .</li>
               </ol>
             </Step>
           )}

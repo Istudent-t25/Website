@@ -1,15 +1,9 @@
-
-// ================================================
-// src/pages/SubjectContent.jsx — کوردی‌کراو (stub)
-// - ڕێنووسی /subjects/:subject/:category
-// - هەموو هێڵەکان بە کوردی + تابەکانی هاوبەشیار
-// ================================================
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Home, ChevronLeft, BookOpen, BookText, BookMarked, Volume2, FileText,
-  Languages, Atom, Beaker, Microscope, Shapes, ListChecks, Sparkles
+  Languages, Atom, Beaker, Microscope, Shapes, ListChecks, Sparkles, Filter
 } from "lucide-react";
 
 const EASE = [0.22, 0.61, 0.36, 1];
@@ -83,11 +77,22 @@ export default function SubjectContent() {
   const meta = SUBJECTS[subject];
   const catMeta = meta?.categories?.[category];
 
+  const [view, setView] = useState("grid"); // grid | list
+  const [filter, setFilter] = useState("all"); // all | new | popular
+
+  // sync url when category missing → first category
+  useEffect(()=>{
+    if (meta && !catMeta) {
+      const firstKey = Object.keys(meta.categories)[0];
+      if (firstKey) navigate(`/subjects/${subject}/${firstKey}`, { replace: true });
+    }
+  }, [meta, catMeta, navigate, subject]);
+
   const CategoryTabs = useMemo(() => {
     if (!meta) return null;
     const Icon = meta.icon || BookOpen;
     return (
-      <div className="rounded-2xl border border-white/10 bg-zinc-950/70 backdrop-blur p-2 sm:p-3">
+      <div className="rounded-2xl border border-white/10 bg-zinc-950/70 backdrop-blur p-2 sm:p-3 sticky top-2 z-30">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 rounded-xl bg-white/10 text-white ring-1 ring-white/10">
             <Icon size={18} />
@@ -95,6 +100,10 @@ export default function SubjectContent() {
           <div>
             <h3 className="text-sm font-bold text-white">{meta.title}</h3>
             <p className="text-xs text-zinc-400">هاوبەشیارەکان</p>
+          </div>
+          <div className="ms-auto flex items-center gap-1">
+            <button onClick={()=>setView(v=>v==="grid"?"list":"grid")} className="px-2 py-1 rounded-lg text-[11px] bg-white/5 border border-white/10 hover:bg-white/10">{view==="grid"?"لیست":"گرید"}</button>
+            <button onClick={()=>setFilter(f=>f==="all"?"new":f==="new"?"popular":"all")} className="px-2 py-1 rounded-lg text-[11px] bg-white/5 border border-white/10 hover:bg-white/10 inline-flex items-center gap-1"><Filter className="w-3.5 h-3.5"/> {filter==="all"?"هەموو":"نوێ"}</button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -117,17 +126,25 @@ export default function SubjectContent() {
         </div>
       </div>
     );
-  }, [meta, subject, category, navigate]);
+  }, [meta, subject, category, navigate, view, filter]);
 
   const items = useMemo(() => {
     if (!meta || !catMeta) return [];
     const prefix = `${meta.title} • ${catMeta.label}`;
-    return Array.from({ length: 8 }).map((_, i) => ({
+    return Array.from({ length: 12 }).map((_, i) => ({
       id: `${subject}-${category}-${i}`,
       title: `${prefix} #${i + 1}`,
       desc: "ناوەڕۆکی نموونە — لێرە دەتوانی بابەتەکانی ڕاستی زیاد بکەیت.",
+      tag: i % 3 === 0 ? "نوێ" : i % 4 === 0 ? "باوەڕپێکراو" : "",
     }));
   }, [meta, catMeta, subject, category]);
+
+  const filteredItems = useMemo(()=>{
+    if (filter === "all") return items;
+    if (filter === "new") return items.filter(x=>x.tag === "نوێ");
+    if (filter === "popular") return items.filter(x=>x.tag === "باوەڕپێکراو");
+    return items;
+  }, [items, filter]);
 
   const gradient = meta?.gradient || "from-zinc-700 to-zinc-900";
   const Icon = meta?.icon || BookOpen;
@@ -198,31 +215,52 @@ export default function SubjectContent() {
           {/* تابەکان */}
           <div className="mb-3">{CategoryTabs}</div>
 
-          {/* گریدی ناوەڕۆکی نموونە */}
+          {/* گریدی ناوەڕۆک */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {items.map((it, idx) => (
-                <motion.div
-                  key={it.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, ease: EASE, delay: 0.03 * idx }}
-                  className="rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/70"
-                >
-                  <div className={`h-32 sm:h-36 bg-gradient-to-br ${gradient} opacity-80`} />
-                  <div className="p-3">
-                    <h3 className="text-sm font-bold text-white line-clamp-2">{it.title}</h3>
-                    <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{it.desc}</p>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Badge className="text-sky-200 border-sky-400/20">نموونە</Badge>
-                      <button className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">
-                        بینین
-                      </button>
+            {view === "grid" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {filteredItems.map((it, idx) => (
+                  <motion.div
+                    key={it.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: EASE, delay: 0.03 * idx }}
+                    className="rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/70"
+                  >
+                    <div className={`h-32 sm:h-36 bg-gradient-to-br ${gradient} opacity-80`} />
+                    <div className="p-3">
+                      <h3 className="text-sm font-bold text-white line-clamp-2">{it.title}</h3>
+                      <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{it.desc}</p>
+                      <div className="mt-3 flex items-center gap-2">
+                        {it.tag && <Badge className="text-emerald-200 border-emerald-400/20">{it.tag}</Badge>}
+                        <Badge className="text-sky-200 border-sky-400/20">نموونە</Badge>
+                        <button className="ms-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">
+                          بینین
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {filteredItems.map((it, idx)=> (
+                  <motion.div key={it.id} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{duration:.2, ease:EASE, delay: .02*idx}} className="py-3 flex items-start gap-3">
+                    <div className={`h-14 w-14 rounded-xl bg-gradient-to-br ${gradient} opacity-80 flex-shrink-0`}/>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-extrabold">{it.title}</h3>
+                        {it.tag && <Badge className="text-emerald-200 border-emerald-400/20">{it.tag}</Badge>}
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1">{it.desc}</p>
+                    </div>
+                    <div className="ms-auto">
+                      <button className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10">بینین</button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

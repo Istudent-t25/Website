@@ -19,18 +19,18 @@ import SoundsPage from "./pages/Sounds.jsx";
 import GrammarPage from "./pages/Grammers.jsx";
 import ProfileSettings from "./pages/ProfileSettings.jsx";
 import ExamBank from "./pages/ExamBank.jsx";
-import DeveloperPage from "./pages/DeveloperPage.jsx";
 import ExamsHome from "./pages/ExamsHome.jsx";
 import ResourceViewer from "./pages/ResourceViewer.jsx";
 import AuthWizard from "./pages/AuthWizard.jsx";
 import SubjectsPage from "./pages/Subjects.jsx";
 import SubjectContent from "./pages/SubjectContent.jsx";
 
-// NEW: Welcome + PWA tutor page (public)
+// Public
 import WelcomePWA from "./pages/WelcomePWA.jsx";
+import ExamsPage from "./pages/Exams.jsx";
 
 /* ─────────────────────────────
-   Auth Context (secure, real)
+   Auth Context
    ───────────────────────────── */
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -60,34 +60,19 @@ function AuthProvider({ children }) {
     const iv = setInterval(async () => {
       const u = auth.currentUser;
       if (u) {
-        try {
-          await u.getIdToken(true);
-        } catch {}
+        try { await u.getIdToken(true); } catch {}
       }
     }, 50 * 60 * 1000);
 
-    return () => {
-      unsubUser();
-      unsubTok();
-      clearInterval(iv);
-    };
+    return () => { unsubUser(); unsubTok(); clearInterval(iv); };
   }, []);
 
-  const value = useMemo(
-    () => ({
-      user,
-      token,
-      ready,
-      signOut: () => signOut(auth),
-    }),
-    [user, token, ready]
-  );
-
+  const value = useMemo(() => ({ user, token, ready, signOut: () => signOut(auth) }), [user, token, ready]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 /* ─────────────────────────────
-   Helpers for Welcome Gate
+   Welcome Gate
    ───────────────────────────── */
 const LS_HIDE = "welcome_pwa_hide";
 const LS_INSTALLED = "welcome_pwa_installed";
@@ -96,15 +81,13 @@ function isStandaloneDisplay() {
   try {
     return (
       window.matchMedia?.("(display-mode: standalone)")?.matches ||
-      // iOS Safari legacy
-      (navigator && (navigator).standalone === true)
+      (navigator && navigator.standalone === true)
     );
   } catch {
     return false;
   }
 }
 
-/** Decides whether we should show /welcome (first visit + not installed) */
 function shouldShowWelcomeNow() {
   const hide = localStorage.getItem(LS_HIDE) === "1";
   const installedFlag = localStorage.getItem(LS_INSTALLED) === "1";
@@ -112,10 +95,8 @@ function shouldShowWelcomeNow() {
   return !(hide || installedFlag || standalone);
 }
 
-/** Wrap routes so any path auto-redirects to /welcome once, unless hidden/installed */
 function WelcomeGate({ children }) {
   const location = useLocation();
-  // Don’t redirect if we’re already viewing /welcome
   if (location.pathname !== "/welcome" && shouldShowWelcomeNow()) {
     return <Navigate to="/welcome" replace />;
   }
@@ -153,7 +134,7 @@ function RedirectIfAuthed() {
 }
 
 /* ─────────────────────────────
-   Animated App Shell (single scroll layer)
+   Animated App Shell
    ───────────────────────────── */
 function AppShell() {
   const location = useLocation();
@@ -161,27 +142,26 @@ function AppShell() {
   const [headerH, setHeaderH] = useState(0);
 
   const pageMotion = useMemo(
-    () =>
-      prefersReduced
-        ? { initial: false, animate: false, exit: false }
-        : {
-            initial: { opacity: 0, y: 8 },
-            animate: { opacity: 1, y: 0 },
-            exit: { opacity: 0, y: -8 },
-            transition: { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] },
-          },
+    () => (prefersReduced
+      ? { initial: false, animate: false, exit: false }
+      : {
+          initial: { opacity: 0, y: 8 },
+          animate: { opacity: 1, y: 0 },
+          exit: { opacity: 0, y: -8 },
+          transition: { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] },
+        }),
     [prefersReduced]
   );
 
   return (
-    <div dir="rtl" className="bg-black text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+    // FIX: force dark shell with light text to avoid "black screen" in light mode
+    <div dir="rtl" className="bg-zinc-950 text-zinc-100">
       <Header onHeightChange={setHeaderH} />
 
       <main
         className="min-h-[100svh] overflow-y-auto custom-scroll px-2 md:px-6"
         style={{
-          paddingTop: 0,
-          // paddingTop: headerH || 0,
+          paddingTop: 0, // or headerH if you want to push content below header
           paddingBottom: "calc(30px + env(safe-area-inset-bottom, 0px))",
           WebkitOverflowScrolling: "touch",
           overscrollBehavior: "contain",
@@ -202,22 +182,22 @@ function AppShell() {
 }
 
 /* ─────────────────────────────
-   Main App with secured routing + Welcome gate
+   Main App
    ───────────────────────────── */
 export default function App() {
   return (
     <AuthProvider>
       <WelcomeGate>
         <Routes>
-          {/* Public: Welcome + PWA tutorial (auto-shown by WelcomeGate) */}
+          {/* Public: Welcome */}
           <Route path="/welcome" element={<WelcomePWA afterPath="/auth" />} />
 
-          {/* Public: Auth (redirect away if already signed in) */}
+          {/* Public: Auth */}
           <Route element={<RedirectIfAuthed />}>
             <Route path="/auth" element={<AuthWizard />} />
           </Route>
 
-          {/* Private: everything else */}
+          {/* Private */}
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<Dashboard />} />
@@ -229,8 +209,7 @@ export default function App() {
               <Route path="/exams" element={<ExamsHome />} />
               <Route path="/exams/bank" element={<ExamBank />} />
               <Route path="/settings" element={<ProfileSettings />} />
-              <Route path="/developer" element={<DeveloperPage />} />
-              <Route path="/subjects" element={<SubjectsPage />} />
+              <Route path="/subjects" element={<ExamsPage />} />
               <Route path="/subjects/:subject/:category" element={<SubjectContent />} />
             </Route>
             <Route path="/viewer" element={<ResourceViewer />} />

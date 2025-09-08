@@ -1,30 +1,28 @@
 // src/pages/ResourceViewer.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ExternalLink, Download, Copy, Check } from "lucide-react";
 
-// Normalize api.studentkrd.com links to direct PDF file
+/** Normalize *.studentkrd.com links:
+ *  - If already /api/v1/dl/..., leave as-is (strip query).
+ *  - If /storage/... -> rewrite to https://api.studentkrd.com/api/v1/dl/<rest>
+ */
 function normalizeStudentKrdStrict(raw) {
   if (!raw) return "";
   try {
-    const u = new URL(raw, location.origin);
-    if (u.hostname === "api.studentkrd.com") {
-      const full = u.pathname + (u.search || "");
-      const m = full.match(/([^\/?#]+\.pdf)(?:[?#].*)?$/i);
-      let file = m ? m[1] : null;
-      if (!file) {
-        const last = u.pathname.split("/").filter(Boolean).pop();
-        if (last && /^[a-z0-9-]{10,}$/i.test(last))
-          file = last.endsWith(".pdf") ? last : `${last}.pdf`;
-      }
-      if (file) {
-        u.pathname = `/api/dl/uploads/${file}`;
-        u.search = "";
-      }
+    const u = new URL(raw, window.location.origin);
+    if (/^\/api\/v1\/dl\//i.test(u.pathname)) { u.search = ""; return u.toString(); }
+    const isStudentKrd = /\.studentkrd\.com$/i.test(u.hostname);
+    const m = u.pathname.match(/^\/storage\/(.+)$/i);
+    if (isStudentKrd && m) {
+      u.hostname = "api.studentkrd.com";
+      u.pathname = `/api/v1/dl/${m[1]}`;
+      u.search = "";
+      return u.toString();
     }
-    return encodeURI(u.toString());
+    return u.toString();
   } catch {
-    try { return encodeURI(raw); } catch { return raw; }
+    return raw;
   }
 }
 
@@ -33,15 +31,16 @@ export default function ResourceViewer() {
   const { search } = useLocation();
   const q = new URLSearchParams(search);
   const rawUrl = q.get("u") || "";
-  const title = q.get("t") || "پیشاندان";
+  // Optional: &preferText=1 to force text-only render for tricky PDFs
+  const preferText = q.get("preferText") === "1";
 
   const normalizedUrl = useMemo(() => normalizeStudentKrdStrict(rawUrl), [rawUrl]);
-
   const [ready, setReady] = useState(false);
   const [progress, setProgress] = useState(null);
+  const [copied, setCopied] = useState(false);
   const iframeRef = useRef(null);
 
-  // Lock outer page scroll: only iframe scrolls
+  // Lock outer scroll — only iframe scrolls
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -49,12 +48,10 @@ export default function ResourceViewer() {
     const prevBodyOverflow = body.style.overflow;
     const prevHtmlOB = html.style.overscrollBehaviorY;
     const prevBodyOB = body.style.overscrollBehaviorY;
-
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
     html.style.overscrollBehaviorY = "none";
     body.style.overscrollBehaviorY = "none";
-
     return () => {
       html.style.overflow = prevHtmlOverflow;
       body.style.overflow = prevBodyOverflow;
@@ -63,7 +60,7 @@ export default function ResourceViewer() {
     };
   }, []);
 
-  // Listen for progress/ready messages from the inner viewer
+  // Progress + ready from inner viewer
   useEffect(() => {
     const onMsg = (e) => {
       if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
@@ -80,30 +77,76 @@ export default function ResourceViewer() {
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
+  // Build the pdf-viewer.html URL
+  // embed=1 → inner viewer hides its own UI/progress
+  // z=0.6   → default zoom
   const src = useMemo(() => {
     const viewerPath = "pdf-viewer.html";
-    const u = new URL(viewerPath, location.origin);
+    const u = new URL(viewerPath, window.location.origin);
     if (normalizedUrl) u.searchParams.set("file", normalizedUrl);
-    if (title) u.searchParams.set("t", title);
+    u.searchParams.set("embed", "1");
+    u.searchParams.set("z", "0.6");
+    if (preferText) u.searchParams.set("preferText", "1");
     return u.toString();
-  }, [normalizedUrl, title]);
+  }, [normalizedUrl, preferText]);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(normalizedUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {}
+  };
 
   return (
     <div dir="rtl" className="h-[100dvh] bg-zinc-950 text-zinc-50 grid grid-rows-[auto_1fr] overflow-hidden">
-      {/* Header (no scaling animations) */}
-      <div className="border-b border-white/10 bg-zinc-950/80 backdrop-blur">
-        <div className="px-3 py-2 flex items-center gap-2">
+      {/* Header (title removed; compact buttons) */}
+      <div className="border-b border-white/10 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md">
+        <div className="px-3 py-1.5 flex items-center justify-between gap-2">
           <button
             onClick={() => nav(-1)}
-            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 flex items-center gap-2"
+            className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 inline-flex items-center gap-1 text-[12px]"
+            title="گەڕانەوە"
           >
-            <ArrowRight size={16} /> گەڕانەوە
+            <ArrowRight size={14} /> گەڕانەوە
           </button>
-          <div className="truncate font-semibold text-sm sm:text-base">{title}</div>
+
+          <div className="flex items-center gap-1">
+            {normalizedUrl && (
+              <>
+                <a
+                  className="px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 inline-flex items-center gap-1 text-[12px]"
+                  href={normalizedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="کردنەوە لە لاپەڕەیەکی نوێ"
+                >
+                  <ExternalLink size={14} />
+                  کردنەوە
+                </a>
+                <a
+                  className="px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 inline-flex items-center gap-1 text-[12px]"
+                  href={normalizedUrl}
+                  title="داگرتن"
+                >
+                  <Download size={14} />
+                  داگرتن
+                </a>
+                <button
+                  onClick={copyLink}
+                  className="px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 inline-flex items-center gap-1 text-[12px]"
+                  title="لەبەرگرتنەوەی بەستەر"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? "لەبەرگیرا" : "لەبەرگرتنەوە"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {!ready && (
-          <div className="px-3 pb-2">
+          <div className="px-3 pb-1.5">
             <div className="h-1 w-full rounded bg-white/10 overflow-hidden">
               <div
                 className="h-full bg-emerald-400"

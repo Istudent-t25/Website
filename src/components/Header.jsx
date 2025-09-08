@@ -10,6 +10,7 @@ const tabs = [
   { to: "/subjects", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];
+
 function isActive(path, to) {
   if (to === "/") return path === "/";
   return path === to || path.startsWith(to.replace(/\/$/, ""));

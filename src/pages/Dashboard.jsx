@@ -461,7 +461,7 @@ function PomodoroTimer() {
             <ProgressRing value={pct} size={ringSize} />
             <div>
               <div className={`text-zinc-200 ${timeText} font-extrabold tabular-nums`}>{minutes}:{secs}</div>
-              <div className="text-xs text-zinc-400 mt-0.5">{mode === "work" ? "کاتێکی خوێندن" : "پشووی"} • {pct}%</div>
+              <div className="text-xs text-zinc-400 mt-0.5">{mode === "work" ? "کاتێکی خوێندن" : "پشوو"} • {pct}%</div>
 
               {/* On-the-fly +/- 1 min */}
               <div className="mt-3 flex items-center gap-2">
@@ -530,7 +530,7 @@ function TasksWidget({ storageKey = "istudent_tasks" }) {
   const del = (id) => setTasks((prev) => prev.filter((t) => t.id !== id));
   return (
     <Panel>
-      <PanelHeader><PanelTitle className="text-cyan-300"><Target size={18}/> ئەرکان</PanelTitle><PanelDesc>مانەوەی کارەکانت — هەرچی کەمتر، باشتر</PanelDesc></PanelHeader>
+      <PanelHeader><PanelTitle className="text-cyan-300"><Target size={18}/> ئه‌ركه‌كان</PanelTitle><PanelDesc>مانەوەی کارەکانت — هەرچی کەمتر، باشتر</PanelDesc></PanelHeader>
       <PanelBody>
         <div className="flex items-center gap-2 mb-3">
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e)=> e.key === "Enter" && addTask()} className="flex-1 bg-zinc-900/60 ring-1 ring-zinc-800/70 rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none" placeholder="ئەرکی نوێ بنووسە…" />
@@ -558,7 +558,7 @@ function QuickNotes({ storageKey = "istudent_notes" }) {
   useEffect(() => { const id = setTimeout(() => { try { localStorage.setItem(storageKey, val); } catch {} }, 300); return () => clearTimeout(id); }, [val, storageKey]);
   return (
     <Panel>
-      <PanelHeader><PanelTitle className="text-amber-300"><BookOpenCheck size={18}/> تێبینی خێرا</PanelTitle><PanelDesc>شتێکی گرنگ بنووسە — خۆکارانە پارێزرێت</PanelDesc></PanelHeader>
+      <PanelHeader><PanelTitle className="text-amber-300"><BookOpenCheck size={18}/> تێبینی خێرا</PanelTitle><PanelDesc>شتێکی گرنگ بنووسە — خۆکارانە ده‌مێنێته‌وه‌</PanelDesc></PanelHeader>
       <PanelBody>
         <textarea value={val} onChange={(e) => setVal(e.target.value)} rows={7} className="w-full bg-zinc-900/60 ring-1 ring-zinc-800/70 rounded-2xl p-3 text-sm text-zinc-200 outline-none resize-y" placeholder="بنووسە: فۆرمولا، مات، ژمارەی وانە..." />
         <div className="mt-2 text-[12px] text-zinc-500">Autosaved ✓</div>
@@ -729,10 +729,10 @@ export default function Dashboard() {
 
         {/* QUICK ACTIONS */}
         <div className="col-span-full lg:col-span-1 xl:col-span-2 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 z-10">
-          <QuickAction icon={Book} text="کتێبەکان" sub="هەموو وانەکان" to="/students" />
-          <QuickAction icon={NotebookText} text="مەلزمەکان" sub="خلاصە و تمرین" to="/students?t=booklet" />
-          <QuickAction icon={Video} text="ڤیدیۆکان" sub="فیرکاری بەدەنگ" to="/students?t=videos" />
-          <QuickAction icon={CalendarDays} text="خشتە" sub="کاتژمێری ئێمە" to="/schedule" />
+          <QuickAction icon={Book} text="کتێبەکان"  to="/students" />
+          <QuickAction icon={NotebookText} text="مەلزمەکان" to="/students?t=booklet" />
+          <QuickAction icon={Video} text="ڤیدیۆکان"  to="/students?t=videos" />
+          <QuickAction icon={CalendarDays} text="خشتە"  to="/schedule" />
         </div>
 
         {/* TIMER + TASKS */}
@@ -837,7 +837,7 @@ export default function Dashboard() {
 
         {/* QUOTE */}
         <Panel className="col-span-full sm:col-span-1 lg:col-span-2 xl:col-span-2 relative z-10 bg-gradient-to-b from-zinc-900/70 to-zinc-950/70">
-          <PanelHeader><PanelTitle className="text-amber-300"><Lightbulb width={18} height={18} /> هێمای ئەمڕۆ</PanelTitle><PanelDesc>هۆسەرۆکی لەخۆگر</PanelDesc></PanelHeader>
+          <PanelHeader><PanelTitle className="text-amber-300"><Lightbulb width={18} height={18} /> هێمای ئەمڕۆ</PanelTitle><PanelDesc>قووتابی به‌توانا</PanelDesc></PanelHeader>
           <PanelBody><p className="text-lg text-zinc-200 leading-7 font-medium">{motivationalQuote}</p></PanelBody>
           <Spotlight className="top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30" />
         </Panel>

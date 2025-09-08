@@ -1,4 +1,4 @@
-// src/pages/AuthWizard.jsx — ویزاردی چوونەژوورەوە/تۆمارکردن بە کوردی + وەرگێڕانی هەڵەکانی Firebase
+// src/pages/AuthWizard.jsx — add track picker when grade > 9 (save to localStorage)
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -94,7 +94,6 @@ function kuAuthError(e, { context = "generic" } = {}) {
     "auth/operation-not-allowed": "ئەم جۆرە چوونەژوورەوە ڕێگەپێنەدراوە.",
     "auth/requires-recent-login": "تکایە دووبارە بچۆ ژوورەوە و هەوڵبدە."
   };
-  // هەندێک ڕێنمایی زیاتر بۆ هەندێ هەڵەی دیاریکراو
   if (code === "auth/invalid-credential" && context === "login") {
     return "ئیمەیل یان وشەی نهێنی هەڵەیە. تکایە دوبارە دابننەوە یان وشەی نهێنیت لەبیرکردووەتەوە؟";
   }
@@ -166,6 +165,13 @@ export default function AuthWizard() {
   const [grade, setGrade] = useState(localStorage.getItem("grade") || "12");
   const [gender, setGender] = useState(localStorage.getItem("gender") || "male");
 
+  // NEW: track (only required when grade > 9)
+  const [track, setTrack] = useState(() => {
+    const g = Number(localStorage.getItem("grade") || "12");
+    const existing = localStorage.getItem("track") || "";
+    return g > 9 ? existing : "common";
+  });
+
   // focus
   const firstInputRef = useRef(null);
   useEffect(() => { firstInputRef.current?.focus?.(); }, [mode, step]);
@@ -201,9 +207,13 @@ export default function AuthWizard() {
     } else {
       if (step === 1) return !!name && !!email;
       if (step === 2) return !!pw && pw.length >= 8 && pw2 === pw;
-      if (step === 3) return !!grade && (gender === "male" || gender === "female");
+      if (step === 3) {
+        const needsTrack = Number(grade) > 9;
+        const trackOK = needsTrack ? (track === "scientific" || track === "literary") : true;
+        return !!grade && (gender === "male" || gender === "female") && trackOK;
+      }
     }
-  }, [mode, step, email, name, pw, pw2, grade, gender]);
+  }, [mode, step, email, name, pw, pw2, grade, gender, track]);
 
   /* ---------- کردارەکان ---------- */
   async function doGoogle() {
@@ -212,9 +222,15 @@ export default function AuthWizard() {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
 
-      const g = localStorage.getItem("grade");
+      const g = Number(localStorage.getItem("grade") || "0");
       const gen = localStorage.getItem("gender");
-      if (g && (gen==="male"||gen==="female")) {
+      const tr = localStorage.getItem("track");
+
+      const hasBasics = g > 0 && (gen === "male" || gen === "female");
+      const needsTrack = g > 9;
+      const hasTrack = tr === "scientific" || tr === "literary";
+
+      if (hasBasics && (!needsTrack || hasTrack)) {
         burstConfetti();
         setTimeout(()=> nav(backTo, { replace: true }), 600);
       } else {
@@ -244,6 +260,11 @@ export default function AuthWizard() {
     if (!name || !email || !pw || pw !== pw2) return;
     setLoading(true);
     try {
+      // Save track to localStorage (and default to "common" for grade <= 9)
+      const needsTrack = Number(grade) > 9;
+      const toStore = needsTrack ? (track || "scientific") : "common";
+      localStorage.setItem("track", toStore);
+
       const cr = await createUserWithEmailAndPassword(auth, email, pw);
       if (name) await updateProfile(cr.user, { displayName: name });
       try { await sendEmailVerification(cr.user); } catch {}
@@ -407,13 +428,52 @@ export default function AuthWizard() {
               key={g}
               ref={g===GRADES[0] ? firstInputRef : undefined}
               type="button"
-              onClick={() => setGrade(g)}
+              onClick={() => {
+                setGrade(g);
+                if (Number(g) > 9) {
+                  const prev = localStorage.getItem("track") || "";
+                  setTrack(prev); // require fresh selection if empty
+                } else {
+                  setTrack("common");
+                  localStorage.setItem("track", "common");
+                }
+              }}
               className={cls("px-3 py-2 rounded-xl border text-sm transition",
                 grade===g?"bg-emerald-500 text-black border-emerald-300":"bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
             >{g}</button>
           ))}
         </div>
+
+        {/* NEW: Track selector for grade > 9 */}
+        {Number(grade) > 9 && (
+          <div className="mt-3">
+            <div className="mb-1.5 inline-flex items-center gap-2 text-zinc-300 text-sm">
+              <GraduationCap className="h-4 w-4" /> تۆ زانستی یان وێژەیی؟
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setTrack("scientific"); localStorage.setItem("track","scientific"); }}
+                className={cls("px-3 py-2 rounded-xl border text-sm transition",
+                  track==="scientific" ? "bg-cyan-500 text-black border-cyan-300"
+                                       : "bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
+              >
+                زانستی
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTrack("literary"); localStorage.setItem("track","literary"); }}
+                className={cls("px-3 py-2 rounded-xl border text-sm transition",
+                  track==="literary" ? "bg-cyan-500 text-black border-cyan-300"
+                                     : "bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
+              >
+                وێژەیی
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
       <div>
         <div className="mb-1.5 inline-flex items-center gap-2 text-zinc-300 text-sm"><Users className="h-4 w-4" /> {STR.gender}</div>
         <div className="grid grid-cols-2 gap-2">

@@ -1,71 +1,106 @@
 <!doctype html>
-<html lang="ku" dir="rtl">
+<html >
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PDF</title>
+
+  <!-- PDF.js text layer support -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.css">
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.js"></script>
+
+  <!-- Fonts for text-only fallback -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Kufi+Arabic:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
-    :root { --bg:#0b0c10; --fg:#f5f5f6; --ring:#1f2937; --card:#0f1117; }
+    :root { --bg:#0a0b0f; --fg:#f5f6f8; --ring:#1f2937; --card:#0e1117; --muted:#94a3b8; --acc:#34d399; }
     * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     html,body { height:100%; }
-    body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; overflow:hidden; }
+    body { margin:0; background:#0a0b0f; color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial; overflow:hidden; }
 
-    /* Minimal fixed bar (no zoom controls) */
-    .bar { position:fixed; inset:0 0 auto 0; height:44px; display:flex; align-items:center; gap:.5rem;
-      padding:0 .6rem; background:#0d0f15cc; border-bottom:1px solid var(--ring); backdrop-filter:blur(8px); z-index:10; }
-    .title { font-size:.9rem; opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    /* Only this scrolls */
-    #viewer { position:fixed; inset:44px 0 0 0; overflow:auto; overscroll-behavior:contain; padding:.75rem .5rem 1.25rem; touch-action:pan-y; }
-
-    /* Pages */
-    .page { display:grid; place-items:center; width:100%; margin:.5rem auto; }
-    .placeholder {
-      width:min(900px, 98vw);
-      height:70vh; max-height:1200px; min-height:420px;
-      background:linear-gradient(90deg, #0f1117, #10131a);
-      border:1px solid var(--ring); border-radius:.75rem;
-      position:relative; overflow:hidden;
+    /* Compact top bar (no title) */
+    .bar {
+      position:fixed; inset:0 0 auto 0; height:42px;
+      display:flex; align-items:center; justify-content:flex-end;
+      gap:.45rem; padding:0 .6rem;
+      background:#0c1016cc; border-bottom:1px solid var(--ring);
+      backdrop-filter:blur(10px); z-index:10;
     }
-    .placeholder::after {
-      content:""; position:absolute; inset:0;
-      background:linear-gradient(90deg, transparent, #ffffff10, transparent);
-      transform:translateX(-100%); animation:sh 1.4s infinite;
+    .actions { display:flex; align-items:center; gap:.35rem; }
+    .btn {
+      display:inline-flex; align-items:center; gap:.3rem;
+      padding:.3rem .5rem; border:1px solid #ffffff10; background:#ffffff09; color:var(--fg);
+      border-radius:.55rem; font-size:.75rem; text-decoration:none;
     }
-    @keyframes sh { to { transform:translateX(100%); } }
+    .btn:hover { background:#ffffff12; }
 
-    canvas { display:block; background:var(--card); border:1px solid var(--ring); border-radius:.75rem; }
+    #viewer { position:fixed; inset:42px 0 0 0; overflow:auto; overscroll-behavior:contain; padding:.8rem .55rem 1.2rem; touch-action:pan-y; }
+    .page { display:grid; place-items:center; width:100%; margin:.55rem auto; }
+    .pageBox { position:relative; width:min(980px, 98vw); box-shadow:0 10px 30px #00000060; border-radius:.8rem; overflow:hidden; background:var(--card); }
+    canvas { display:block; border:1px solid var(--ring); border-radius:.8rem; width:100%; height:auto; }
 
-    /* Progress bar area */
-    .prog { position:fixed; left:0; right:0; top:44px; height:3px; background:#ffffff12; z-index:12; }
-    .prog>span { display:block; height:100%; width:10%; background:#34d399; transition:width 150ms linear; }
+    .textLayer { position:absolute; inset:0; color:transparent; user-select:text; -webkit-user-select:text; pointer-events:auto; }
+    .textLayer span, .textLayer br { color:transparent !important; }
+
+    /* Text-only fallback */
+    .textMode canvas { display:none; }
+    .textMode .textLayer { color:#e5e7eb; font-family:"Noto Naskh Arabic","Noto Kufi Arabic",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+    .textMode .textLayer span, .textMode .textLayer br { color:#e5e7eb !important; }
+
+    .prog { position:fixed; left:0; right:0; top:42px; height:3px; background:#ffffff12; z-index:12; }
+    .prog>span { display:block; height:100%; width:10%; background:var(--acc); transition:width 150ms linear; }
     .prog.hide { opacity:0; transition:opacity .25s ease; }
+
+    .indicator { position:fixed; bottom:10px; inset-inline-end:12px; z-index:15; background:#0c1016cc; border:1px solid var(--ring);
+      border-radius:.55rem; padding:.3rem .5rem; font-size:.72rem; color:var(--muted); backdrop-filter:blur(10px); }
+
+    body.embed .bar, body.embed .prog { display:none !important; }
+    body.embed #viewer { inset:0 0 0 0; }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
   <div class="bar">
-    <div id="barTitle" class="title">PDF</div>
+    <div class="actions">
+      <a id="openLink" class="btn" href="#" target="_blank" rel="noreferrer">کردنەوە</a>
+      <a id="downloadLink" class="btn" href="#">داگرتن</a>
+    </div>
   </div>
   <div id="prog" class="prog"><span id="progFill"></span></div>
   <main id="viewer" aria-label="PDF viewer"></main>
+  <div id="indicator" class="indicator" style="display:none">پەڕە 1/1</div>
 
   <script>
-    const qs = new URLSearchParams(location.search);
-    const fileUrl = qs.get("file");
-    const docTitle = qs.get("t") || "PDF";
-    document.getElementById("barTitle").textContent = docTitle;
+    const qs          = new URLSearchParams(location.search);
+    const fileUrl     = qs.get("file");
+    const Z_PARAM     = qs.get("z");
+    const EMBED       = qs.get("embed") === "1" || (window.self !== window.top);
+    const preferText  = qs.get("preferText") === "1";
+    if (EMBED) document.body.classList.add("embed");
 
-    const viewer = document.getElementById("viewer");
-    const prog = document.getElementById("prog");
-    const progFill = document.getElementById("progFill");
+    const viewer       = document.getElementById("viewer");
+    const prog         = document.getElementById("prog");
+    const progFill     = document.getElementById("progFill");
+    const indicator    = document.getElementById("indicator");
+    const openLink     = document.getElementById("openLink");
+    const downloadLink = document.getElementById("downloadLink");
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    if (fileUrl) {
+      openLink.href = fileUrl;
+      downloadLink.href = fileUrl;
+      downloadLink.setAttribute("download", "");
+    }
 
-    const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    // PDF.js worker + resources
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    const CMAP_URL      = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/";
+    const STD_FONTS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/";
+
+    const DPR        = Math.min(window.devicePixelRatio || 1, 1.6);
+    const BASE_SCALE = Number.isFinite(Number(Z_PARAM)) ? Math.max(0.1, Number(Z_PARAM)) : 0.6;
+
     let pdfDoc = null;
-    let fitScale = 1;
+    let renderScale = BASE_SCALE;
     let firstReadyPosted = false;
 
     function post(msg){ try { window.parent.postMessage(msg, "*"); } catch(e){} }
@@ -84,16 +119,14 @@
         }
         return ab;
       }
-      const chunks = [];
-      let received = 0;
+      const chunks = []; let received = 0;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
         received += value.length;
-        const percent = total ? (received/total*100) : null;
-        if (percent != null) {
-          const p = Math.round(percent);
+        if (total) {
+          const p = Math.round((received/total)*100);
           progFill.style.width = p + "%";
           post({ type:"pdfviewer:progress", loaded: received, total, percent: p });
         }
@@ -105,125 +138,177 @@
     function pageWrapper() {
       const wrap = document.createElement("div");
       wrap.className = "page";
-      const ph = document.createElement("div");
-      ph.className = "placeholder";
-      wrap.appendChild(ph);
-      return { wrap, ph };
+      const box = document.createElement("div");
+      box.className = "pageBox";
+      wrap.appendChild(box);
+      return { wrap, box };
+    }
+
+    function looksRTL(textItems) {
+      let total = 0, rtl = 0;
+      for (const it of textItems || []) {
+        const s = it?.str || "";
+        for (let i=0;i<s.length;i++) {
+          const cp = s.codePointAt(i);
+          total++;
+          if ((cp>=0x0600 && cp<=0x06FF) || (cp>=0x0750 && cp<=0x077F) || (cp>=0x08A0 && cp<=0x08FF) || (cp>=0xFB50 && cp<=0xFDFF) || (cp>=0xFE70 && cp<=0xFEFF)) {
+            rtl++;
+          }
+        }
+      }
+      return total > 0 && (rtl / total) >= 0.3;
+    }
+
+    function updateIndicator(cur, total) {
+      indicator.style.display = "block";
+      indicator.textContent = `پەڕە ${cur}/${total}`;
     }
 
     async function openPdf(url) {
-      if (!url) return;
+      if (!url) {
+        viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">ناونیشانی فایڵ نەدۆزرایەوە.</div>';
+        return;
+      }
 
-      // stream with progress
       let data;
       try { data = await fetchWithProgress(url); }
       catch(e) {
         viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">نەتوانرا PDF بار بکرێت.</div>';
         return;
       }
-      pdfDoc = await pdfjsLib.getDocument({ data }).promise;
 
-      // compute fit-to-width from page 1 ONLY (no zoom controls)
+      pdfDoc = await pdfjsLib.getDocument({
+        data,
+        cMapUrl: CMAP_URL,
+        cMapPacked: true,
+        standardFontDataUrl: STD_FONTS_URL,
+        disableFontFace: false,
+        enableXfa: true
+      }).promise;
+
+      // Fit/zoom
       const p1 = await pdfDoc.getPage(1);
       const vp1 = p1.getViewport({ scale: 1 });
-      fitScale = viewer.clientWidth / vp1.width;
+      const fitWidthScale = viewer.clientWidth / vp1.width;
+      renderScale = Math.min(BASE_SCALE, fitWidthScale);
 
-      // Build lightweight placeholders (no canvases yet)
+      // Skeletons
       viewer.innerHTML = "";
       const frag = document.createDocumentFragment();
       for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const { wrap } = pageWrapper();
+        const { wrap, box } = pageWrapper();
+        box.style.minHeight = Math.floor((vp1.height / vp1.width) * Math.min(980, viewer.clientWidth)) + "px";
         wrap.dataset.index = i;
         frag.appendChild(wrap);
       }
       viewer.appendChild(frag);
 
-      // Lazy render with IntersectionObserver
       setupLazyRendering();
+      document.getElementById("prog").classList.add("hide");
+      updateIndicator(1, pdfDoc.numPages);
 
-      // hide progress bar
-      prog.classList.add("hide");
+      if (preferText) viewer.classList.add("textMode");
     }
 
     function setupLazyRendering() {
+      const total = pdfDoc.numPages;
+
       const io = new IntersectionObserver((entries) => {
         entries.forEach(async (entry) => {
           if (!entry.isIntersecting) return;
           const wrap = entry.target;
           const idx = Number(wrap.dataset.index);
           if (!idx || wrap.dataset.rendered === "1") return;
-
           wrap.dataset.rendered = "1";
 
-          // render page when visible
+          const box  = wrap.querySelector(".pageBox");
           const page = await pdfDoc.getPage(idx);
-          const vp = page.getViewport({ scale: fitScale });
+          const vp   = page.getViewport({ scale: renderScale });
 
-          // create canvas
+          // Canvas layer
           const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d", { alpha: false });
-          const ratio = DPR;
-
+          const ctx    = canvas.getContext("2d", { alpha: false });
+          const ratio  = DPR;
           canvas.width  = Math.floor(vp.width * ratio);
           canvas.height = Math.floor(vp.height * ratio);
-          canvas.style.width = Math.floor(vp.width) + "px";
+          canvas.style.width  = Math.floor(vp.width) + "px";
           canvas.style.height = Math.floor(vp.height) + "px";
 
-          // swap placeholder with canvas
-          wrap.innerHTML = "";
-          wrap.appendChild(canvas);
+          box.innerHTML = "";
+          box.appendChild(canvas);
 
-          await page.render({
-            canvasContext: ctx,
-            transform: [ratio,0,0,ratio,0,0],
-            viewport: vp
-          }).promise;
+          await page.render({ canvasContext: ctx, transform: [ratio,0,0,ratio,0,0], viewport: vp }).promise;
+
+          // Text layer (selectable / proper shaping)
+          const textLayerDiv = document.createElement("div");
+          textLayerDiv.className = "textLayer";
+          box.appendChild(textLayerDiv);
+
+          const textContent = await page.getTextContent({ includeMarkedContent: true });
+          if (looksRTL(textContent.items)) textLayerDiv.dir = "rtl";
+
+          const textLayer = pdfjsViewer.renderTextLayer({
+            textContent,
+            container: textLayerDiv,
+            viewport: vp,
+            textDivs: [],
+            enhanceTextSelection: true,
+          });
+          await textLayer.promise;
 
           if (!firstReadyPosted) {
             firstReadyPosted = true;
             post({ type:"pdfviewer:ready" });
           }
         });
-      }, { root: viewer, rootMargin: "500px 0px 800px 0px", threshold: 0.01 });
+      }, { root: viewer, rootMargin: "600px 0px 900px 0px", threshold: 0.01 });
 
-      // observe all pages
       viewer.querySelectorAll(".page").forEach(el => io.observe(el));
 
-      // kick-start: scroll a pixel to trigger IO on iOS
-      setTimeout(() => { viewer.scrollTop = viewer.scrollTop + 1; viewer.scrollTop = viewer.scrollTop - 1; }, 50);
+      // Current page indicator
+      const curIO = new IntersectionObserver((entries) => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a,b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length) {
+          const idx = Number(visible[0].target.dataset.index || 1);
+          updateIndicator(Math.max(1, Math.min(idx, total)), total);
+        }
+      }, { root: viewer, threshold: 0.6, rootMargin: "0px 0px -40% 0px" });
+
+      viewer.querySelectorAll(".page").forEach(el => curIO.observe(el));
+
+      setTimeout(() => { viewer.scrollTop += 1; viewer.scrollTop -= 1; }, 50);
     }
 
-    // Only recompute fitScale if WIDTH actually changed a lot (avoid mobile URL bar height jitters)
-    let lastW = window.innerWidth;
-    let resizeT;
+    // Reflow on width change
+    let lastW = window.innerWidth; let resizeT;
     window.addEventListener("resize", () => {
-      const w = window.innerWidth;
-      if (Math.abs(w - lastW) < 40) return; // ignore small/height-only changes
-      lastW = w;
+      const w = window.innerWidth; if (Math.abs(w - lastW) < 40) return; lastW = w;
       if (!pdfDoc) return;
       clearTimeout(resizeT);
       resizeT = setTimeout(async () => {
-        // Rebuild placeholders; pages will re-render lazily at new width
         const p1 = await pdfDoc.getPage(1);
         const vp1 = p1.getViewport({ scale: 1 });
-        fitScale = viewer.clientWidth / vp1.width;
+        const fitWidthScale = viewer.clientWidth / vp1.width;
+        renderScale = Math.min(BASE_SCALE, fitWidthScale);
 
         const scrollYRel = viewer.scrollTop / Math.max(1, viewer.scrollHeight - viewer.clientHeight);
-
         viewer.innerHTML = "";
         const frag = document.createDocumentFragment();
         for (let i = 1; i <= pdfDoc.numPages; i++) {
-          const { wrap } = pageWrapper();
+          const { wrap, box } = pageWrapper();
+          box.style.minHeight = Math.floor((vp1.height / vp1.width) * Math.min(980, viewer.clientWidth)) + "px";
           wrap.dataset.index = i;
           frag.appendChild(wrap);
         }
         viewer.appendChild(frag);
         setupLazyRendering();
         viewer.scrollTop = scrollYRel * (viewer.scrollHeight - viewer.clientHeight);
-      }, 150);
+      }, 140);
     });
 
-    // init
+    // Init
     openPdf(fileUrl);
   </script>
 </body>
