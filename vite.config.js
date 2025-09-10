@@ -3,8 +3,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
-
+import path from "path";
+ 
 export default defineConfig({
+   resolve: {
+    alias: { "@": path.resolve(__dirname, "src") }
+  },
+   server: {
+    proxy: {
+      // Dev proxy: anything starting with /api/v1 goes to your API origin
+      "/api/v1": {
+        target: "https://api.studentkrd.com",
+        changeOrigin: true,
+        secure: true, // set to false only if you use a self-signed cert
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
