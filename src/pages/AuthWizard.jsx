@@ -111,7 +111,7 @@ const STR = {
   or: "یان",
   login: "چوونەژوورەوە",
   register: "تۆمارکردن",
-  next: "داهاتوو",
+  next: "دواتر",
   back: "پێشوو",
   finishLogin: "چوونەژوورەوە",
   finishRegister: "دروستکردنی هەژمار",

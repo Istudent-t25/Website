@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ku" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>404 – نەدۆزرایەوە</title>
+  <style>
+    :root { --bg:#0b0c10; --fg:#eaeaf0; --mut:#9aa3b2; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body { margin: 0; background: radial-gradient(1000px 500px at 85% -10%, rgba(56,189,248,.15), transparent),
+                    radial-gradient(800px 500px at 10% -10%, rgba(232,121,249,.12), transparent), var(--bg); color: var(--fg);
+           font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
+    .wrap { min-height: 100%; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px; }
+    .card { text-align: center; max-width: 640px; padding: 28px; border-radius: 20px; background: rgba(255,255,255,.05);
+            border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(8px); }
+    .digits { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; }
+    .digit { font-weight: 900; font-size: clamp(56px, 14vw, 120px); line-height: 1; padding: 12px 18px; border-radius: 28px;
+             background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); }
+    .title { font-size: clamp(18px, 3.8vw, 28px); font-weight: 800; margin: 6px 0 4px; }
+    .sub { color: var(--mut); font-size: 13px; margin-bottom: 12px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+    .btn { display: inline-block; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+           background: rgba(255,255,255,.06); color: var(--fg); text-decoration: none; }
+    .btn:hover { background: rgba(255,255,255,.12); }
+    .ghost { filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)); opacity: .9; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="digits">
+        <div class="digit">4</div>
+        <div class="digit">0</div>
+        <div class="digit">4</div>
+      </div>
+      <svg class="ghost" width="44" height="44" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M18 16.7V11a6 6 0 1 0-12 0v5.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div class="title">پەڕەکە نەدۆزرایەوە</div>
+      <div class="sub">هەوڵبدە بگەڕێیت یان بگەڕێیتە ماڵەوە.</div>
+      <div class="btns">
+        <a class="btn" href="/">ماڵەوە</a>
+        <a class="btn" href="mailto:support@studentkrd.com?subject=Broken%20link">راپۆرت</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

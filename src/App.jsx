@@ -13,12 +13,12 @@ import BottomNav from "./components/BottomNav.jsx";
 // Pages
 import Dashboard from "./pages/Dashboard.jsx";
 import Students from "./pages/Students.jsx";
-import ExamsGrade12 from "./pages/ExamsGrade12.jsx";
+import ExamsGrade12 from "./pages/notneccery/ExamsGrade12.jsx";
 import Schedule from "./pages/Schedule.jsx";
 import SoundsPage from "./pages/Sounds.jsx";
 import GrammarPage from "./pages/Grammers.jsx";
 import ProfileSettings from "./pages/ProfileSettings.jsx";
-import ExamBank from "./pages/ExamBank.jsx";
+import ExamBank from "./pages/notneccery/ExamBank.jsx";
 import ExamsHome from "./pages/ExamsHome.jsx";
 import ResourceViewer from "./pages/ResourceViewer.jsx";
 import AuthWizard from "./pages/AuthWizard.jsx";
@@ -28,6 +28,15 @@ import SubjectContent from "./pages/SubjectContent.jsx";
 // Public
 import WelcomePWA from "./pages/WelcomePWA.jsx";
 import ExamsPage from "./pages/Exams.jsx";
+import NotFound from "./pages/NotFound.jsx";
+// import CoursePage from "./pages/notneccery/CoursePage.jsx";
+
+
+import SecureResourceViewer from "./pages/Courses/SecureResourceViewer";
+import SecureVideo from "./pages/Courses/SecureVideo";
+import SubjectPage from "./pages/Courses/SubjectPage";
+import CoursePage from "./pages/Courses/CoursePage";
+import StudyHub from "./pages/StudyHub.jsx";
 
 /* ─────────────────────────────
    Auth Context
@@ -209,21 +218,18 @@ export default function App() {
               <Route path="/exams" element={<ExamsHome />} />
               <Route path="/exams/bank" element={<ExamBank />} />
               <Route path="/settings" element={<ProfileSettings />} />
-              <Route path="/subjects" element={<ExamsPage />} />
-              <Route path="/subjects/:subject/:category" element={<SubjectContent />} />
+              {/* <Route path="/subjects" element={<ExamsPage />} /> */}
+              {/* <Route path="/subjects/:subject/:category" element={<SubjectContent />} /> */}
+              {/* <Route path="/course" element={<CoursePage />} /> */}
+              <Route path="/secure-viewer" element={<SecureResourceViewer />} />
+              <Route path="/secure-video" element={<SecureVideo />} />
+              <Route path="/study" element={<StudyHub />} />
+              <Route path="/subjects/:slug" element={<SubjectPage />} />
+              <Route path="/course" element={<CoursePage />} />
             </Route>
             <Route path="/viewer" element={<ResourceViewer />} />
           </Route>
-
-          {/* 404 */}
-          <Route
-            path="*"
-            element={
-              <div className="min-h-[60vh] grid place-items-center">
-                <p className="text-center text-red-500">هەڵە: پەڕە نەدۆزرایەوە</p>
-              </div>
-            }
-          />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </WelcomeGate>
     </AuthProvider>

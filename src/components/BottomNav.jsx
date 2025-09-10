@@ -5,9 +5,10 @@ import { useScrollDirection } from '../hooks/useScrollDirection';
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
-  { to: "/students", label: "بابەتەکان", icon: Library },
+  { to: "/study", label: "بابەتەکان", icon: Library },
   { to: "/exams", label: "پرسارەکان", icon: BookMarked },
-  { to: "/subjects", label: "وانەکان", icon: Book },
+  { to: "/course", label: "وانەکان", icon: Book },
+  // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];
 

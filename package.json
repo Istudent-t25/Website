@@ -19,6 +19,7 @@
     "file-saver": "^2.0.5",
     "firebase": "^12.2.1",
     "framer-motion": "^12.23.12",
+    "hls.js": "^1.6.12",
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.525.0",

@@ -2,71 +2,76 @@
 <html >
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover" />
   <title>PDF</title>
 
-  <!-- PDF.js text layer support -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.css">
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.js"></script>
 
-  <!-- Fonts for text-only fallback -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Kufi+Arabic:wght@400;700&display=swap" rel="stylesheet">
 
   <style>
     :root { --bg:#0a0b0f; --fg:#f5f6f8; --ring:#1f2937; --card:#0e1117; --muted:#94a3b8; --acc:#34d399; }
     * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     html,body { height:100%; }
-    body { margin:0; background:#0a0b0f; color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial; overflow:hidden; }
+    body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial; overflow:hidden; }
 
-    /* Compact top bar (no title) */
-    .bar {
-      position:fixed; inset:0 0 auto 0; height:42px;
-      display:flex; align-items:center; justify-content:flex-end;
-      gap:.45rem; padding:0 .6rem;
-      background:#0c1016cc; border-bottom:1px solid var(--ring);
-      backdrop-filter:blur(10px); z-index:10;
-    }
+    .bar { position:fixed; inset:0 0 auto 0; height:42px; display:flex; align-items:center; justify-content:flex-end; gap:.45rem; padding:calc(0.2rem + env(safe-area-inset-top)) .6rem .2rem .6rem; background:#0c1016cc; border-bottom:1px solid var(--ring); backdrop-filter:blur(10px); z-index:10; }
     .actions { display:flex; align-items:center; gap:.35rem; }
-    .btn {
-      display:inline-flex; align-items:center; gap:.3rem;
-      padding:.3rem .5rem; border:1px solid #ffffff10; background:#ffffff09; color:var(--fg);
-      border-radius:.55rem; font-size:.75rem; text-decoration:none;
-    }
+    .btn { display:inline-flex; align-items:center; gap:.3rem; padding:.35rem .55rem; border:1px solid #ffffff10; background:#ffffff09; color:var(--fg); border-radius:.55rem; font-size:.75rem; text-decoration:none; white-space:nowrap; }
     .btn:hover { background:#ffffff12; }
+    @media (max-width: 380px) { .btn .lbl { display:none; } }
 
-    #viewer { position:fixed; inset:42px 0 0 0; overflow:auto; overscroll-behavior:contain; padding:.8rem .55rem 1.2rem; touch-action:pan-y; }
-    .page { display:grid; place-items:center; width:100%; margin:.55rem auto; }
-    .pageBox { position:relative; width:min(980px, 98vw); box-shadow:0 10px 30px #00000060; border-radius:.8rem; overflow:hidden; background:var(--card); }
-    canvas { display:block; border:1px solid var(--ring); border-radius:.8rem; width:100%; height:auto; }
+    #viewer { position:fixed; inset:calc(42px + env(safe-area-inset-top)) max(env(safe-area-inset-right), 0px) max(env(safe-area-inset-bottom), 0px) max(env(safe-area-inset-left), 0px); overflow:auto; overscroll-behavior:contain; padding: 0 max(env(safe-area-inset-right), 0px) max(10px, env(safe-area-inset-bottom)) max(env(safe-area-inset-left), 0px); touch-action: pan-y pinch-zoom; -webkit-overflow-scrolling: touch; height: calc(100svh - (42px + env(safe-area-inset-top))); }
+    .page { display:grid; place-items:center; width:100%; margin:0 auto; }
+    .pageBox { position:relative; width: 100%; box-shadow:0 10px 30px #00000040; border-radius:0; overflow:hidden; background:var(--card); }
+    canvas { display:block; border:none; border-radius:0; width:100%; height:auto; }
 
     .textLayer { position:absolute; inset:0; color:transparent; user-select:text; -webkit-user-select:text; pointer-events:auto; }
     .textLayer span, .textLayer br { color:transparent !important; }
 
-    /* Text-only fallback */
     .textMode canvas { display:none; }
     .textMode .textLayer { color:#e5e7eb; font-family:"Noto Naskh Arabic","Noto Kufi Arabic",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
     .textMode .textLayer span, .textMode .textLayer br { color:#e5e7eb !important; }
 
-    .prog { position:fixed; left:0; right:0; top:42px; height:3px; background:#ffffff12; z-index:12; }
+    .prog { position:fixed; left:0; right:0; top:42px; height:3px; background:#ffffff12; z-index:12; transition:height .2s ease, opacity .25s ease; }
     .prog>span { display:block; height:100%; width:10%; background:var(--acc); transition:width 150ms linear; }
-    .prog.hide { opacity:0; transition:opacity .25s ease; }
+    .prog.hide { opacity:0; height:0; pointer-events:none; }
 
-    .indicator { position:fixed; bottom:10px; inset-inline-end:12px; z-index:15; background:#0c1016cc; border:1px solid var(--ring);
-      border-radius:.55rem; padding:.3rem .5rem; font-size:.72rem; color:var(--muted); backdrop-filter:blur(10px); }
+    .indicator { position:fixed; bottom:calc(10px + env(safe-area-inset-bottom)); inset-inline-end:calc(12px + env(safe-area-inset-right)); z-index:15; background:#0c1016cc; border:1px solid var(--ring); border-radius:.55rem; padding:.3rem .5rem; font-size:.72rem; color:var(--muted); backdrop-filter:blur(10px); }
+
+    .loading { position:fixed; inset:42px 0 0 0; display:grid; place-items:center; z-index:11; pointer-events:none; }
+    body.embed .loading { inset:0; }
+    .spinner { display:inline-flex; align-items:center; gap:.6rem; background:#0c1016cc; border:1px solid #ffffff18; border-radius:.7rem; padding:.6rem .8rem; font-size:.85rem; color:#e5e7eb; backdrop-filter:blur(8px); }
+    .spin { width:20px; height:20px; border-radius:999px; border:3px solid #ffffff30; border-top-color:#34d399; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     body.embed .bar, body.embed .prog { display:none !important; }
-    body.embed #viewer { inset:0 0 0 0; }
+    body.embed #viewer { inset:0 0 0 0; height:100svh; padding:0; }
   </style>
 </head>
 <body>
-  <div class="bar">
+  <div class="bar" aria-hidden="true">
     <div class="actions">
-      <a id="openLink" class="btn" href="#" target="_blank" rel="noreferrer">کردنەوە</a>
-      <a id="downloadLink" class="btn" href="#">داگرتن</a>
+      <a id="openLink" class="btn" href="#" target="_blank" rel="noreferrer" aria-label="کردنەوە">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="lbl">کردنەوە</span>
+      </a>
+      <a id="downloadLink" class="btn" href="#" aria-label="داگرتن" download>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="lbl">داگرتن</span>
+      </a>
     </div>
   </div>
-  <div id="prog" class="prog"><span id="progFill"></span></div>
+
+  <!-- Progress + Loading -->
+  <div id="prog" class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span id="progFill"></span></div>
+  <div id="loading" class="loading" aria-hidden="true">
+    <div class="spinner"><div class="spin"></div> بارکردن…</div>
+  </div>
+
+  <!-- Viewer -->
   <main id="viewer" aria-label="PDF viewer"></main>
   <div id="indicator" class="indicator" style="display:none">پەڕە 1/1</div>
 
@@ -81,17 +86,13 @@
     const viewer       = document.getElementById("viewer");
     const prog         = document.getElementById("prog");
     const progFill     = document.getElementById("progFill");
+    const loading      = document.getElementById("loading");
     const indicator    = document.getElementById("indicator");
     const openLink     = document.getElementById("openLink");
     const downloadLink = document.getElementById("downloadLink");
 
-    if (fileUrl) {
-      openLink.href = fileUrl;
-      downloadLink.href = fileUrl;
-      downloadLink.setAttribute("download", "");
-    }
+    if (fileUrl) { openLink.href = fileUrl; downloadLink.href = fileUrl; downloadLink.setAttribute("download", ""); }
 
-    // PDF.js worker + resources
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
     const CMAP_URL      = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/";
     const STD_FONTS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/";
@@ -103,45 +104,69 @@
     let renderScale = BASE_SCALE;
     let firstReadyPosted = false;
 
+    let pageOffsets = [];
+    let rafTick = null;
+
     function post(msg){ try { window.parent.postMessage(msg, "*"); } catch(e){} }
+    function hideProgress(){ prog.classList.add("hide"); setTimeout(()=>{ prog.style.display = "none"; }, 300); }
+    function hideLoading(){ loading.style.display = "none"; }
 
     async function fetchWithProgress(url) {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("HTTP " + res.status);
+
+      // We have headers — show some life & hide big overlay immediately
+      try { progFill.style.width = "8%"; post({ type:"pdfviewer:progress", loaded: 0, total: 0, percent: 8 }); hideLoading(); } catch {}
+
       const total = Number(res.headers.get("Content-Length")) || 0;
       const reader = res.body?.getReader?.();
+
       if (!reader) {
+        // No streaming — still give a baseline percent so outer UI hides overlay
+        progFill.style.width = "15%";
+        post({ type:"pdfviewer:progress", loaded: 0, total, percent: 15 });
         const ab = await res.arrayBuffer();
-        if (total) {
-          const p = Math.round(ab.byteLength/total*100);
-          progFill.style.width = p + "%";
-          post({ type:"pdfviewer:progress", loaded: ab.byteLength, total, percent: p });
-        }
+        // Finished download
+        progFill.style.width = "100%";
+        post({ type:"pdfviewer:progress", loaded: ab.byteLength, total, percent: 100 });
+        hideProgress();
         return ab;
       }
-      const chunks = []; let received = 0;
+
+      const chunks = []; let received = 0; let kicked = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
         received += value.length;
+
+        if (!kicked) {
+          kicked = true; // first chunk — ensure overlay is hidden
+          hideLoading();
+          if (!total) {
+            progFill.style.width = "15%";
+            post({ type:"pdfviewer:progress", loaded: received, total, percent: 15 });
+          }
+        }
+
         if (total) {
-          const p = Math.round((received/total)*100);
+          const p = Math.round((received / total) * 100);
           progFill.style.width = p + "%";
           post({ type:"pdfviewer:progress", loaded: received, total, percent: p });
         }
       }
       const blob = new Blob(chunks, { type:"application/pdf" });
+      // Done downloading — hide progress now (rendering continues lazily)
+      progFill.style.width = "100%";
+      post({ type:"pdfviewer:progress", loaded: blob.size, total, percent: 100 });
+      hideProgress();
       return await blob.arrayBuffer();
     }
 
     function pageWrapper() {
-      const wrap = document.createElement("div");
-      wrap.className = "page";
-      const box = document.createElement("div");
-      box.className = "pageBox";
-      wrap.appendChild(box);
-      return { wrap, box };
+      const wrap = document.createElement("div"); wrap.className = "page";
+      const box = document.createElement("div"); box.className = "pageBox";
+      wrap.appendChild(box); return { wrap, box };
     }
 
     function looksRTL(textItems) {
@@ -151,9 +176,7 @@
         for (let i=0;i<s.length;i++) {
           const cp = s.codePointAt(i);
           total++;
-          if ((cp>=0x0600 && cp<=0x06FF) || (cp>=0x0750 && cp<=0x077F) || (cp>=0x08A0 && cp<=0x08FF) || (cp>=0xFB50 && cp<=0xFDFF) || (cp>=0xFE70 && cp<=0xFEFF)) {
-            rtl++;
-          }
+          if ((cp>=0x0600 && cp<=0x06FF) || (cp>=0x0750 && cp<=0x077F) || (cp>=0x08A0 && cp<=0x08FF) || (cp>=0xFB50 && cp<=0xFDFF) || (cp>=0xFE70 && cp<=0xFEFF)) rtl++;
         }
       }
       return total > 0 && (rtl / total) >= 0.3;
@@ -164,55 +187,68 @@
       indicator.textContent = `پەڕە ${cur}/${total}`;
     }
 
-    async function openPdf(url) {
-      if (!url) {
-        viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">ناونیشانی فایڵ نەدۆزرایەوە.</div>';
-        return;
+    function calcPageOffsets() {
+      const vr = viewer.getBoundingClientRect();
+      pageOffsets = Array.from(viewer.querySelectorAll(".page")).map(el => {
+        const r = el.getBoundingClientRect();
+        return (r.top - vr.top) + viewer.scrollTop;
+      });
+    }
+
+    function currentPageFromScroll() {
+      if (!pageOffsets.length) return 1;
+      const centerY = viewer.scrollTop + viewer.clientHeight * 0.5;
+      let lo = 0, hi = pageOffsets.length - 1, ans = 0;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (pageOffsets[mid] <= centerY) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
       }
+      return ans + 1;
+    }
+
+    function attachScrollHandler(total) {
+      const onScroll = () => {
+        if (rafTick) return;
+        rafTick = requestAnimationFrame(() => {
+          rafTick = null;
+          updateIndicator(currentPageFromScroll(), total);
+        });
+      };
+      viewer.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    async function openPdf(url) {
+      if (!url) { viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">ناونیشانی فایڵ نەدۆزرایەوە.</div>'; return; }
 
       let data;
       try { data = await fetchWithProgress(url); }
-      catch(e) {
-        viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">نەتوانرا PDF بار بکرێت.</div>';
-        return;
-      }
+      catch(e) { viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">نەتوانرا PDF بار بکرێت.</div>'; hideLoading(); return; }
 
-      pdfDoc = await pdfjsLib.getDocument({
-        data,
-        cMapUrl: CMAP_URL,
-        cMapPacked: true,
-        standardFontDataUrl: STD_FONTS_URL,
-        disableFontFace: false,
-        enableXfa: true
-      }).promise;
+      const pdf = await pdfjsLib.getDocument({ data, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STD_FONTS_URL, disableFontFace: false, enableXfa: true }).promise;
+      pdfDoc = pdf;
 
-      // Fit/zoom
       const p1 = await pdfDoc.getPage(1);
       const vp1 = p1.getViewport({ scale: 1 });
       const fitWidthScale = viewer.clientWidth / vp1.width;
-      renderScale = Math.min(BASE_SCALE, fitWidthScale);
+      renderScale = fitWidthScale; // full width
 
-      // Skeletons
       viewer.innerHTML = "";
       const frag = document.createDocumentFragment();
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         const { wrap, box } = pageWrapper();
-        box.style.minHeight = Math.floor((vp1.height / vp1.width) * Math.min(980, viewer.clientWidth)) + "px";
+        box.style.minHeight = Math.floor((vp1.height / vp1.width) * viewer.clientWidth) + "px";
         wrap.dataset.index = i;
         frag.appendChild(wrap);
       }
       viewer.appendChild(frag);
 
+      calcPageOffsets();
+      attachScrollHandler(pdfDoc.numPages);
       setupLazyRendering();
-      document.getElementById("prog").classList.add("hide");
-      updateIndicator(1, pdfDoc.numPages);
-
-      if (preferText) viewer.classList.add("textMode");
     }
 
     function setupLazyRendering() {
-      const total = pdfDoc.numPages;
-
       const io = new IntersectionObserver((entries) => {
         entries.forEach(async (entry) => {
           if (!entry.isIntersecting) return;
@@ -225,10 +261,9 @@
           const page = await pdfDoc.getPage(idx);
           const vp   = page.getViewport({ scale: renderScale });
 
-          // Canvas layer
           const canvas = document.createElement("canvas");
           const ctx    = canvas.getContext("2d", { alpha: false });
-          const ratio  = DPR;
+          const ratio  = Math.min(window.devicePixelRatio || 1, 1.6);
           canvas.width  = Math.floor(vp.width * ratio);
           canvas.height = Math.floor(vp.height * ratio);
           canvas.style.width  = Math.floor(vp.width) + "px";
@@ -239,7 +274,6 @@
 
           await page.render({ canvasContext: ctx, transform: [ratio,0,0,ratio,0,0], viewport: vp }).promise;
 
-          // Text layer (selectable / proper shaping)
           const textLayerDiv = document.createElement("div");
           textLayerDiv.className = "textLayer";
           box.appendChild(textLayerDiv);
@@ -247,41 +281,18 @@
           const textContent = await page.getTextContent({ includeMarkedContent: true });
           if (looksRTL(textContent.items)) textLayerDiv.dir = "rtl";
 
-          const textLayer = pdfjsViewer.renderTextLayer({
-            textContent,
-            container: textLayerDiv,
-            viewport: vp,
-            textDivs: [],
-            enhanceTextSelection: true,
-          });
+          const textLayer = pdfjsViewer.renderTextLayer({ textContent, container: textLayerDiv, viewport: vp, textDivs: [], enhanceTextSelection: true });
           await textLayer.promise;
 
-          if (!firstReadyPosted) {
-            firstReadyPosted = true;
-            post({ type:"pdfviewer:ready" });
-          }
+          if (!firstReadyPosted) { firstReadyPosted = true; post({ type:"pdfviewer:ready" }); }
+          calcPageOffsets();
         });
       }, { root: viewer, rootMargin: "600px 0px 900px 0px", threshold: 0.01 });
 
       viewer.querySelectorAll(".page").forEach(el => io.observe(el));
-
-      // Current page indicator
-      const curIO = new IntersectionObserver((entries) => {
-        const visible = entries
-          .filter(e => e.isIntersecting)
-          .sort((a,b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible.length) {
-          const idx = Number(visible[0].target.dataset.index || 1);
-          updateIndicator(Math.max(1, Math.min(idx, total)), total);
-        }
-      }, { root: viewer, threshold: 0.6, rootMargin: "0px 0px -40% 0px" });
-
-      viewer.querySelectorAll(".page").forEach(el => curIO.observe(el));
-
       setTimeout(() => { viewer.scrollTop += 1; viewer.scrollTop -= 1; }, 50);
     }
 
-    // Reflow on width change
     let lastW = window.innerWidth; let resizeT;
     window.addEventListener("resize", () => {
       const w = window.innerWidth; if (Math.abs(w - lastW) < 40) return; lastW = w;
@@ -291,25 +302,30 @@
         const p1 = await pdfDoc.getPage(1);
         const vp1 = p1.getViewport({ scale: 1 });
         const fitWidthScale = viewer.clientWidth / vp1.width;
-        renderScale = Math.min(BASE_SCALE, fitWidthScale);
+        renderScale = fitWidthScale;
 
         const scrollYRel = viewer.scrollTop / Math.max(1, viewer.scrollHeight - viewer.clientHeight);
         viewer.innerHTML = "";
         const frag = document.createDocumentFragment();
         for (let i = 1; i <= pdfDoc.numPages; i++) {
           const { wrap, box } = pageWrapper();
-          box.style.minHeight = Math.floor((vp1.height / vp1.width) * Math.min(980, viewer.clientWidth)) + "px";
+          box.style.minHeight = Math.floor((vp1.height / vp1.width) * viewer.clientWidth) + "px";
           wrap.dataset.index = i;
           frag.appendChild(wrap);
         }
         viewer.appendChild(frag);
+        calcPageOffsets();
         setupLazyRendering();
         viewer.scrollTop = scrollYRel * (viewer.scrollHeight - viewer.clientHeight);
       }, 140);
-    });
+    }, { passive: true });
 
-    // Init
-    openPdf(fileUrl);
+    // Kickoff
+    (async () => {
+      // show overlay immediately
+      loading.style.display = "grid";
+      try { await openPdf(fileUrl); } catch { hideLoading(); hideProgress(); }
+    })();
   </script>
 </body>
 </html>

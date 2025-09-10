@@ -9,7 +9,7 @@
 // - Grade picker persists to localStorage
 
 import React, { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, BookOpen, X, Calendar, AlertCircle, Sparkles, Star,
@@ -210,7 +210,8 @@ function DocCard({ item, onOpen, isFav, onToggleFav }) {
 /* ===== Main Component ===== */
 export default function StudentsPage() {
   const navigate = useNavigate();
-
+  const location = useLocation();
+  
   // Track/stream (read-only selector from localStorage)
   const [track, setTrack] = useState(localStorage.getItem("track") || "زانستی");
   const stream = useMemo(() => normalizeStreamFromTrack(track), [track]);
@@ -287,6 +288,52 @@ useEffect(() => {
 
   // Preview
   const [previewItem, setPreviewItem] = useState(null);
+// —— URL → state (q, t, grade, subject_id, subject)
+const pendingSubjectNameRef = useRef(null);
+useEffect(() => {
+  const sp = new URLSearchParams(location.search);
+  const qParam       = (sp.get("q") || "").trim();
+  const tParam       = (sp.get("t") || "").trim().toLowerCase();   // all | book | booklet
+  const gradeParam   = Number(sp.get("grade") || "");
+  const subjectIdRaw = Number(sp.get("subject_id") || "");
+  const subjectName  = (sp.get("subject") || "").trim();
+
+  if (qParam) setSearch(qParam);
+
+  if (["all","book","booklet"].includes(tParam)) {
+    setDocType(tParam);
+  }
+
+  if (Number.isFinite(gradeParam) && gradeParam >= 1) {
+    setGradeAndSave(gradeParam);
+  }
+
+  // Only meaningful for booklet mode; we accept either subject_id
+  // or a subject name (matched after subjectOptions load).
+  if (tParam === "booklet") {
+    if (Number.isFinite(subjectIdRaw) && subjectIdRaw > 0) {
+      setSubjectId(String(subjectIdRaw));
+    } else if (subjectName) {
+      pendingSubjectNameRef.current = subjectName;
+    }
+  } else {
+    setSubjectId("");
+  }
+}, [location.search]); // also updates on back/forward
+
+// If only a subject *name* was provided, match it as soon as the
+// derived subjectOptions are ready (grade/track aware).
+useEffect(() => {
+  const wanted = (pendingSubjectNameRef.current || "").toLowerCase();
+  if (!wanted || !subjectOptions.length) return;
+  const hit = subjectOptions.find(
+    s => (s.name || "").toLowerCase().includes(wanted)
+  );
+  if (hit) {
+    setSubjectId(String(hit.id));
+    pendingSubjectNameRef.current = null;
+  }
+}, [subjectOptions]);
 
   // Load ALL pages from API
 useEffect(() => {
