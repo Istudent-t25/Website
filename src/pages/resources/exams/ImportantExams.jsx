@@ -5,7 +5,6 @@ import Toolbar from "@/components/Toolbar";
 import CardGrid from "@/components/CardGrid";
 import ResourceCard from "@/components/ResourceCard";
 
-// ---------- API CONFIG (edit to your backend) ----------
 const API = {
   importantExams: (grade, subject, q) => {
     const sp = new URLSearchParams();
@@ -13,7 +12,7 @@ const API = {
     if (subject) sp.set("subject", subject);
     if (q) sp.set("q", q);
     sp.set("important", "1");
-    return `https://api.studentkrd.com/api/v1/papers?${sp.toString()}`; // your known papers endpoint
+    return `https://api.studentkrd.com/api/v1/papers?${sp.toString()}`;
   },
 };
 
@@ -46,13 +45,11 @@ export default function ImportantExams() {
 
   return (
     <div className="p-3 sm:p-5 space-y-4" dir="rtl">
-      {/* Header */}
       <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-rose-500/10 to-pink-500/5 p-3 sm:p-4">
         <div className="text-white font-extrabold text-lg sm:text-xl">ئەسیلە گرنگەکان</div>
         <div className="text-[12px] text-zinc-300 mt-1">پرسیار و تاقیکردنەوەی گرنگ</div>
       </div>
 
-      {/* Toolbar */}
       <Toolbar
         q={q}
         setQ={setQ}
@@ -63,7 +60,6 @@ export default function ImportantExams() {
         setActiveSubject={setActiveSubject}
       />
 
-      {/* Grid */}
       {loading ? (
         <div className="text-center text-zinc-400 py-10">بارکردن…</div>
       ) : filtered.length === 0 ? (

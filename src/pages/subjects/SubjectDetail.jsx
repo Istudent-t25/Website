@@ -1,294 +1,235 @@
-// src/pages/subjects/SubjectDetail.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-  ChevronRight,
-  BookOpenCheck,
-  FileText,
-  ListChecks,
-} from "lucide-react";
-import SubjectIcon from "@/components/SubjectIcon";
-import useLocalGrade from "@/hooks/useLocalGrade";
-import { fetchJSON } from "@/utils/fetchJSON";
-import { apiUrl } from "@/utils/api";
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { BookOpenCheck, FileText, ListChecks, ChevronRight, Image as ImageIcon } from "lucide-react";
 
-const EASE = [0.22, 1, 0.36, 1];
+const API_DOCS = "https://api.studentkrd.com/api/v1/documents";
+const API_PAPERS = "https://api.studentkrd.com/api/v1/papers";
 
-// --- Text normalization to avoid ZWNJ / Kaf / Ye mismatches ---
-const normalize = (s = "") =>
-  s
-    .normalize("NFKC")
-    .replace(/\u200c/g, "") // remove ZWNJ
-    .replace(/[ىي]/g, "ی")  // unify Ye
-    .replace(/ك/g, "ک")     // unify Kaf
-    .replace(/\s+/g, " ")
-    .trim();
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Network error");
+  return r.json();
+}
 
-const QuickAction = ({ icon, title, desc, onClick }) => (
-  <motion.button
+function mapTrackToStream(track) {
+  const t = (track || "").toLowerCase();
+  if (t.includes("scientific") || t.includes("sci") || t === "زانستی") return "scientific";
+  if (t.includes("literary") || t.includes("lit") || t === "ئەدەبی") return "literary";
+  if (t.includes("both") || t === "هاوبەش") return "both";
+  return null;
+}
+function streamKurdish(s) {
+  if (s === "scientific") return "زانستی";
+  if (s === "literary") return "ئەدەبی";
+  if (s === "both") return "هاوبەش";
+  return null;
+}
+
+const Badge = ({ children }) => (
+  <span className="px-2 py-1 rounded-lg text-[10px] bg-white/5 border border-white/10 text-zinc-100">
+    {children}
+  </span>
+);
+
+const Count = ({ n }) =>
+  n > 0 ? (
+    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] h-[1.2rem] text-[10px] px-1.5 rounded-full bg-white/10 ring-1 ring-white/15 text-zinc-100">
+      {n}
+    </span>
+  ) : null;
+
+const CardButton = ({ icon, title, desc, onClick, count }) => (
+  <button
     onClick={onClick}
-    whileHover={{ y: -2 }}
-    whileTap={{ scale: 0.98 }}
-    transition={{ duration: 0.18, ease: EASE }}
-    className="text-right rounded-2xl px-4 py-3 bg-zinc-900/60 border border-white/10 hover:bg-zinc-900/80 min-w-[220px]"
+    className="text-right rounded-2xl px-4 py-3 bg-zinc-900/60 border border-white/10 hover:bg-zinc-900/80 min-w-[220px] transition"
   >
     <div className="text-sm font-bold text-white flex items-center gap-2">
       {icon}
-      <span>{title}</span>
+      <span className="flex items-center">{title}<Count n={count || 0} /></span>
     </div>
     {desc && <div className="text-[12px] text-zinc-400 mt-1">{desc}</div>}
-  </motion.button>
+  </button>
 );
 
-// Ask backend: how many docs exist for a subject/grade/stream?
-// Tries subject= first; if empty, retries with q=subject (handles ZWNJ/name variants)
-async function fetchCount({ subject, grade, stream }) {
-  const sp1 = new URLSearchParams();
-  if (grade) sp1.set("grade", String(grade));
-  if (subject) sp1.set("subject", subject);
-  if (stream) sp1.set("stream", stream);
-  sp1.set("per_page", "1");
-
-  try {
-    const url1 = apiUrl("/api/v1/documents", sp1);
-    const json1 = await fetchJSON(url1);
-    const total1 =
-      typeof json1?.total === "number"
-        ? json1.total
-        : Array.isArray(json1)
-        ? json1.length
-        : 0;
-    if (total1 > 0) return total1;
-  } catch {
-    /* ignore and try fallback */
-  }
-
-  // Fallback: q=subject
-  if (subject) {
-    const sp2 = new URLSearchParams();
-    if (grade) sp2.set("grade", String(grade));
-    if (stream) sp2.set("stream", stream);
-    sp2.set("q", subject);
-    sp2.set("per_page", "1");
-    try {
-      const url2 = apiUrl("/api/v1/documents", sp2);
-      const json2 = await fetchJSON(url2);
-      const total2 =
-        typeof json2?.total === "number"
-          ? json2.total
-          : Array.isArray(json2)
-          ? json2.length
-          : 0;
-      return total2 || 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  return 0;
-}
-
-function StreamFilter({ grade, available, value, onChange }) {
-  // Hide streams completely for grades < 10
-  if (!grade || Number(grade) < 10) return null;
-
-  const opts = [
-    { key: "scientific", label: "زانستی" },
-    { key: "both", label: "هاوبەش" },
-    { key: "literary", label: "ئەدەبی" },
-  ].filter((o) => available[o.key]); // only show streams that have docs
-
-  if (opts.length === 0) return null;
-
-  return (
-    <div className="flex items-center flex-wrap gap-1.5" dir="rtl">
-      {opts.map((o) => (
-        <button
-          key={o.key}
-          onClick={() => onChange(o.key)}
-          className={`px-2 py-1.5 rounded-lg text-[11px] ring-1 ${
-            value === o.key
-              ? "bg-white/10 text-white ring-white/20"
-              : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function SubjectDetail() {
-  const nav = useNavigate();
   const params = useParams();
-  const loc = useLocation();
-  const [grade] = useLocalGrade(12);
+  const rawParam = params?.id ? decodeURIComponent(params.id) : "";
+  const subjectId = /^\d+$/.test(rawParam) ? Number(rawParam) : null;
+  const subjectNameFromRoute = subjectId ? null : rawParam || null;
 
-  // Subject name (from navigation state or slug)
-  // decodeURIComponent in case router slug includes encoded chars
-  const slugName = params?.id ? decodeURIComponent(params.id).replace(/-/g, " ") : "";
-  const stateName = loc.state?.name;
-  // Keep a display name (original if provided), but build a canonical subject for API/URLs
-  const displayName = stateName || slugName || "بابەت";
-  const subjectCanonical = useMemo(() => normalize(displayName), [displayName]);
+  const [grade, setGrade] = useState(null);
+  const [stream, setStream] = useState(null);
+  const [subjectDisplay, setSubjectDisplay] = useState(subjectNameFromRoute || "بابەت");
 
-  // Stream passed from SubjectsHub (optional)
-  const incomingStream = loc.state?.stream || null;
+  const [docsCount, setDocsCount] = useState(0);
+  const [notesCount, setNotesCount] = useState(0);
+  const [iqCount, setIqCount] = useState(0);
+  const [neCount, setNeCount] = useState(0);
+  const [galleryCount, setGalleryCount] = useState(0);
 
-  // Availability (based on real documents)
-  const [avail, setAvail] = useState({
-    scientific: false,
-    both: false,
-    literary: false,
-  });
-  const streamsHaveAny = avail.scientific || avail.both || avail.literary;
-
-  // Selected stream (if any). For <10, we'll ignore it and hide the UI.
-  const [selectedStream, setSelectedStream] = useState(null);
-
-  // Load stream availability when subject or grade changes
   useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      // Grades <10 → streams don’t apply; bail early
-      if (!grade || Number(grade) < 10) {
-        if (alive) {
-          setAvail({ scientific: false, both: false, literary: false });
-          setSelectedStream(null);
-        }
-        return;
-      }
-
-      const [sc, bo, li] = await Promise.all([
-        fetchCount({ subject: subjectCanonical, grade, stream: "scientific" }),
-        fetchCount({ subject: subjectCanonical, grade, stream: "both" }),
-        fetchCount({ subject: subjectCanonical, grade, stream: "literary" }),
-      ]);
-
-      if (!alive) return;
-      const a = {
-        scientific: sc > 0,
-        both: bo > 0,
-        literary: li > 0,
-      };
-      setAvail(a);
-
-      // Pick initial stream:
-      // 1) use incoming stream if it's available
-      // 2) else pick the first available by priority sc → both → literary
-      const initial =
-        (incomingStream && a[incomingStream] && incomingStream) ||
-        (a.scientific && "scientific") ||
-        (a.both && "both") ||
-        (a.literary && "literary") ||
-        null;
-      setSelectedStream(initial);
+    try {
+      const g = localStorage.getItem("grade");
+      const t = localStorage.getItem("track");
+      setGrade(g ? Number(g) : null);
+      setStream(mapTrackToStream(t));
+    } catch {
+      setGrade(null);
+      setStream(null);
     }
+  }, []);
 
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [subjectCanonical, grade, incomingStream]);
+  const hasStreams = typeof grade === "number" ? grade >= 10 : true;
 
-  // Helper to add subject/stream to URLs
-  const addCommonParams = (sp) => {
-    if (subjectCanonical) sp.set("subject", subjectCanonical);
-    // Only include stream if we’re showing streams (grade >= 10) and one is selected
-    if (Number(grade) >= 10 && selectedStream) sp.set("stream", selectedStream);
+  const buildParams = (base = {}) => {
+    const sp = new URLSearchParams();
+    if (subjectId) sp.set("subject_id", String(subjectId));
+    else if (subjectNameFromRoute) sp.set("subject", subjectNameFromRoute);
+    if (typeof grade === "number" && !Number.isNaN(grade)) sp.set("grade", String(grade));
+    if (hasStreams && stream) sp.set("stream", stream);
+    if (base.type) sp.set("type", base.type);
+    sp.set("page", "1");
+    return sp.toString();
+  };
+
+  async function fetchTotal(root, extra = {}) {
+    const url = `${root}?${buildParams({ ...extra, page: 1 })}`;
+    const j = await fetchJSON(url);
+    return typeof j?.total === "number" ? j.total : (Array.isArray(j?.data) ? j.data.length : 0);
+  }
+
+  useEffect(() => {
+    let ok = true;
+    (async () => {
+      try {
+        const [d, n, iq, ne, g] = await Promise.all([
+          fetchTotal(API_DOCS).catch(() => 0),
+          fetchTotal(API_PAPERS, { type: "important_note" }).catch(() => 0),
+          fetchTotal(API_PAPERS, { type: "important_questions" }).catch(() => 0),
+          fetchTotal(API_PAPERS, { type: "national_exam" }).catch(() => 0),
+          fetchTotal(API_PAPERS, { type: "images_of_sessions" }).catch(() => 0),
+        ]);
+        if (!ok) return;
+        setDocsCount(d);
+        setNotesCount(n);
+        setIqCount(iq);
+        setNeCount(ne);
+        setGalleryCount(g);
+
+        if (subjectNameFromRoute) setSubjectDisplay(subjectNameFromRoute);
+        else if (subjectId) setSubjectDisplay(`بابەت #${subjectId}`);
+      } catch {
+        if (!ok) return;
+        setDocsCount(0); setNotesCount(0); setIqCount(0); setNeCount(0); setGalleryCount(0);
+      }
+    })();
+    return () => { ok = false; };
+  }, [subjectId, subjectNameFromRoute, grade, stream]);
+
+  const addCommon = (sp = new URLSearchParams()) => {
+    if (subjectId) sp.set("subject_id", String(subjectId));
+    else if (subjectNameFromRoute) sp.set("subject", subjectNameFromRoute);
+    if (typeof grade === "number") sp.set("grade", String(grade));
+    if (hasStreams && stream) sp.set("stream", stream);
     return sp;
   };
-
-  // Quick actions (navigate with canonical, normalized subject)
   const goBooks = () => {
-    const sp = addCommonParams(new URLSearchParams());
-    sp.set("t", "book"); // default tab
-    nav(`/resources/books?${sp.toString()}`);
+    const sp = addCommon(new URLSearchParams());
+    window.location.assign(`/resources/books?${sp.toString()}`);
   };
   const goNotes = () => {
-    const sp = addCommonParams(new URLSearchParams());
+    const sp = addCommon(new URLSearchParams());
     sp.set("type", "important_note");
-    nav(`/resources/papers?${sp.toString()}`);
+    window.location.assign(`/resources/papers?${sp.toString()}`);
   };
-  const goImportantExams = () => {
-    const sp = addCommonParams(new URLSearchParams());
+  const goIQ = () => {
+    const sp = addCommon(new URLSearchParams());
     sp.set("type", "important_questions");
-    nav(`/resources/papers?${sp.toString()}`);
+    window.location.assign(`/resources/papers?${sp.toString()}`);
   };
-  const goPaperExams = () => {
-    const sp = addCommonParams(new URLSearchParams());
+  const goNE = () => {
+    const sp = addCommon(new URLSearchParams());
     sp.set("type", "national_exam");
-    nav(`/resources/papers?${sp.toString()}`);
+    window.location.assign(`/resources/papers?${sp.toString()}`);
   };
+  const goGallery = () => {
+    const sp = addCommon(new URLSearchParams());
+    // Gallery page reads subject/grade/stream and always uses type=images_of_sessions
+    window.location.assign(`/resources/gallery?${sp.toString()}`);
+  };
+
+  const showBooks = docsCount > 0;
+  const showNotes = notesCount > 0;
+  const showIQ = iqCount > 0;
+  const showNE = neCount > 0;
+  const showGallery = galleryCount > 0;
 
   return (
     <div dir="rtl" className="p-3 sm:p-5 space-y-4">
-      {/* Header */}
-      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-sky-500/5 p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-white">
-              <Link to="/subjects" className="text-zinc-300 hover:text-white">
-                بابەتەکان
-              </Link>
-              <ChevronRight className="w-4 h-4 text-zinc-500" />
-              <span className="font-extrabold text-lg sm:text-xl flex items-center gap-2">
-                <SubjectIcon name={displayName} className="w-5 h-5" />
-                {displayName}
-              </span>
-            </div>
-            <div className="hidden sm:block text-[12px] text-zinc-300">
-              هەموو سەرچاوەکان بۆ {displayName}
-            </div>
+      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-sky-500/5 p-3 sm:p-4 sticky top-2 z-10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-white">
+            <Link to="/subjects" className="text-zinc-300 hover:text-white">بابەتەکان</Link>
+            <ChevronRight className="w-4 h-4 text-zinc-500" />
+            <span className="font-extrabold text-lg sm:text-xl">{subjectDisplay}</span>
           </div>
-
-          {/* Stream filter only if grade >= 10 and there’s availability */}
-          {Number(grade) >= 10 && streamsHaveAny && (
-            <div className="flex items-center justify-between">
-              <div className="text-[12px] text-zinc-400">
-                دەرچووی پۆلی:{" "}
-                <span className="text-zinc-200 font-semibold">پۆل {grade}</span>
-              </div>
-              <StreamFilter
-                grade={grade}
-                available={avail}
-                value={selectedStream}
-                onChange={(v) => setSelectedStream(v)}
-              />
-            </div>
-          )}
+          <div className="hidden sm:flex items-center gap-2 text-[11px] text-zinc-300">
+            {typeof grade === "number" && <Badge>پۆل: <b className="text-white">{grade}</b></Badge>}
+            {stream && <Badge>تڕاک: <b className="text-white">{streamKurdish(stream)}</b></Badge>}
+          </div>
         </div>
       </div>
 
-      {/* Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-        <QuickAction
-          icon={<BookOpenCheck className="w-4 h-4 text-emerald-300" />}
-          title="کتێب و مه‌لزه‌مه‌"
-          desc="هەموو کتێب و مه‌لزه‌مه‌كان"
-          onClick={goBooks}
-        />
-        <QuickAction
-          icon={<FileText className="w-4 h-4 text-purple-300" />}
-          title="تێبینی گرنگ"
-          desc="تێبینی و دیاریكردنی شته‌ گرنگه‌كان"
-          onClick={goNotes}
-        />
-        <QuickAction
-          icon={<ListChecks className="w-4 h-4 text-amber-300" />}
-          title="ئەسیلەی گرنگ"
-          desc="پرسیار و تاقیکردنەوە"
-          onClick={goImportantExams}
-        />
-        <QuickAction
-          icon={<ListChecks className="w-4 h-4 text-amber-300" />}
-          title="ئازمونی نیشتمانی"
-          desc="پرسیار و تاقیکردنەوە"
-          onClick={goPaperExams}
-        />
+        {showBooks && (
+          <CardButton
+            icon={<BookOpenCheck className="w-4 h-4 text-emerald-300" />}
+            title="کتێب و مه‌لزه‌مه‌"
+            desc="کتێب / مەلزمە"
+            onClick={goBooks}
+            count={docsCount}
+          />
+        )}
+        {showNotes && (
+          <CardButton
+            icon={<FileText className="w-4 h-4 text-purple-300" />}
+            title="تێبینی گرنگ"
+            desc="PDF ـە گرنگەکان"
+            onClick={goNotes}
+            count={notesCount}
+          />
+        )}
+        {showIQ && (
+          <CardButton
+            icon={<ListChecks className="w-4 h-4 text-amber-300" />}
+            title="ئەسیلەی گرنگ"
+            desc="پرسیارە گرنگەکان"
+            onClick={goIQ}
+            count={iqCount}
+          />
+        )}
+        {showNE && (
+          <CardButton
+            icon={<ListChecks className="w-4 h-4 text-cyan-300" />}
+            title="ئازمونی نیشتمانی"
+            desc="ساڵانە • کۆتایی ساڵ"
+            onClick={goNE}
+            count={neCount}
+          />
+        )}
+        {showGallery && (
+          <CardButton
+            icon={<ImageIcon className="w-4 h-4 text-sky-300" />}
+            title="گەلەری وانەکان"
+            desc="وێنەکانی وانە (PDF-style viewer)"
+            onClick={goGallery}
+            count={galleryCount}
+          />
+        )}
+
+        {!showBooks && !showNotes && !showIQ && !showNE && !showGallery && (
+          <div className="text-zinc-400 text-sm">هیچ سەرچاوەیەک بۆ ئەم بابەتە نەدۆزرایەوە.</div>
+        )}
       </div>
     </div>
   );

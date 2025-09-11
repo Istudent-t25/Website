@@ -1,367 +1,380 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, FileText, NotebookPen, HelpCircle } from "lucide-react";
-import Toolbar from "@/components/Toolbar";
-import ResourceCard from "@/components/ResourceCard";
-import ExamYearGroup from "@/components/ExamYearGroup";
-import useLocalGrade from "@/hooks/useLocalGrade";
-import { fetchJSON } from "@/utils/fetchJSON";
+// src/pages/Paper.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  FileText,
+  FileCheck2,
+  Image as ImageIcon,
+  GraduationCap,
+  BookOpenCheck,
+  Loader2,
+  Search,
+  ArrowRight,
+  Download,
+  User2,
+  Filter,
+  Layers,
+  ArrowRightCircle,
+} from "lucide-react";
 
-const API = {
-  list: (params) => `https://api.studentkrd.com/api/v1/papers?${params.toString()}`, // via Vite proxy
-};
+const API_PAPERS = "https://api.studentkrd.com/api/v1/papers";
 
-// Normalize for comparison
-const normalize = (s = "") =>
-  s
-    .normalize("NFKC")
-    .replace(/\u200c/g, "")
-    .replace(/[ىي]/g, "ی")
-    .replace(/ك/g, "ک")
-    .replace(/\s+/g, " ")
-    .trim();
+/* ----------------- utils ----------------- */
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Network error");
+  return r.json();
+}
 
-function mapPaperItem(paper, item) {
-  const subjectName = paper?.subject?.name || paper?.subject_name || paper?.subject || "";
-  const teacherName = paper?.teacher?.full_name || paper?.teacher?.name || paper?.teacher_name || "";
+function streamKurdish(s) {
+  if (!s) return null;
+  const v = String(s).toLowerCase();
+  if (v === "scientific") return "زانستی";
+  if (v === "literary") return "ئەدەبی";
+  if (v === "both") return "هاوبەش";
+  return s;
+}
 
-  const yearStart = item?.year_start ?? null;
-  const yearEnd = item?.year_end ?? null;
-  const term = item?.term ?? null;
+function typeInfo(t) {
+  const v = (t || "").toLowerCase();
+  if (v === "national_exam") return { label: "ئازمونی نیشتمانی", icon: FileCheck2, tone: "text-cyan-300" };
+  if (v === "important_note") return { label: "تێبینی گرنگ", icon: FileText, tone: "text-purple-300" };
+  if (v === "important_questions") return { label: "ئەسیلەی گرنگ", icon: BookOpenCheck, tone: "text-amber-300" };
+  if (v === "worksheet") return { label: "ڕاهێنان/کارەکان", icon: Layers, tone: "text-emerald-300" };
+  if (v === "images_of_sessions") return { label: "وێنەکانی زینده‌زانی", icon: ImageIcon, tone: "text-sky-300" };
+  return { label: "کۆکردەوە", icon: FileText, tone: "text-zinc-300" };
+}
 
-  const yearStr = yearStart ? `${yearStart}${yearEnd ? `–${yearEnd}` : ""}` : "";
-  const displayTitle =
-    paper?.type === "national_exam"
-      ? `${[subjectName, yearStr].filter(Boolean).join(" ")}${term ? ` xul ${term}` : ""}`.trim()
-      : item?.label || paper?.title || "بی‌ناو";
+function buildQuery({ subjectId, subject, grade, stream, type, page = 1, perPage = 12 }) {
+  const sp = new URLSearchParams();
+  if (type) sp.set("type", type);
+  if (subjectId) sp.set("subject_id", subjectId);
+  else if (subject) sp.set("subject", subject);
+  if (grade) sp.set("grade", grade);
+  if (stream) sp.set("stream", stream);
+  sp.set("page", String(page));
+  sp.set("per_page", String(perPage));
+  return `${API_PAPERS}?${sp.toString()}`;
+}
 
-  const tags = [];
-  if (subjectName) tags.push(subjectName);
-  if (paper?.grade) tags.push(`پۆل ${paper.grade}`);
-  if (paper?.stream)
-    tags.push(paper.stream === "scientific" ? "زانستی" : paper.stream === "literary" ? "ئەدەبی" : "هاوبەش");
-  if (term) tags.push(`خباط ${term}`);
-  if (yearStart) tags.push(yearStr);
+/* ----------------- skeletons ----------------- */
+function SkeletonBar({ className = "" }) {
+  return <div className={`animate-pulse rounded-md bg-white/10 ${className}`} />;
+}
 
-  const badges = [];
-  switch (paper?.type) {
-    case "national_exam":
-      badges.push("تاقیكردنه‌وه‌ی نیشتیمانی");
-      break;
-    case "important_questions":
-      badges.push("ئەسیلە گرنگ");
-      break;
-    case "important_note":
-      badges.push("تێبینی گرنگ");
-      break;
-    default:
-      badges.push("پەڕەکان");
-  }
+function PaperCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden">
+      <div className="p-4 border-b border-white/10">
+        <div className="flex items-start gap-3">
+          <SkeletonBar className="w-9 h-9 rounded-xl" />
+          <div className="flex-1">
+            <SkeletonBar className="h-4 w-2/3 mb-2" />
+            <div className="flex gap-2">
+              <SkeletonBar className="h-3 w-20" />
+              <SkeletonBar className="h-3 w-24" />
+              <SkeletonBar className="h-3 w-16" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 flex gap-2 overflow-x-auto">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonBar key={i} className="h-8 w-36 rounded-xl shrink-0" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  return {
-    id: `${paper.id}:${item.id}`,
-    title: displayTitle,
-    subject: subjectName,
-    teacher: teacherName,
-    type: paper?.type || "paper",
-    pdf_url: item?.url || paper?.pdf_url || null,
-    thumb_url: item?.thumb_url || paper?.thumb_url || null,
-    tags,
-    badges,
-    stream: paper?.stream || null,
-    yearStart,
-    yearEnd,
-    term,
+/* ----------------- components ----------------- */
+function PaperItemChip({ it, paperTitle, backParam }) {
+  const navigate = useNavigate();
+  const year =
+    it?.year_start && it?.year_end ? `${it.year_start}–${String(it.year_end).toString().slice(-2)}` : null;
+  const term = it?.term ? `خولی ${it.term}` : null;
+  const sess = typeof it?.session_no === "number" ? `وانە ${it.session_no}` : null;
+  const parts = [year, term, sess].filter(Boolean);
+
+  const view = () => {
+    if (!it?.url) return;
+    const qs = new URLSearchParams({
+      url: it.url,
+      title: it?.label || paperTitle || "پەڕە",
+      label: parts.join(" • "),
+      back: backParam, // full return URL
+    });
+    navigate(`/viewer?${qs.toString()}`);
   };
-}
 
-function TypeTabs({ value, onChange }) {
-  const types = [
-    { key: "national_exam", label: "تاقیكردنه‌وه‌ی نیشتیمانی", icon: FileText },
-    { key: "important_questions", label: "ئەسیلە گرنگ", icon: HelpCircle },
-    { key: "important_note", label: "تێبینی گرنگ", icon: NotebookPen },
-  ];
   return (
-    <div className="flex items-center flex-wrap gap-1.5" dir="rtl">
-      {types.map((t) => {
-        const Icon = t.icon;
-        const active = value === t.key;
-        return (
-          <button
-            key={t.key}
-            onClick={() => onChange(t.key)}
-            className={`px-3 py-1.5 rounded-2xl text-[12px] ring-1 inline-flex items-center gap-1.5 transition
-              ${active ? "bg-white/15 text-white ring-white/25" : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"}`}
-          >
-            <Icon size={14} />
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function StreamTabs({ stream, setStream, show }) {
-  if (!show) return null;
-  const opts = [
-    { key: "scientific", label: "زانستی" },
-    { key: "both", label: "هاوبەش" },
-    { key: "literary", label: "ئەدەبی" },
-  ];
-  const showAll = true;
-  return (
-    <div className="flex items-center flex-wrap gap-1.5" dir="rtl">
-      {showAll && (
-        <button
-          onClick={() => setStream("all")}
-          className={`px-2.5 py-1.5 rounded-2xl text-[11px] ring-1 transition
-            ${stream === "all" ? "bg-white/15 text-white ring-white/25" : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"}`}
-        >
-          هەموان
-        </button>
+    <button
+      onClick={view}
+      className="group shrink-0 flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-right px-3 py-2 transition"
+      title={it?.label || "بینین"}
+    >
+      <span className="text-[11px] text-zinc-300 line-clamp-1">
+        {it?.label || "بەڵگە"}
+      </span>
+      {parts.length > 0 && (
+        <span className="text-[10px] text-zinc-400">• {parts.join(" • ")}</span>
       )}
-      {opts.map((o) => (
-        <button
-          key={o.key}
-          onClick={() => setStream(o.key)}
-          className={`px-2.5 py-1.5 rounded-2xl text-[11px] ring-1 transition
-            ${stream === o.key ? "bg-white/15 text-white ring-white/25" : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+      <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-white" />
+    </button>
   );
 }
 
+/* ----------------- page ----------------- */
 export default function Papers() {
-  const nav = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
-  // use localStorage grade silently (no UI)
-  const [grade] = useLocalGrade(12);
-
-  const [q, setQ] = useState(params.get("q") || "");
-  const [subject, setSubject] = useState(params.get("subject") || "");
-  const [stream, setStream] = useState(params.get("stream") || "all");
-  const [type, setType] = useState(params.get("type") || "national_exam");
+  const subjectId = params.get("subject_id");
+  const subject = params.get("subject");
+  const grade = params.get("grade");
+  const stream = params.get("stream");
+  const type = params.get("type");
 
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState([]);
-  const [subjects, setSubjects] = useState([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [meta, setMeta] = useState({ page: 1, last: 1, total: 0 });
+  const [papers, setPapers] = useState([]);
+  const [q, setQ] = useState("");
 
-  // sync URL
+  const tInfo = typeInfo(type);
+  const streamLabel = streamKurdish(stream);
+
+  // full back param (same filtered URL)
+  const backParam = `${location.pathname}${location.search}`;
+
   useEffect(() => {
-    const sp = new URLSearchParams();
-    if (q) sp.set("q", q);
-    if (subject) sp.set("subject", subject);
-    if (type) sp.set("type", type);
-    if (stream && stream !== "all") sp.set("stream", stream);
-    setParams(sp, { replace: true });
-  }, [q, subject, type, stream, setParams]);
-
-  // build URL for API
-  const buildParams = useCallback(() => {
-    const sp = new URLSearchParams();
-    if (grade) sp.set("grade", String(grade)); // still filter by grade from localStorage
-    if (subject) sp.set("subject", subject);
-    if (type) sp.set("type", type);
-    if (q) sp.set("q", q);
-    if (stream && stream !== "all") sp.set("stream", stream);
-    return sp;
-  }, [grade, subject, type, q, stream]);
-
-  const url = useMemo(() => API.list(buildParams()), [buildParams]);
-
-  // fetch & map (only subject filtered client-side to avoid cross-subject bleed)
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    fetchJSON(url)
-      .then((json) => {
-        if (!alive) return;
-        const papers = (Array.isArray(json?.data) ? json.data : json) || [];
-
-        // subjects list (from all returned)
-        const subs = Array.from(new Set(papers.map((p) => p?.subject?.name).filter(Boolean)));
-        setSubjects(subs);
-
-        const subjNorm = normalize(subject);
-        const filtered = subject
-          ? papers.filter((p) => normalize(p?.subject?.name || "") === subjNorm)
-          : papers;
-
-        const flattened = [];
-        filtered.forEach((p) => {
-          if (Array.isArray(p.items) && p.items.length > 0) {
-            p.items.forEach((it) => flattened.push(mapPaperItem(p, it)));
-          } else if (p.pdf_url) {
-            flattened.push(
-              mapPaperItem(p, {
-                id: `p${p.id}`,
-                label: p.title,
-                url: p.pdf_url,
-                thumb_url: p.thumb_url,
-                year_start: null,
-                year_end: null,
-                term: null,
-              })
-            );
-          }
+    let ok = true;
+    (async () => {
+      setErr("");
+      setInitialLoading(true);
+      setPapers([]);
+      setMeta({ page: 1, last: 1, total: 0 });
+      try {
+        const url = buildQuery({ subjectId, subject, grade, stream, type, page: 1, perPage: 12 });
+        const j = await fetchJSON(url);
+        if (!ok) return;
+        setPapers(j?.data || []);
+        setMeta({
+          page: j?.current_page || 1,
+          last: j?.last_page || 1,
+          total: j?.total || (j?.data?.length || 0),
         });
+      } catch {
+        if (!ok) return;
+        setErr("نەتوانرا پەڕەکان باربکرێن.");
+      } finally {
+        setInitialLoading(false);
+      }
+    })();
+    return () => { ok = false; };
+  }, [subjectId, subject, grade, stream, type]);
 
-        setRows(flattened);
-
-        // snap subject text to canonical to light up chips
-        if (subject) {
-          const hit = subs.find((s) => normalize(s) === subjNorm);
-          if (hit && hit !== subject) setSubject(hit);
-        }
-      })
-      .catch(() => setRows([]))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // open viewer
-  const onOpen = (item) => {
-    const u = encodeURIComponent(item?.pdf_url || "");
-    const t = encodeURIComponent(item?.title || "");
-    if (!u) return;
-    nav(`/viewer?u=${u}&t=${t}&type=pdf`);
+  const loadMore = async () => {
+    if (meta.page >= meta.last) return;
+    const next = meta.page + 1;
+    setLoading(true);
+    try {
+      const url = buildQuery({ subjectId, subject, grade, stream, type, page: next, perPage: 12 });
+      const j = await fetchJSON(url);
+      setPapers(prev => prev.concat(j?.data || []));
+      setMeta({ page: j?.current_page || next, last: j?.last_page || next, total: j?.total || 0 });
+    } catch {
+      setErr("نەتوانرا پەڕەی داهاتوو بکرێت.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // labels
-  const typeLabel =
-    type === "national_exam"
-      ? "تاقیكردنه‌وه‌ی نیشتیمانی"
-      : type === "important_questions"
-      ? "ئەسیلە گرنگ"
-      : type === "important_note"
-      ? "تێبینی گرنگ"
-      : "پەڕەکان";
-
-  // group by (subject + year range + stream) for national_exam
-  const examGroups = useMemo(() => {
-    if (type !== "national_exam") return [];
-    const byKey = new Map();
-    rows.forEach((r) => {
-      const ys = r.yearStart ?? "";
-      const ye = r.yearEnd ?? "";
-      const subj = r.subject ?? "";
-      const str = r.stream ?? "";
-      const key = `${subj}||${ys}||${ye}||${str}`;
-      if (!byKey.has(key))
-        byKey.set(key, { key, subject: subj, yearStart: r.yearStart, yearEnd: r.yearEnd, stream: r.stream, items: [] });
-      byKey.get(key).items.push(r);
-    });
-    for (const g of byKey.values()) {
-      g.items.sort((a, b) => {
-        const ta = parseInt(a.term || 0, 10);
-        const tb = parseInt(b.term || 0, 10);
-        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
-        return String(a.title).localeCompare(String(b.title));
-      });
-    }
-    const arr = Array.from(byKey.values());
-    arr.sort((a, b) => {
-      const ya = parseInt(a.yearStart || 0, 10);
-      const yb = parseInt(b.yearStart || 0, 10);
-      if (ya !== yb) return yb - ya;
-      return String(a.subject).localeCompare(String(b.subject));
-    });
-    return arr;
-  }, [rows, type]);
+  const filtered = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    if (!n) return papers;
+    const match = (s) => (s || "").toString().toLowerCase().includes(n);
+    return (papers || []).map(p => ({
+      ...p,
+      items: (p.items || []).filter(it =>
+        match(it?.label) ||
+        match(p?.title) ||
+        match(p?.subject?.name) ||
+        match(it?.term) ||
+        match(String(it?.year_start || "")) ||
+        match(String(it?.year_end || "")) ||
+        match(String(it?.session_no ?? ""))
+      )
+    })).filter(p => (p.items || []).length > 0);
+  }, [papers, q]);
 
   return (
-    <div className="p-3 sm:p-5 space-y-3" dir="rtl">
-      {/* Back */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={() => nav(-1)}
-          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-zinc-200 hover:bg-white/10"
-        >
-          <ArrowRight className="w-4 h-4" />
-          گەڕانەوە
-        </button>
+    <div dir="rtl" className="p-3 sm:p-5 space-y-4">
+      {/* Header */}
+      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-sky-500/5 p-3 sm:p-4 sticky top-2 z-10">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              {React.createElement(tInfo.icon, { className: `w-5 h-5 ${tInfo.tone}` })}
+              <div className="font-extrabold text-lg sm:text-xl">{tInfo.label}</div>
+              {meta.total ? <span className="text-[11px] text-zinc-300">({meta.total})</span> : null}
+            </div>
+
+            {/* Back button */}
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white"
+              title="گەڕانەوە"
+            >
+              <ArrowRightCircle className="w-4 h-4" />
+              گەڕانەوە
+            </button>
+          </div>
+
+          {/* context badges */}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-300">
+            {/* {subjectId && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">#ID بابەت: {subjectId}</span>} */}
+            {/* {subject && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">بابەت: {subject}</span>} */}
+            {grade && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10"><GraduationCap className="inline w-3 h-3 mr-1" />پۆل: {grade}</span>}
+            {stream && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">جۆر: {streamLabel}</span>}
+          </div>
+
+          {/* search */}
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-[360px]">
+              <input
+                dir="rtl"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="گەڕان لە ناونیشان، ساڵ، خولی، وانە..."
+                className="w-full rounded-2xl bg-zinc-900/60 border border-white/10 text-white text-sm px-10 py-2.5 outline-none focus:ring-2 focus:ring-sky-400/30"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            </div>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[12px] text-zinc-400">
+              <Filter className="w-4 h-4" /> فلتەری ناوەڕۆک
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-500/10 to-sky-500/5 p-3"
-      >
-        <div className="flex items-center justify-between">
-          <div className="text-white font-extrabold text-lg">{typeLabel}</div>
-          <div className="text-[11px] text-zinc-300">{subject || "بەبێ بابەت"} </div>
+      {/* Error */}
+      {err && <div className="text-red-300 text-sm">{err}</div>}
+
+      {/* Initial Skeletons */}
+      {initialLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <PaperCardSkeleton key={i} />)}
         </div>
-      </motion.div>
+      )}
 
-      {/* Menus under header */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-white/10 bg-white/5 p-2.5 flex items-center justify-between flex-wrap gap-2"
-      >
-        <TypeTabs value={type} onChange={setType} />
-        <StreamTabs stream={stream} setStream={setStream} show={true} />
-      </motion.div>
+      {/* Empty */}
+      {!initialLoading && filtered.length === 0 && (
+        <div className="text-zinc-400">هیچ پەڕەیەک نەدۆزرایەوە بەم فلتەرە.</div>
+      )}
 
-      {/* Search / Subjects (no grade picker) */}
-      <Toolbar
-        q={q}
-        setQ={setQ}
-        subjects={subjects}
-        activeSubject={subject}
-        setActiveSubject={setSubject}
-      />
+      {/* Papers grid */}
+      {!initialLoading && filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filtered.map((p) => {
+            const teacher = p?.teacher?.full_name;
+            const subj = p?.subject?.name;
+            const count = Array.isArray(p?.items) ? p.items.length : 0;
+            const t = typeInfo(p?.type);
+            const ThumbIcon = t.icon;
+            const toneClass = t.tone;
 
-      {/* Content */}
-      {loading ? (
-        <div className="text-center text-zinc-400 py-10">بارکردن…</div>
-      ) : rows.length === 0 ? (
-        <div className="text-center text-zinc-400 py-10">هیچ داتایەک نەدۆزرایەوە</div>
-      ) : type === "national_exam" ? (
-        <div className="space-y-2.5 sm:space-y-3">
-          {examGroups.map((g) => {
-            const headTitle = [
-              g.subject || "بی‌بابەت",
-              g.yearStart ? `${g.yearStart}${g.yearEnd ? `–${g.yearEnd}` : ""}` : "",
-            ]
-              .filter(Boolean)
-              .join(" • ");
             return (
-              <ExamYearGroup
-                key={g.key}
-                title={headTitle}
-                subject={g.subject}
-                yearStart={g.yearStart}
-                yearEnd={g.yearEnd}
-                stream={g.stream}
-                items={g.items}
-                onOpenItem={onOpen}
-              />
+              <div
+                key={`paper-${p.id}`}
+                className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden"
+              >
+                {/* header */}
+                <div className="p-3 sm:p-4 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 rounded-xl bg-black/30 border border-white/10 p-2">
+                      <ThumbIcon className={`w-5 h-5 ${toneClass}`} />
+                    </div>
+                    <div className="flex-1 text-right">
+                      <div className="text-white font-bold leading-6">
+                        {p?.title || tInfo.label}
+                      </div>
+                      <div className="text-[12px] text-zinc-400 flex flex-wrap gap-2 mt-1">
+                        {subj && (
+                          <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                            {subj}
+                          </span>
+                        )}
+                        {teacher && (
+                          <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 inline-flex items-center gap-1">
+                            <User2 className="w-3 h-3" />
+                            {teacher}
+                          </span>
+                        )}
+                        {count > 0 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">
+                            ژمارەی پەڕەکان: {count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* items */}
+                <div className="p-3 sm:p-4">
+                  {(!p?.items || p.items.length === 0) ? (
+                    <div className="text-zinc-400 text-sm">هیچ پەڕەیەک لەم کۆمەڵەیەدا نییە.</div>
+                  ) : (
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                      {p.items.map((it) => (
+                        <PaperItemChip
+                          key={`it-${p.id}-${it.id}`}
+                          it={it}
+                          paperTitle={p?.title}
+                          backParam={backParam}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* optional bundle */}
+                  {p?.pdf_url && (
+                    <div className="mt-3 flex justify-end">
+                      <a
+                        href={p.pdf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white"
+                      >
+                        <Download className="w-4 h-4" /> کۆپی دەرهێنراو
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
-      ) : (
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2.5 sm:gap-3"
-        >
-          {rows.map((it) => (
-            <motion.div key={it.id} variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
-              <ResourceCard item={it} onOpen={onOpen} />
-            </motion.div>
-          ))}
-        </motion.div>
+      )}
+
+      {/* Load more */}
+      {!initialLoading && meta.page < meta.last && (
+        <div className="flex justify-center py-4">
+          <button
+            onClick={loadMore}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm border border-white/10"
+          >
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> زیاتر باربکە
+              </span>
+            ) : "زیاتر باربکە"}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -45,6 +45,8 @@ import ImportantNotes from "@/pages/resources/notes/ImportantNotes";
 import ImportantExams from "@/pages/resources/exams/ImportantExams";
 import BooksLiterary from "@/pages/resources/books/BooksLiterary";
 import Papers from "./pages/resources/papers/Paper.jsx";
+import Gallery from "./pages/resources/Gallery.jsx";
+import Viewer from "./pages/Viewer.jsx";
 
 /* ─────────────────────────────
    Auth Context
@@ -244,9 +246,11 @@ export default function App() {
                 <Route path="papers" element={<Papers />} />
                 <Route path="notes" element={<ImportantNotes />} />
                 <Route path="exams" element={<ImportantExams />} />
+                <Route path="gallery" element={<Gallery />} />
               </Route>
         </Route>
-            <Route path="/viewer" element={<ResourceViewer />} />
+            <Route path="/viewer" element={<Viewer />} />
+            {/* <Route path="/viewer" element={<ResourceViewer />} /> */}
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

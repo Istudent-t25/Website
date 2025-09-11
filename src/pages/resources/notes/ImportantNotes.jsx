@@ -5,7 +5,6 @@ import Toolbar from "@/components/Toolbar";
 import CardGrid from "@/components/CardGrid";
 import ResourceCard from "@/components/ResourceCard";
 
-// ---------- API CONFIG (edit to your backend) ----------
 const API = {
   importantNotes: (grade, subject, q) => {
     const sp = new URLSearchParams();
@@ -47,13 +46,11 @@ export default function ImportantNotes() {
 
   return (
     <div className="p-3 sm:p-5 space-y-4" dir="rtl">
-      {/* Header */}
       <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-amber-500/10 to-yellow-500/5 p-3 sm:p-4">
         <div className="text-white font-extrabold text-lg sm:text-xl">تێبینییە گرنگەکان</div>
         <div className="text-[12px] text-zinc-300 mt-1">کورتەکان و نوتە گرنگەکان بۆ خوێندن</div>
       </div>
 
-      {/* Toolbar */}
       <Toolbar
         q={q}
         setQ={setQ}
@@ -64,7 +61,6 @@ export default function ImportantNotes() {
         setActiveSubject={setActiveSubject}
       />
 
-      {/* Grid */}
       {loading ? (
         <div className="text-center text-zinc-400 py-10">بارکردن…</div>
       ) : filtered.length === 0 ? (
