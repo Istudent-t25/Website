@@ -7,14 +7,23 @@ import {
   BookOpenCheck,
   FileText,
   ListChecks,
-  Layers,
-  BookMarked,
 } from "lucide-react";
 import SubjectIcon from "@/components/SubjectIcon";
 import useLocalGrade from "@/hooks/useLocalGrade";
 import { fetchJSON } from "@/utils/fetchJSON";
+import { apiUrl } from "@/utils/api";
 
 const EASE = [0.22, 1, 0.36, 1];
+
+// --- Text normalization to avoid ZWNJ / Kaf / Ye mismatches ---
+const normalize = (s = "") =>
+  s
+    .normalize("NFKC")
+    .replace(/\u200c/g, "") // remove ZWNJ
+    .replace(/[ىي]/g, "ی")  // unify Ye
+    .replace(/ك/g, "ک")     // unify Kaf
+    .replace(/\s+/g, " ")
+    .trim();
 
 const QuickAction = ({ icon, title, desc, onClick }) => (
   <motion.button
@@ -33,22 +42,51 @@ const QuickAction = ({ icon, title, desc, onClick }) => (
 );
 
 // Ask backend: how many docs exist for a subject/grade/stream?
+// Tries subject= first; if empty, retries with q=subject (handles ZWNJ/name variants)
 async function fetchCount({ subject, grade, stream }) {
-  const sp = new URLSearchParams();
-  if (grade) sp.set("grade", String(grade));
-  if (subject) sp.set("subject", subject);
-  if (stream) sp.set("stream", stream);
-  // We just need a tiny page to read "total"
-  sp.set("per_page", "1");
-  const url = `/api/v1/documents?${sp.toString()}`;
+  const sp1 = new URLSearchParams();
+  if (grade) sp1.set("grade", String(grade));
+  if (subject) sp1.set("subject", subject);
+  if (stream) sp1.set("stream", stream);
+  sp1.set("per_page", "1");
+
   try {
-    const json = await fetchJSON(url);
-    // paginator shape: { total, data: [...] }
-    const total = typeof json?.total === "number" ? json.total : (Array.isArray(json) ? json.length : 0);
-    return total || 0;
+    const url1 = apiUrl("/api/v1/documents", sp1);
+    const json1 = await fetchJSON(url1);
+    const total1 =
+      typeof json1?.total === "number"
+        ? json1.total
+        : Array.isArray(json1)
+        ? json1.length
+        : 0;
+    if (total1 > 0) return total1;
   } catch {
-    return 0;
+    /* ignore and try fallback */
   }
+
+  // Fallback: q=subject
+  if (subject) {
+    const sp2 = new URLSearchParams();
+    if (grade) sp2.set("grade", String(grade));
+    if (stream) sp2.set("stream", stream);
+    sp2.set("q", subject);
+    sp2.set("per_page", "1");
+    try {
+      const url2 = apiUrl("/api/v1/documents", sp2);
+      const json2 = await fetchJSON(url2);
+      const total2 =
+        typeof json2?.total === "number"
+          ? json2.total
+          : Array.isArray(json2)
+          ? json2.length
+          : 0;
+      return total2 || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  return 0;
 }
 
 function StreamFilter({ grade, available, value, onChange }) {
@@ -88,15 +126,23 @@ export default function SubjectDetail() {
   const loc = useLocation();
   const [grade] = useLocalGrade(12);
 
-  // Subject name (from state or slug)
+  // Subject name (from navigation state or slug)
+  // decodeURIComponent in case router slug includes encoded chars
+  const slugName = params?.id ? decodeURIComponent(params.id).replace(/-/g, " ") : "";
   const stateName = loc.state?.name;
-  const niceName = stateName || (params?.id ? params.id.replace(/-/g, " ") : "بابەت");
+  // Keep a display name (original if provided), but build a canonical subject for API/URLs
+  const displayName = stateName || slugName || "بابەت";
+  const subjectCanonical = useMemo(() => normalize(displayName), [displayName]);
 
   // Stream passed from SubjectsHub (optional)
   const incomingStream = loc.state?.stream || null;
 
   // Availability (based on real documents)
-  const [avail, setAvail] = useState({ scientific: false, both: false, literary: false });
+  const [avail, setAvail] = useState({
+    scientific: false,
+    both: false,
+    literary: false,
+  });
   const streamsHaveAny = avail.scientific || avail.both || avail.literary;
 
   // Selected stream (if any). For <10, we'll ignore it and hide the UI.
@@ -117,9 +163,9 @@ export default function SubjectDetail() {
       }
 
       const [sc, bo, li] = await Promise.all([
-        fetchCount({ subject: niceName, grade, stream: "scientific" }),
-        fetchCount({ subject: niceName, grade, stream: "both" }),
-        fetchCount({ subject: niceName, grade, stream: "literary" }),
+        fetchCount({ subject: subjectCanonical, grade, stream: "scientific" }),
+        fetchCount({ subject: subjectCanonical, grade, stream: "both" }),
+        fetchCount({ subject: subjectCanonical, grade, stream: "literary" }),
       ]);
 
       if (!alive) return;
@@ -146,30 +192,36 @@ export default function SubjectDetail() {
     return () => {
       alive = false;
     };
-  }, [niceName, grade, incomingStream]);
+  }, [subjectCanonical, grade, incomingStream]);
 
   // Helper to add subject/stream to URLs
   const addCommonParams = (sp) => {
-    if (niceName) sp.set("subject", niceName);
+    if (subjectCanonical) sp.set("subject", subjectCanonical);
     // Only include stream if we’re showing streams (grade >= 10) and one is selected
     if (Number(grade) >= 10 && selectedStream) sp.set("stream", selectedStream);
     return sp;
   };
 
-  // Quick actions
+  // Quick actions (navigate with canonical, normalized subject)
   const goBooks = () => {
     const sp = addCommonParams(new URLSearchParams());
-    // Open whichever tab you like by default; here: "book"
-    sp.set("t", "book");
+    sp.set("t", "book"); // default tab
     nav(`/resources/books?${sp.toString()}`);
   };
   const goNotes = () => {
     const sp = addCommonParams(new URLSearchParams());
-    nav(`/resources/notes?${sp.toString()}`);
+    sp.set("type", "important_note");
+    nav(`/resources/papers?${sp.toString()}`);
   };
   const goImportantExams = () => {
     const sp = addCommonParams(new URLSearchParams());
-    nav(`/resources/exams?${sp.toString()}`);
+    sp.set("type", "important_questions");
+    nav(`/resources/papers?${sp.toString()}`);
+  };
+  const goPaperExams = () => {
+    const sp = addCommonParams(new URLSearchParams());
+    sp.set("type", "national_exam");
+    nav(`/resources/papers?${sp.toString()}`);
   };
 
   return (
@@ -184,12 +236,12 @@ export default function SubjectDetail() {
               </Link>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
               <span className="font-extrabold text-lg sm:text-xl flex items-center gap-2">
-                <SubjectIcon name={niceName} className="w-5 h-5" />
-                {niceName}
+                <SubjectIcon name={displayName} className="w-5 h-5" />
+                {displayName}
               </span>
             </div>
             <div className="hidden sm:block text-[12px] text-zinc-300">
-              هەموو سەرچاوەکان بۆ {niceName}
+              هەموو سەرچاوەکان بۆ {displayName}
             </div>
           </div>
 
@@ -197,7 +249,8 @@ export default function SubjectDetail() {
           {Number(grade) >= 10 && streamsHaveAny && (
             <div className="flex items-center justify-between">
               <div className="text-[12px] text-zinc-400">
-                دەرچووی پۆلی: <span className="text-zinc-200 font-semibold">پۆل {grade}</span>
+                دەرچووی پۆلی:{" "}
+                <span className="text-zinc-200 font-semibold">پۆل {grade}</span>
               </div>
               <StreamFilter
                 grade={grade}
@@ -214,61 +267,28 @@ export default function SubjectDetail() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <QuickAction
           icon={<BookOpenCheck className="w-4 h-4 text-emerald-300" />}
-          title="کتێب + مەڵزەمە"
-          desc="هەموو کتێب و مەڵزەمەکان"
+          title="کتێب و مه‌لزه‌مه‌"
+          desc="هەموو کتێب و مه‌لزه‌مه‌كان"
           onClick={goBooks}
         />
         <QuickAction
           icon={<FileText className="w-4 h-4 text-purple-300" />}
           title="تێبینی گرنگ"
-          desc="نکته‌، تێبینی، هۆشداری"
+          desc="تێبینی و دیاریكردنی شته‌ گرنگه‌كان"
           onClick={goNotes}
         />
         <QuickAction
           icon={<ListChecks className="w-4 h-4 text-amber-300" />}
-          title="ئەسیلە گرنگ"
+          title="ئەسیلەی گرنگ"
           desc="پرسیار و تاقیکردنەوە"
           onClick={goImportantExams}
         />
         <QuickAction
-          icon={<Layers className="w-4 h-4 text-sky-300" />}
-          title="تعریفەکان"
-          desc="کورتە باس و وەسف"
-          onClick={() => {
-            const sp = addCommonParams(new URLSearchParams());
-            sp.set("t", "booklet");
-            sp.set("q", "تعریف");
-            nav(`/resources/books?${sp.toString()}`);
-          }}
+          icon={<ListChecks className="w-4 h-4 text-amber-300" />}
+          title="ئازمونی نیشتمانی"
+          desc="پرسیار و تاقیکردنەوە"
+          onClick={goPaperExams}
         />
-        <QuickAction
-          icon={<BookMarked className="w-4 h-4 text-rose-300" />}
-          title="یاسا / قوانینی وانە"
-          desc="قانون، قاعدە، ڕێگا"
-          onClick={() => {
-            const sp = addCommonParams(new URLSearchParams());
-            sp.set("t", "booklet");
-            sp.set("q", "قانون");
-            nav(`/resources/books?${sp.toString()}`);
-          }}
-        />
-        <QuickAction
-          icon={<Layers className="w-4 h-4 text-cyan-300" />}
-          title="پەیڤە کورتەکان (Abbrev.)"
-          desc="کورتکراوە و نووسراوەکان"
-          onClick={() => {
-            const sp = addCommonParams(new URLSearchParams());
-            sp.set("t", "booklet");
-            sp.set("q", "کورتە");
-            nav(`/resources/books?${sp.toString()}`);
-          }}
-        />
-      </div>
-
-      {/* Hint */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-[12px] text-zinc-300">
-        ئاماژە: فلتەری هاوشێوە (stream) تەنها دەرکەویتەوە ئەگەر بۆ ئەم بابەتە داتایەکی هاوبەش/زانستی/ئەدەبی هەبێت، و
-        بۆ پۆلەکان خوارتر لە ۱۰ نیشان نادرێت.
       </div>
     </div>
   );

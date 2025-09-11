@@ -44,6 +44,7 @@ import BooksAndBooklets from "@/pages/resources/books/BooksAndBooklets";
 import ImportantNotes from "@/pages/resources/notes/ImportantNotes";
 import ImportantExams from "@/pages/resources/exams/ImportantExams";
 import BooksLiterary from "@/pages/resources/books/BooksLiterary";
+import Papers from "./pages/resources/papers/Paper.jsx";
 
 /* ─────────────────────────────
    Auth Context
@@ -203,10 +204,10 @@ function AppShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <WelcomeGate>
+      {/* <WelcomeGate> */}
         <Routes>
           {/* Public: Welcome */}
-          <Route path="/welcome" element={<WelcomePWA afterPath="/auth" />} />
+          {/* <Route path="/welcome" element={<WelcomePWA afterPath="/auth" />} /> */}
 
           {/* Public: Auth */}
           <Route element={<RedirectIfAuthed />}>
@@ -233,22 +234,23 @@ export default function App() {
               <Route path="/study" element={<StudyHub />} />
               {/* <Route path="/subjects/:slug" element={<SubjectPage />} /> */}
               <Route path="/course" element={<CoursePage />} />
-            </Route>
+              <Route path="/subjects">
+                <Route index element={<SubjectsHub />} />
+                <Route path=":id" element={<SubjectDetail />} />
+              </Route>
+              <Route path="/resources">
+                <Route path="books" element={<BooksAndBooklets />} />
+                <Route path="books-literary" element={<BooksLiterary />} />
+                <Route path="papers" element={<Papers />} />
+                <Route path="notes" element={<ImportantNotes />} />
+                <Route path="exams" element={<ImportantExams />} />
+              </Route>
+        </Route>
             <Route path="/viewer" element={<ResourceViewer />} />
-          </Route>
-           <Route path="/subjects">
-            <Route index element={<SubjectsHub />} />
-            <Route path=":id" element={<SubjectDetail />} />
-          </Route>
-           <Route path="/resources">
-            <Route path="books" element={<BooksAndBooklets />} />
-            <Route path="books-literary" element={<BooksLiterary />} />
-            <Route path="notes" element={<ImportantNotes />} />
-            <Route path="exams" element={<ImportantExams />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </WelcomeGate>
+      {/* </WelcomeGate> */}
     </AuthProvider>
   );
 }

@@ -584,8 +584,8 @@ function TopHero() {
       <div className="px-4 sm:px-6 pt-4 pb-5">
         <div className="flex items-center justify-between gap-4" dir="rtl">
           <div className="min-w-0">
-            <div className="text-zinc-300 text-sm">خوێندکارە جوانەکان 😎</div>
-            <div className="text-zinc-100 text-2xl sm:text-3xl font-extrabold leading-tight truncate">بەخێربێیتە داشبۆرد</div>
+            {/* <div className="text-zinc-300 text-sm">خوێندکارە جوانەکان 😎</div> */}
+            <div className="text-zinc-100 text-2xl sm:text-3xl font-extrabold leading-tight truncate">بەخێربێیتەوه‌ </div>
           </div>
 
           <div className="shrink-0 flex items-center gap-3">

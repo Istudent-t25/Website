@@ -14,7 +14,7 @@ const API = {
     if (q) sp.set("q", q);
     sp.set("type", type);
     sp.set("stream", "literary"); // ✅ only literary here
-    return `/api/v1/documents?${sp.toString()}`;
+    return `https://api.studentkrd.com/api/v1/documents?${sp.toString()}`;
   },
 };
 

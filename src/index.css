@@ -145,3 +145,9 @@ html.dark body,
     -webkit-backdrop-filter: blur(10px);
   }
 }
+.fix-ios {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}

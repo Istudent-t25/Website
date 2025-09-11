@@ -1,56 +1,147 @@
-import React from "react";
-import { Search, Filter } from "lucide-react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { Search, X, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-export default function Toolbar({ q, setQ, grade, setGrade, subjects, activeSubject, setActiveSubject }) {
+// Normalize Kurdish/Arabic strings for comparison
+const normalize = (s = "") =>
+  s
+    .normalize("NFKC")
+    .replace(/\u200c/g, "")
+    .replace(/[ىي]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export default function Toolbar({
+  q,
+  setQ,
+  subjects = [],
+  activeSubject = "",
+  setActiveSubject,
+}) {
+  const [openSuggest, setOpenSuggest] = useState(false);
+  const inputRef = useRef(null);
+
+  const subjectOptions = useMemo(
+    () => subjects.map((s) => ({ raw: s, norm: normalize(s) })),
+    [subjects]
+  );
+
+  const activeNorm = normalize(activeSubject);
+
+  const suggestions = useMemo(() => {
+    const nq = normalize(q);
+    if (!nq) return [];
+    const startHits = subjectOptions.filter((o) => o.norm.startsWith(nq));
+    const containHits = subjectOptions.filter(
+      (o) => !o.norm.startsWith(nq) && o.norm.includes(nq)
+    );
+    return [...startHits, ...containHits].slice(0, 8);
+  }, [q, subjectOptions]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!inputRef.current?.closest) return;
+      if (!inputRef.current.closest(".toolbar-root")) setOpenSuggest(false);
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
+  const selectSubject = (s) => {
+    setActiveSubject(s);
+    setOpenSuggest(false);
+  };
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-sky-500/5 p-3 sm:p-4" dir="rtl">
-      <div className="flex flex-col gap-3">
-        {/* Search + grade */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <div className="relative flex-1">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="گەڕان… (ناونیشان/مامۆستا/بابەت)"
-              className="w-full bg-zinc-900/70 border border-white/10 rounded-2xl pr-3 pl-10 py-3 text-sm text-zinc-100 outline-none"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] text-zinc-300">پۆل</span>
-            <select
-              value={grade}
-              onChange={(e) => setGrade(Number(e.target.value))}
-              className="bg-zinc-900/70 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-100 outline-none"
+    <div dir="rtl" className="toolbar-root flex flex-col gap-2">
+      {/* Search */}
+      <div className="relative">
+        <div className="flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+          <Search className="w-4 h-4 text-zinc-300" />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOpenSuggest(true);
+            }}
+            onFocus={() => q && setOpenSuggest(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && suggestions.length > 0) {
+                selectSubject(suggestions[0].raw);
+              } else if (e.key === "Escape") {
+                setOpenSuggest(false);
+              }
+            }}
+            placeholder="گەڕان…"
+            className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-zinc-400"
+          />
+          {q ? (
+            <button
+              onClick={() => {
+                setQ("");
+                setOpenSuggest(false);
+                inputRef.current?.focus();
+              }}
+              className="text-zinc-300 hover:text-white"
+              title="سڕینەوە"
             >
-              {[7,8,9,10,11,12].map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <Sparkles className="w-4 h-4 text-zinc-300" />
+          )}
         </div>
 
-        {/* Subject chips */}
-        {subjects?.length ? (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[12px] text-zinc-300 inline-flex items-center gap-1"><Filter size={14}/> بابەتەکان:</span>
-            <button
-              onClick={() => setActiveSubject("")}
-              className={`px-3 py-1 rounded-xl text-[12px] ring-1 ${!activeSubject ? "bg-white/10 text-white ring-white/20" : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"}`}
+        {/* Suggestions */}
+        <AnimatePresence>
+          {openSuggest && suggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              className="absolute z-20 mt-1 w-full rounded-xl bg-zinc-950/90 ring-1 ring-white/10 shadow-xl backdrop-blur"
             >
-              هەموو
-            </button>
-            {subjects.map((s) => (
-              <button
-                key={s}
-                onClick={() => setActiveSubject(s)}
-                className={`px-3 py-1 rounded-xl text-[12px] ring-1 ${activeSubject === s ? "bg-white/10 text-white ring-white/20" : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        ) : null}
+              <ul className="max-h-72 overflow-auto py-1">
+                {suggestions.map((s) => (
+                  <li key={s.raw}>
+                    <button
+                      onClick={() => selectSubject(s.raw)}
+                      className="w-full text-right px-3 py-2 text-sm text-zinc-100 hover:bg-white/5"
+                    >
+                      {s.raw}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Subjects chip row */}
+      {subjects.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 py-1">
+          {subjectOptions.map((o) => {
+            const isActive = activeNorm && o.norm === activeNorm;
+            return (
+              <button
+                key={o.raw}
+                onClick={() => selectSubject(o.raw)}
+                className={`px-3 py-1.5 rounded-2xl ring-1 text-[12px] transition whitespace-nowrap
+                  ${
+                    isActive
+                      ? "bg-white/15 text-white ring-white/25"
+                      : "bg-white/5 text-zinc-300 ring-white/10 hover:bg-white/10"
+                  }`}
+              >
+                {o.raw}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

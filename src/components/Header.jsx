@@ -5,9 +5,10 @@ import { Search, Home, Library, BookMarked, Book ,CalendarDays, Settings } from 
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
-  { to: "/students", label: "بابەتەکان", icon: Library },
+  { to: "/subjects", label: "بابەتەکان", icon: Library },
   { to: "/exams", label: "پرسارەکان", icon: BookMarked },
-  { to: "/subjects", label: "وانەکان", icon: Book },
+  { to: "/course", label: "وانەکان", icon: Book },
+  // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];
 

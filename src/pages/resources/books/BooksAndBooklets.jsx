@@ -30,7 +30,13 @@ async function fetchCount({ subject, grade, stream, type, q }) {
     return 0;
   }
 }
-
+const normalize = (s = "") =>
+  s.normalize("NFKC")
+    .replace(/\u200c/g, "")  // remove ZWNJ
+    .replace(/[ىي]/g, "ی")   // unif. Ye
+    .replace(/ك/g, "ک")      // unif. Kaf
+    .replace(/\s+/g, " ")
+    .trim();
 function Tabs({ tab, setTab }) {
   const TABS = [
     { key: "book", label: "کتێب", icon: BookOpen },
