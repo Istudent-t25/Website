@@ -2,17 +2,16 @@
 <html lang="en" dir="rtl" class="dark">
   <head>
     <meta charset="utf-8" />
-    <!-- <meta name="viewport" -->
-          <!-- content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" /> -->
     <title>iStudent — کتێب، بۆکڵێت، ڤیدیۆ، و پەرتووکان</title>
 
-    <!-- Force dark UI on browsers/system bars -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0d12" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes">
 
-    <!-- SEO / social (unchanged) -->
     <meta name="description" content="iStudent: هەموو شتێک بۆ خوێندکار — کتێب، بۆکڵێت، ڤیدیۆ، پەرتووەکان..." />
     <link rel="canonical" href="https://your-domain.example/" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
@@ -26,28 +25,22 @@
     <meta name="twitter:title" content="iStudent — کتێب، مه‌لزه‌مه‌، ڤیدیۆ، و پەرتووکان" />
     <meta name="twitter:description" content="هەموو کۆمەڵەبابەتی خوێندن لە یەک شوێن." />
     <meta name="twitter:image" content="/images/cover-1200x630.png" />
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-
-  <!-- The deprecated tag, you can remove this if you like but it won't break things -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-
-  <!-- A good practice to set the status bar style for iOS -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- Icons / manifest -->
+    
     <link rel="icon" href="/icons/pwa-192.png" sizes="192x192" />
     <link rel="icon" href="/icons/pwa-512.png" sizes="512x512" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Optional: belt-and-suspenders global dark background -->
     <style>
-      :root{color-scheme:dark}
-      html,body,#root{background:#0b0d12}
+      :root {
+        color-scheme: dark;
+      }
+      html, body, #root {
+        background: #0b0d12;
+      }
     </style>
   </head>
 
-  <!-- CHANGED: use a dark base, not gray-100 -->
   <body class="bg-zinc-950 text-zinc-100">
     <div id="root" class="min-h-screen"></div>
     <script type="module" src="/src/main.jsx"></script>

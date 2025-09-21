@@ -1,8 +1,8 @@
 <!doctype html>
-<html >
+<html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=5, user-scalable=yes, viewport-fit=cover" />
   <title>PDF</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.css">
@@ -49,6 +49,31 @@
 
     body.embed .bar, body.embed .prog { display:none !important; }
     body.embed #viewer { inset:0 0 0 0; height:100svh; padding:0; }
+
+    /* Bottom description panel */
+    .descBox{
+      position:fixed; inset:auto 0 max(env(safe-area-inset-bottom),0px) 0;
+      z-index:16; background:#0c1016cc; border-top:1px solid var(--ring);
+      backdrop-filter:blur(10px); display:none;
+    }
+    .descWrap{ padding:.6rem .75rem; }
+    .descHdr{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+    .descTitle{ font-size:.85rem; color:#e5e7eb; font-weight:600; }
+    .descToggle{
+      border:1px solid #ffffff15; background:#ffffff08; color:#e5e7eb;
+      border-radius:.5rem; font-size:.72rem; padding:.25rem .5rem; cursor:pointer;
+    }
+    .descToggle:hover{ background:#ffffff12; }
+    .descContent{
+      margin-top:.4rem; font-size:.85rem; line-height:1.65; color:#cbd5e1;
+      max-height:7.5rem; overflow:hidden;
+    }
+    .descBox.expanded .descContent{ max-height:44svh; overflow:auto; }
+    .descBox:dir(rtl) .descContent{ text-align: start; }
+    body.embed .descBox{ inset:auto 0 0 0; }
+
+    /* Inner PDF frame (CORS fallback) */
+    .docFrame { display:block; width:100%; height:100%; border:0; background:var(--card); }
   </style>
 </head>
 <body>
@@ -65,15 +90,24 @@
     </div>
   </div>
 
-  <!-- Progress + Loading -->
   <div id="prog" class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span id="progFill"></span></div>
   <div id="loading" class="loading" aria-hidden="true">
     <div class="spinner"><div class="spin"></div> بارکردن…</div>
   </div>
 
-  <!-- Viewer -->
   <main id="viewer" aria-label="PDF viewer"></main>
   <div id="indicator" class="indicator" style="display:none">پەڕە 1/1</div>
+
+  <!-- Description panel -->
+  <div id="descBox" class="descBox" dir="rtl">
+    <div class="descWrap">
+      <div class="descHdr">
+        <div class="descTitle">وەسف/داڕشتە</div>
+        <button id="descToggle" class="descToggle" type="button">فراوانکردن</button>
+      </div>
+      <div id="descContent" class="descContent"></div>
+    </div>
+  </div>
 
   <script>
     const qs          = new URLSearchParams(location.search);
@@ -91,13 +125,16 @@
     const openLink     = document.getElementById("openLink");
     const downloadLink = document.getElementById("downloadLink");
 
+    const descBox      = document.getElementById("descBox");
+    const descContent  = document.getElementById("descContent");
+    const descToggle   = document.getElementById("descToggle");
+
     if (fileUrl) { openLink.href = fileUrl; downloadLink.href = fileUrl; downloadLink.setAttribute("download", ""); }
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
     const CMAP_URL      = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/";
     const STD_FONTS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/";
 
-    const DPR        = Math.min(window.devicePixelRatio || 1, 1.6);
     const BASE_SCALE = Number.isFinite(Number(Z_PARAM)) ? Math.max(0.1, Number(Z_PARAM)) : 0.6;
 
     let pdfDoc = null;
@@ -111,26 +148,60 @@
     function hideProgress(){ prog.classList.add("hide"); setTimeout(()=>{ prog.style.display = "none"; }, 300); }
     function hideLoading(){ loading.style.display = "none"; }
 
+    // Description helpers
+    function setTextWithBreaks(el, text) {
+      el.textContent = "";
+      const lines = (text || "").split(/\r?\n/);
+      lines.forEach((ln, i) => {
+        el.appendChild(document.createTextNode(ln));
+        if (i < lines.length - 1) el.appendChild(document.createElement("br"));
+      });
+    }
+    function applyDescPadding() {
+      const frame = viewer.querySelector('.docFrame');
+      if (descBox.style.display === "none") {
+        viewer.style.paddingBottom = `max(10px, env(safe-area-inset-bottom))`;
+        if (frame) frame.style.height = '100%';
+        return;
+      }
+      const h = descBox.getBoundingClientRect().height;
+      viewer.style.paddingBottom = `${Math.ceil(h) + 12}px`;
+      if (frame) frame.style.height = `calc(100% - ${Math.ceil(h) + 12}px)`;
+    }
+    function maybeInitDescription() {
+      const raw = qs.get("desc") || qs.get("d");
+      if (!raw) return;
+      setTextWithBreaks(descContent, raw);
+      descBox.style.display = "block";
+      applyDescPadding();
+      descToggle.addEventListener("click", () => {
+        const expanded = descBox.classList.toggle("expanded");
+        descToggle.textContent = expanded ? "کەمتر" : "فراوانکردن";
+        setTimeout(applyDescPadding, 50);
+      });
+      window.addEventListener("resize", () => setTimeout(applyDescPadding, 120), { passive:true });
+    }
+
+    // Fetch with progress (returns { blob, mime, ab })
     async function fetchWithProgress(url) {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("HTTP " + res.status);
+      const mime = (res.headers.get("Content-Type") || "").toLowerCase();
 
-      // We have headers — show some life & hide big overlay immediately
       try { progFill.style.width = "8%"; post({ type:"pdfviewer:progress", loaded: 0, total: 0, percent: 8 }); hideLoading(); } catch {}
 
-      const total = Number(res.headers.get("Content-Length")) || 0;
+      const total  = Number(res.headers.get("Content-Length")) || 0;
       const reader = res.body?.getReader?.();
 
       if (!reader) {
-        // No streaming — still give a baseline percent so outer UI hides overlay
         progFill.style.width = "15%";
         post({ type:"pdfviewer:progress", loaded: 0, total, percent: 15 });
         const ab = await res.arrayBuffer();
-        // Finished download
+        const blob = new Blob([ab], { type: mime || "application/octet-stream" });
         progFill.style.width = "100%";
-        post({ type:"pdfviewer:progress", loaded: ab.byteLength, total, percent: 100 });
+        post({ type:"pdfviewer:progress", loaded: blob.size, total, percent: 100 });
         hideProgress();
-        return ab;
+        return { blob, mime, ab };
       }
 
       const chunks = []; let received = 0; let kicked = false;
@@ -141,26 +212,21 @@
         received += value.length;
 
         if (!kicked) {
-          kicked = true; // first chunk — ensure overlay is hidden
-          hideLoading();
-          if (!total) {
-            progFill.style.width = "15%";
-            post({ type:"pdfviewer:progress", loaded: received, total, percent: 15 });
-          }
+          kicked = true; hideLoading();
+          if (!total) { progFill.style.width = "15%"; post({ type:"pdfviewer:progress", loaded: received, total, percent: 15 }); }
         }
-
         if (total) {
           const p = Math.round((received / total) * 100);
           progFill.style.width = p + "%";
           post({ type:"pdfviewer:progress", loaded: received, total, percent: p });
         }
       }
-      const blob = new Blob(chunks, { type:"application/pdf" });
-      // Done downloading — hide progress now (rendering continues lazily)
+      const blob = new Blob(chunks, { type: mime || "application/octet-stream" });
+      const ab = await blob.arrayBuffer();
       progFill.style.width = "100%";
       post({ type:"pdfviewer:progress", loaded: blob.size, total, percent: 100 });
       hideProgress();
-      return await blob.arrayBuffer();
+      return { blob, mime, ab };
     }
 
     function pageWrapper() {
@@ -218,20 +284,122 @@
       onScroll();
     }
 
-    async function openPdf(url) {
-      if (!url) { viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">ناونیشانی فایڵ نەدۆزرایەوە.</div>'; return; }
+    function isImageUrl(u) {
+      try {
+        const ext = new URL(u, location.origin).pathname.split(".").pop().toLowerCase();
+        return ["jpg","jpeg","png","webp","gif","bmp","svg"].includes(ext);
+      } catch { return false; }
+    }
 
-      let data;
-      try { data = await fetchWithProgress(url); }
-      catch(e) { viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">نەتوانرا PDF بار بکرێت.</div>'; hideLoading(); return; }
+    function renderImageBlob(blob) {
+      viewer.innerHTML = "";
+      const wrap = document.createElement("div");
+      wrap.className = "page";
+      const box = document.createElement("div");
+      box.className = "pageBox";
+      box.style.background = "var(--card)";
+      box.style.display = "grid";
+      box.style.placeItems = "center";
 
-      const pdf = await pdfjsLib.getDocument({ data, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STD_FONTS_URL, disableFontFace: false, enableXfa: true }).promise;
-      pdfDoc = pdf;
+      const img = document.createElement("img");
+      img.alt = "Image";
+      img.decoding = "async";
+      img.loading = "eager";
+      img.referrerPolicy = "no-referrer";
+      img.style.display = "block";
+      img.style.width = "100%";
+      img.style.height = "auto";
+      img.style.objectFit = "contain";
+      img.src = URL.createObjectURL(blob);
+
+      box.appendChild(img);
+      wrap.appendChild(box);
+      viewer.appendChild(wrap);
+
+      updateIndicator(1, 1);
+      calcPageOffsets();
+      applyDescPadding();
+    }
+
+    // CORS-safe direct PDF embed fallback
+    function renderPdfFrame(url) {
+      viewer.innerHTML = "";
+      const frame = document.createElement('iframe');
+      frame.className = 'docFrame';
+      frame.src = url;
+      frame.referrerPolicy = "no-referrer";
+      viewer.appendChild(frame);
+      updateIndicator(1, 1);
+      applyDescPadding();
+      if (!firstReadyPosted) { firstReadyPosted = true; post({ type:"pdfviewer:ready" }); }
+      hideLoading(); hideProgress();
+    }
+
+    async function openResource(url) {
+      if (!url) {
+        viewer.innerHTML = '<div style="color:#fca5a5;text-align:center;padding:1rem">ناونیشانی فایڵ نەدۆزرایەوە.</div>';
+        return;
+      }
+
+      // 1) Try fetch (needs CORS). If it fails, fall back to direct embed.
+      let fetched;
+      try {
+        fetched = await fetchWithProgress(url);
+      } catch (e) {
+        // CORS/network/opaque error → fallback
+        if (isImageUrl(url)) {
+          // direct image (no CORS needed)
+          viewer.innerHTML = "";
+          const img = document.createElement("img");
+          img.alt = "Image";
+          img.referrerPolicy = "no-referrer";
+          img.style.display = "block";
+          img.style.width = "100%";
+          img.style.height = "auto";
+          img.src = url;
+          // Wrap for consistent spacing
+          const wrap = document.createElement("div"); wrap.className="page";
+          const box  = document.createElement("div"); box.className="pageBox";
+          box.appendChild(img); wrap.appendChild(box); viewer.appendChild(wrap);
+          updateIndicator(1,1); applyDescPadding();
+          if (!firstReadyPosted) { firstReadyPosted = true; post({ type:"pdfviewer:ready" }); }
+          hideLoading(); hideProgress();
+          return;
+        }
+        // assume PDF
+        renderPdfFrame(url);
+        return;
+      }
+
+      const { blob, mime, ab } = fetched;
+      const looksImage = (mime.startsWith?.("image/")) || isImageUrl(url);
+
+      if (looksImage) {
+        renderImageBlob(blob);
+        if (!firstReadyPosted) { firstReadyPosted = true; post({ type:"pdfviewer:ready" }); }
+        return;
+      }
+
+      // 2) Otherwise treat as PDF with pdf.js
+      let doc;
+      try {
+        doc = await pdfjsLib.getDocument({
+          data: ab,
+          cMapUrl: CMAP_URL, cMapPacked: true,
+          standardFontDataUrl: STD_FONTS_URL,
+          disableFontFace: false, enableXfa: true
+        }).promise;
+      } catch (e) {
+        // Some servers send odd headers → if pdf.js fails, fallback to embedded frame
+        renderPdfFrame(url);
+        return;
+      }
+      pdfDoc = doc;
 
       const p1 = await pdfDoc.getPage(1);
       const vp1 = p1.getViewport({ scale: 1 });
       const fitWidthScale = viewer.clientWidth / vp1.width;
-      renderScale = fitWidthScale; // full width
+      renderScale = fitWidthScale;
 
       viewer.innerHTML = "";
       const frag = document.createDocumentFragment();
@@ -286,6 +454,7 @@
 
           if (!firstReadyPosted) { firstReadyPosted = true; post({ type:"pdfviewer:ready" }); }
           calcPageOffsets();
+          applyDescPadding();
         });
       }, { root: viewer, rootMargin: "600px 0px 900px 0px", threshold: 0.01 });
 
@@ -296,7 +465,7 @@
     let lastW = window.innerWidth; let resizeT;
     window.addEventListener("resize", () => {
       const w = window.innerWidth; if (Math.abs(w - lastW) < 40) return; lastW = w;
-      if (!pdfDoc) return;
+      if (!pdfDoc) { applyDescPadding(); return; } // still adjust frame height
       clearTimeout(resizeT);
       resizeT = setTimeout(async () => {
         const p1 = await pdfDoc.getPage(1);
@@ -317,14 +486,19 @@
         calcPageOffsets();
         setupLazyRendering();
         viewer.scrollTop = scrollYRel * (viewer.scrollHeight - viewer.clientHeight);
+        applyDescPadding();
       }, 140);
     }, { passive: true });
 
     // Kickoff
     (async () => {
-      // show overlay immediately
       loading.style.display = "grid";
-      try { await openPdf(fileUrl); } catch { hideLoading(); hideProgress(); }
+      try {
+        maybeInitDescription();
+        await openResource(fileUrl);
+      } catch {
+        hideLoading(); hideProgress();
+      }
     })();
   </script>
 </body>

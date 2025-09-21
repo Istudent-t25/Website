@@ -1,4 +1,4 @@
-// src/pages/ResourceViewer.jsx — full-bleed viewer w/ early overlay hide + progress-aware top bar
+// src/pages/ResourceViewer.jsx — PDF/Image viewer wrapper with bottom description support
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, ExternalLink, Download, Copy, Check } from "lucide-react";
@@ -24,8 +24,10 @@ export default function ResourceViewer() {
   const nav = useNavigate();
   const { search } = useLocation();
   const q = new URLSearchParams(search);
-  const rawUrl = q.get("u") || "";
+
+  const rawUrl     = q.get("u") || "";
   const preferText = q.get("preferText") === "1";
+  const descParam  = q.get("d") || ""; // optional description (plain text)
 
   const normalizedUrl = useMemo(() => normalizeStudentKrdStrict(rawUrl), [rawUrl]);
   const [ready, setReady] = useState(false);
@@ -50,24 +52,23 @@ export default function ResourceViewer() {
       if (data.type === "pdfviewer:progress" && typeof data.percent === "number") {
         setProgress(Math.max(0, Math.min(100, Math.round(data.percent))));
       }
-      if (data.type === "pdfviewer:ready") {
-        setReady(true);
-        // don't force progress to null; allow final 100 to stay if already posted
-      }
+      if (data.type === "pdfviewer:ready") setReady(true);
     };
     window.addEventListener("message", onMsg, { passive: true });
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
   const src = useMemo(() => {
-    const viewerPath = "pdf-viewer.html";
+    // Ensure this path matches where pdf-viewer.html is served from
+    const viewerPath = "/pdf-viewer.html";
     const u = new URL(viewerPath, window.location.origin);
     if (normalizedUrl) u.searchParams.set("file", normalizedUrl);
     u.searchParams.set("embed", "1");
     u.searchParams.set("z", "0.6");
     if (preferText) u.searchParams.set("preferText", "1");
+    if (descParam)  u.searchParams.set("desc", descParam); // pass description into iframe
     return u.toString();
-  }, [normalizedUrl, preferText]);
+  }, [normalizedUrl, preferText, descParam]);
 
   const copyLink = async () => {
     try {
@@ -78,7 +79,7 @@ export default function ResourceViewer() {
   };
 
   const showTopProgress = !ready && (progress == null || progress < 100);
-  const showOverlay = !ready && (progress == null || progress < 8); // hide overlay early once progress shows
+  const showOverlay = !ready && (progress == null || progress < 8);
 
   return (
     <div dir="rtl" className="fixed inset-0 bg-zinc-950 text-zinc-50 grid grid-rows-[auto_1fr] overflow-hidden z-50">
@@ -148,7 +149,7 @@ export default function ResourceViewer() {
           title="PDF Viewer"
           src={src}
           style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-          sandbox="allow-scripts allow-same-origin allow-downloads"
+          sandbox="allow-scripts allow-downloads"
         />
       </div>
     </div>

@@ -1,379 +1,552 @@
-// src/pages/Dashboard.jsx — Elite Hero Edition (RTL, Dark)
-// Changes requested:
-// - Top hero ("mook") connects to topbar (no top padding), only bottom radius
-// - In-hero streak (with flame icon) + quote
-// - Promo slider directly under hero
-// - Below: Quick buttons (books, booklet, videos, schedule)
-// - Below: Subjects
-// - Below: Cool Course Playlist showcasing teachers' courses
-// - Removed study heatmap
-// - Pomodoro can increase/decrease session minutes
-// - Suggestions at the very bottom
-// - All buttons navigate to real routes
-//
-// Tech: TailwindCSS + framer-motion + lucide-react + React Router
+// src/pages/Dashboard.jsx — StudentKRD Dashboard (RTL, Dark, Mobile-Responsive)
 
-import React, { useEffect, useMemo, useRef, useState, forwardRef, memo } from "react";
-import { motion, AnimatePresence, useMotionTemplate, useMotionValue, useReducedMotion } from "framer-motion";
+import React, { useEffect, useMemo, useRef, useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion, useMotionTemplate, useMotionValue } from "framer-motion";
 import {
-  // UI / General
-  ChevronRight, X,
-  // Quick actions / dashboard
-  Book, NotebookText, Video, CalendarDays, Lightbulb, Volume2,
-  // Subjects icons
-  Calculator, Atom, FlaskConical, Microscope, Languages, Pen, BookOpen,
-  // Status
-  Star, Heart, CheckCircle2, Clock3, Trophy, Search as SearchIcon,
-  // New icons
-  Flame, Award, Crown, Medal, Play, Users
+  ChevronRight, Book, NotebookText, Video, CalendarDays,
+  Calculator, Atom, FlaskConical, Microscope, Languages, Pen, BookOpen, BookMarked,
+  CheckCircle2, Lightbulb, Clock3, Flame, CircleDashed,
 } from "lucide-react";
 
-/* -------------------------------- Utilities -------------------------------- */
-function useDebounce(value, delay = 300) {
-  const [v, setV] = useState(value);
-  useEffect(() => { const id = setTimeout(() => setV(value), delay); return () => clearTimeout(id); }, [value, delay]);
-  return v;
+/* ============================== API ENDPOINTS (correct) ============================== */
+const API_SUBJECTS = "https://api.studentkrd.com/api/v1/subjects";
+const API_DOCS     = "https://api.studentkrd.com/api/v1/documents";
+const API_PAPERS   = "https://api.studentkrd.com/api/v1/papers";
+
+/* ============================== Utilities ============================== */
+const EASE = [0.22, 1, 0.36, 1];
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+async function fetchJSON(url) {
+  const res = await fetch(url, { credentials: "omit" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return res.json();
 }
-function useLocalJson(key, initial) {
-  const [val, setVal] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(key) || "null") ?? initial; } catch { return initial; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }, [key, val]);
-  return [val, setVal];
-}
-const todayStr = () => new Date().toISOString().slice(0,10);
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-function emit(name, detail) { window.dispatchEvent(new CustomEvent(name, { detail })); }
-function initials(name) {
-  const parts = String(name||"").trim().split(/\s+/).slice(0,2);
-  return parts.map(p=>p[0]?.toUpperCase()||"").join("")
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const lsGetRaw = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } };
+function streamKurdish(s) {
+  if (s === "scientific") return "زانستی";
+  if (s === "literary")   return "ئەدەبی";
+  if (s === "both")       return "هاوبەش";
+  return "—";
 }
 
-/* ------------------------------- Base Panels ------------------------------- */
-const Glow = memo(function Glow({ className = "", size = 340, color = "#22d3ee" }) {
+/* Study activity counters used by Pomodoro + TopHero stats */
+function addMinutesForToday(mins) {
+  const key = "minutes_by_day";
+  const t = todayStr();
+  let map = {};
+  try { map = JSON.parse(localStorage.getItem(key) || "{}"); } catch {}
+  map[t] = (map[t] || 0) + mins;
+  localStorage.setItem(key, JSON.stringify(map));
+  localStorage.setItem("minutes_total", String(Number(localStorage.getItem("minutes_total") || "0") + mins));
+  localStorage.setItem("xp_total", String(Number(localStorage.getItem("xp_total") || "0") + mins * 5));
+  localStorage.setItem("streak_last", t);
+  window.dispatchEvent(new CustomEvent("STUDY_ACTIVITY", { detail: { minutes: mins, today: t } }));
+}
+
+/* =========================== Layout Primitives =========================== */
+const Panel = memo(function Panel({ className = "", children }) {
   return (
-    <div aria-hidden className={"pointer-events-none absolute blur-3xl opacity-30 " + className} style={{ width: size, height: size, background: `radial-gradient(50% 50% at 50% 50%, ${color}33 0%, transparent 70%)` }} />
-  );
-});
-const Panel = forwardRef(function PanelBase({ className = "", children }, ref) {
-  return (
-    <div ref={ref} className={"rounded-3xl bg-zinc-900/70 backdrop-blur-3xl ring-1 ring-zinc-800/70 shadow-[0_10px_24px_rgba(0,0,0,0.35)] relative overflow-hidden " + className}>
+    <div className={"rounded-3xl bg-zinc-900/70 backdrop-blur-3xl ring-1 ring-zinc-800/70 shadow-[0_10px_24px_rgba(0,0,0,0.35)] relative overflow-hidden " + className}>
       <div className="absolute inset-0 pointer-events-none [mask-image:radial-gradient(circle_at_top_right,black,transparent_70%)]" />
       {children}
     </div>
   );
 });
 const PanelHeader = ({ children, className = "" }) => <div className={"px-4 sm:px-5 pt-4 sm:pt-5 pb-3 " + className}>{children}</div>;
-const PanelTitle = ({ children, className = "" }) => <h3 className={"text-zinc-100 font-semibold flex items-center gap-2 " + className}>{children}</h3>;
-const PanelDesc = ({ children, className = "" }) => <p className={"text-sm text-zinc-400 " + className}>{children}</p>;
-const PanelBody = ({ children, className = "" }) => <div className={"px-4 sm:px-5 pb-5 " + className}>{children}</div>;
+const PanelTitle  = ({ children, className = "" }) => (
+  <h3 className={"text-zinc-100 font-semibold flex flex-wrap items-center gap-2 text-[13.5px] sm:text-base leading-snug " + className}>
+    {children}
+  </h3>
+);
+const PanelDesc   = ({ children, className = "" }) => (
+  <p className={"text-[12px] sm:text-sm text-zinc-400 leading-snug break-words " + className}>{children}</p>
+);
+const PanelBody   = ({ children, className = "" }) => <div className={"px-4 sm:px-5 pb-5 " + className}>{children}</div>;
 
-/* --------------------------------- Widgets -------------------------------- */
-const ProgressRing = memo(function ProgressRing({ value = 72, size = 120, fg = "#22d3ee", bg = "#0b0b0b" }) {
-  const v = clamp(value, 0, 100);
-  const deg = v * 3.6;
+/* ============================== Smart Search ============================== */
+function smartNavigateSearch(raw, navigate) {
+  const q = String(raw || "").trim();
+  const go = (path) => navigate(path, { replace: false });
+  if (!q) return go("/search");
+
+  const s = q.toLowerCase();
+  const hasAny = (arr) => arr.some(k => s.includes(k));
+
+  if (hasAny(["paper", "papers", "پرس", "پرسیار", "بانکی پرسیار", "ورقە", "ڕقە"])) {
+    return go(`/exams?search=${encodeURIComponent(q)}`);
+  }
+  if (hasAny(["video", "videos", "ڤیدیۆ", "course", "courses", "وانە"])) {
+    return go(`/subjects?t=videos&q=${encodeURIComponent(q)}`);
+  }
+  if (hasAny(["booklet", "booklets", "مەلزمە", "ملزمه"])) {
+    return go(`/subjects?t=booklet&q=${encodeURIComponent(q)}`);
+  }
+  if (hasAny(["book", "books", "کتێب", "کتێبه‌کان"])) {
+    return go(`/subjects?t=books&q=${encodeURIComponent(q)}`);
+  }
+  return go(`/subjects?q=${encodeURIComponent(q)}`);
+}
+
+/* ============================== TopHero ============================== */
+function TopHero() {
+  const navigate = useNavigate();
+  const reduce = useReducedMotion();
+
+  /* live streak + minutes today (no XP) */
+  const todayISO = useMemo(() => todayStr(), []);
+  const { streak, minutesToday } = (function useStudyStats() {
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+      const onEvt = () => setTick(t => t + 1);
+      window.addEventListener("STUDY_ACTIVITY", onEvt);
+      window.addEventListener("storage", onEvt);
+      return () => { window.removeEventListener("STUDY_ACTIVITY", onEvt); window.removeEventListener("storage", onEvt); };
+    }, []);
+    return useMemo(() => {
+      const byDay = lsGet("minutes_by_day", {});
+      return {
+        minutesToday: Number(byDay?.[todayISO] || 0),
+        streak: Number(lsGetRaw("streak_current", "0")) || 0,
+      };
+    }, [todayISO, tick]);
+  })();
+
+  const cardRef = useRef(null);
+  useEffect(() => {
+    if (reduce) return;
+    const el = cardRef.current; if (!el) return;
+    let raf = 0;
+    const onMove = (e) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        const x = (e.clientX - (r.left + r.width / 2)) / r.width;
+        const y = (e.clientY - (r.top + r.height / 2)) / r.height;
+        el.style.setProperty("--rx", `${(-y * 2.2).toFixed(2)}deg`);
+        el.style.setProperty("--ry", `${(x * 3.2).toFixed(2)}deg`);
+        el.style.setProperty("--gx", `${(x * 14).toFixed(2)}%`);
+        el.style.setProperty("--gy", `${(y * -14).toFixed(2)}%`);
+      });
+    };
+    const onLeave = () => {
+      cancelAnimationFrame(raf);
+      el.style.setProperty("--rx", `0deg`);
+      el.style.setProperty("--ry", `0deg`);
+      el.style.setProperty("--gx", `0%`);
+      el.style.setProperty("--gy", `0%`);
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+      cancelAnimationFrame(raf);
+    };
+  }, [reduce]);
+
+  const greet = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return "بەیانی باش";
+    if (h < 18) return "نیوەڕۆ باش";
+    return "ئێوارە باش";
+  }, []);
+
+  const [q, setQ] = useState("");
+
   return (
-    <div className="grid place-items-center" style={{ width: size, height: size }}>
-      <div className="rounded-full p-[8px]" style={{ background: `conic-gradient(${fg} ${deg}deg, ${bg} ${deg}deg 360deg)` }}>
-        <div className="rounded-full grid place-items-center bg-zinc-950 ring-1 ring-zinc-800/70" style={{ width: size - 16, height: size - 16 }}>
-          <span className="text-zinc-200 text-xl font-extrabold">{v}%</span>
+    <div
+      ref={cardRef}
+      className="col-span-full relative z-10 overflow-hidden rounded-b-[28px] ring-1 ring-zinc-800/70
+                   bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 will-change-transform"
+      style={{ transform: reduce ? undefined : "perspective(1200px) rotateX(var(--rx,0)) rotateY(var(--ry,0))" }}
+    >
+      {/* background glows */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute -top-24 -right-10 w-[320px] h-[320px] blur-3xl opacity-30"
+             style={{ background: "radial-gradient(50% 50% at 50% 50%, #22d3ee55 0%, transparent 70%)" }} />
+        <div className="absolute -bottom-10 -left-10 w-[420px] h-[420px] blur-3xl opacity-30"
+             style={{ background: "radial-gradient(50% 50% at 50% 50%, #8b5cf655 0%, transparent 70%)",
+                      transform: "translate(var(--gx,0), var(--gy,0))" }} />
+      </div>
+
+      <div className="px-4 sm:px-6 pt-4 pb-5" dir="rtl">
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.26, ease: "easeOut" }}
+          className="flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="grid place-items-center w-11 h-11 rounded-2xl bg-white/5 ring-1 ring-white/10 shrink-0">
+              <span className="text-base sm:text-lg font-extrabold tracking-tight text-cyan-300">iS</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-zinc-100 text-[12px] sm:text-sm opacity-80">{greet}</div>
+              <div className="text-zinc-100 text-xl sm:text-3xl font-extrabold leading-tight truncate">
+                بەخێربێیت بۆ StudentKRD
+              </div>
+              <p className="mt-1 text-zinc-300 text-[13px] sm:text-base leading-snug break-words">
+                ئەمڕۆ چی بخوێنین؟ هەموو شتێک لێرە دەستیارە.
+              </p>
+            </div>
+          </div>
+
+          {/* stat chips */}
+          <div className="shrink-0 hidden sm:flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-orange-600/15 ring-1 ring-orange-500/25 text-orange-200">
+              <Flame size={16} className="shrink-0" />
+              <span className="font-bold tabular-nums text-sm">ستریک: {streak}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/5 ring-1 ring-white/10 text-zinc-200">
+              <Clock3 size={16} className="shrink-0" />
+              <span className="text-sm">خولى ئەمڕۆ: <b className="tabular-nums">{Math.max(0, minutesToday)}</b> خ.</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* big search */}
+        <motion.form
+          onSubmit={(e) => { e.preventDefault(); smartNavigateSearch(q, navigate); }}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: "easeOut", delay: 0.04 }}
+          className="mt-3 relative"
+          role="search"
+          aria-label="گەڕان"
+        >
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setQ(""); e.currentTarget.blur(); } }}
+            placeholder="کتێب، مەلزمە، ڤیدیۆ، پرسەکان..."
+            className="w-full pe-24 ps-4 py-3 rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100
+                         placeholder-zinc-500 outline-none focus:ring-zinc-700 text-[13.5px] sm:text-base"
+          />
+          <div className="absolute inset-y-0 left-0 flex items-center pl-2">
+            <button
+              type="button"
+              onClick={() => navigate('/schedule')}
+              className="px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-[12px] sm:text-sm text-zinc-100 hover:bg-white/10 transition"
+            >
+              خشتەی ئەمڕۆ
+            </button>
+          </div>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2">
+            <button
+              type="submit"
+              className="px-3 py-1.5 rounded-xl bg-cyan-600/25 ring-1 ring-cyan-500/25 text-[12px] sm:text-sm text-cyan-100 hover:bg-cyan-600/35 transition"
+            >
+              گەڕان
+            </button>
+          </div>
+        </motion.form>
+
+        {/* mobile stat chips */}
+        <div className="mt-3 flex sm:hidden items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-orange-600/15 ring-1 ring-orange-500/25 text-orange-200">
+            <Flame size={16} className="shrink-0" />
+            <span className="font-bold tabular-nums text-sm">ستریک: {streak}</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/5 ring-1 ring-white/10 text-zinc-200">
+            <Clock3 size={16} className="shrink-0" />
+            <span className="text-sm">خولى ئەمڕۆ: <b className="tabular-nums">{Math.max(0, minutesToday)}</b> خ.</span>
+          </div>
         </div>
       </div>
     </div>
   );
-});
+}
 
-function QuickAction({ icon: Icon, text, sub, to = "/students" }) {
-  const shouldReduce = useReducedMotion();
+/* ============================== Quick Actions ============================== */
+function QuickAction({ icon: Icon, text, to = "/subjects" }) {
+  const reduce = useReducedMotion();
   const mouseX = useMotionValue(0), mouseY = useMotionValue(0);
   const background = useMotionTemplate`radial-gradient(160px at ${mouseX}px ${mouseY}px, rgba(255,255,255,0.06) 0%, transparent 80%)`;
   const navigate = useNavigate();
   return (
     <motion.button
       type="button"
-      whileHover={shouldReduce ? {} : { y: -6, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}
-      whileTap={shouldReduce ? {} : { scale: 0.96 }}
+      whileHover={reduce ? {} : { y: -6, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}
+      whileTap={reduce ? {} : { scale: 0.96 }}
       onMouseMove={(e) => { const { left, top } = e.currentTarget.getBoundingClientRect(); mouseX.set(e.clientX - left); mouseY.set(e.clientY - top); }}
       onClick={() => navigate(to)}
-      className="w-full text-right flex items-center justify-between rounded-3xl p-3.5 sm:p-4 bg-zinc-900/60 transition-all duration-300 backdrop-blur-sm ring-1 ring-zinc-800/70 shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
-      style={shouldReduce ? undefined : { background }}
-      aria-label={text}
+      className="w-full text-right flex items-center justify-between rounded-2xl p-3.5 sm:p-4 bg-zinc-900/60 transition-all duration-300 backdrop-blur-sm ring-1 ring-zinc-800/70 shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
+      style={reduce ? undefined : { background }}
     >
-      <div className="flex items-center gap-3 sm:gap-4">
-        <div className="grid place-items-center rounded-2xl p-2.5 sm:p-3 bg-gradient-to-tr from-sky-600/25 to-indigo-600/25 ring-1 ring-sky-500/25">
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <div className="grid place-items-center rounded-xl p-2.5 sm:p-3 bg-gradient-to-tr from-sky-600/25 to-indigo-600/25 ring-1 ring-sky-500/25 shrink-0">
           <Icon width={22} height={22} className="text-sky-300" />
         </div>
-        <div className="text-right">
-          <div className="text-zinc-100 text-[13px] sm:text-base font-semibold">{text}</div>
-          {sub && <div className="text-[11px] sm:text-sm text-zinc-400">{sub}</div>}
+        <div className="text-zinc-100 text-[13px] sm:text-base font-semibold leading-snug truncate">
+          {text}
         </div>
       </div>
-      <ChevronRight width={18} height={18} className="text-zinc-500" />
+      <ChevronRight width={18} height={18} className="text-zinc-500 shrink-0" />
     </motion.button>
   );
 }
 
-/* ------------------------- Compact Promo Slider (NEW) ------------------------- */
-const CompactPromoSlider = memo(function CompactPromoSlider({ ads = [] }) {
-  const [idx, setIdx] = useState(0);
-  const shouldReduce = useReducedMotion();
+/* ============================== Subjects (API + strict track) ============================== */
+function iconForSubject(name = "") {
+  const n = String(name).toLowerCase();
+  if (/(math|بیر|بیەر|بیرکاری)/.test(n)) return Calculator;
+  if (/(phys|فیز|فیزی)/.test(n)) return Atom;
+  if (/(chem|کیمیا|كیمیا)/.test(n)) return FlaskConical;
+  if (/(bio|زیند|جین)/.test(n)) return Microscope;
+  if (/(engl|ئینگ|انگلی)/.test(n)) return Languages;
+  if (/(kurd|کورد|كورد)/.test(n)) return Pen;
+  if (/(arab|عرب|عەرە)/.test(n)) return BookOpen;
+  return BookMarked;
+}
 
-  useEffect(() => {
-    if (!ads.length || shouldReduce) return;
-    const id = setInterval(() => setIdx((p) => (p + 1) % ads.length), 5000);
-    return () => clearInterval(id);
-  }, [ads.length, shouldReduce]);
-
-  if (!ads.length) return null;
-  const ad = ads[idx];
-
+const SubjectsCard = memo(function SubjectsCard({ subject, count, fav, toggleFav, onClick, isReady }) {
+  const Icon = iconForSubject(subject.name);
   return (
-    <div className="col-span-full z-10" dir="rtl">
-      <div className="relative h-24 sm:h-28 rounded-3xl overflow-hidden bg-zinc-900/70 backdrop-blur-3xl ring-1 ring-zinc-800/70 shadow-[inset_0_2px_10px_rgba(0,0,0,0.35)]">
-        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "12px 12px" }} />
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={idx}
-            initial={shouldReduce ? false : { opacity: 0, x: 80 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={shouldReduce ? { opacity: 0 } : { opacity: 0, x: -80 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-            className="absolute inset-0"
-          >
-            {/* gradient background from ad.bg class */}
-            <div className={`absolute inset-0 ${ad.bg || "bg-gradient-to-r from-indigo-900/40 via-indigo-800/25 to-blue-900/40"}`} />
-            <div className="relative h-full px-4 sm:px-8 flex items-center justify-between">
-              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                <span className="grid place-items-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800/70 shrink-0">
-                  <Trophy className="text-zinc-100" size={20} />
-                </span>
-                <div className="text-right min-w-0">
-                  <h3 className="text-zinc-100 font-extrabold text-sm sm:text-lg leading-tight truncate">
-                    {ad.title}
-                  </h3>
-                  <p className="text-zinc-300 text-[11px] sm:text-sm truncate">
-                    {ad.description}
-                  </p>
-                </div>
-              </div>
-              {ad.link && (
-                <a
-                  href={ad.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 rounded-full px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-bold bg-zinc-800/60 ring-1 ring-zinc-700/60 text-zinc-100 hover:bg-zinc-800/80 transition"
-                >
-                  {ad.cta || "بینینی زیاتر"}
-                </a>
-              )}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* dots */}
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {ads.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setIdx(i)}
-              className={`h-1.5 rounded-full transition-all ${i === idx ? "w-4 bg-zinc-200" : "w-2 bg-zinc-400/50"}`}
-              aria-label={`سلاید ${i + 1}`}
-            />
-          ))}
+    <button
+      onClick={isReady ? onClick : null}
+      className={`relative w-full text-right rounded-2xl p-4 transition ${
+        isReady
+          ? "ring-1 ring-zinc-800/70 bg-zinc-900/60 backdrop-blur-sm hover:translate-y-[-3px] cursor-pointer"
+          : "bg-zinc-900/40 ring-1 ring-zinc-900/50 cursor-not-allowed opacity-50"
+      }`}
+      title={subject.name}
+    >
+      <div className="relative flex items-start justify-between gap-2 min-w-0">
+        <div className={`grid place-items-center w-10 h-10 rounded-xl ring-1 ${isReady ? "bg-white/5 ring-white/10" : "bg-zinc-800/50 ring-zinc-800/60"} shrink-0`}>
+          <Icon size={20} className={isReady ? "text-zinc-100" : "text-zinc-500"} />
         </div>
+        <button
+          type="button"
+          onClick={isReady ? (e) => { e.stopPropagation(); toggleFav?.(subject.id); } : null}
+          disabled={!isReady}
+          className={`p-1.5 rounded-lg ring-1 ring-white/10 transition ${fav && isReady ? "bg-amber-500/20 text-amber-300" : isReady ? "bg-white/5 text-zinc-300" : "bg-zinc-800/40 text-zinc-600"} shrink-0`}
+          aria-label="favorite"
+        >
+          {fav ? "★" : "♡"}
+        </button>
       </div>
-    </div>
+
+      <div className="mt-3 min-w-0">
+        <div className="font-bold text-[13.5px] sm:text-lg leading-snug truncate text-white">{subject.name}</div>
+        <div className="text-[11.5px] sm:text-[12px] text-zinc-400">ژمارەی داتا: {count}</div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <div className="flex items-center gap-1 text-[11px] sm:text-[12px] leading-none">
+          {isReady ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="text-zinc-300">ئامادەیە</span>
+            </>
+          ) : (
+            <>
+              <CircleDashed className="w-3.5 h-3.5 text-rose-400" />
+              <span className="text-zinc-500">ئامادە نییە</span>
+            </>
+          )}
+        </div>
+        <span className="text-[10.5px] sm:text-[11px] text-zinc-500">ID: {subject.id}</span>
+      </div>
+    </button>
   );
 });
 
-/* --------------------------------- Streaks -------------------------------- */
-function calcStreakAfter(lastISO) {
-  const last = lastISO ? new Date(lastISO) : null;
-  const today = new Date();
-  const d0 = new Date(today.toISOString().slice(0,10));
-  const d1 = last ? new Date(last.toISOString().slice(0,10)) : null;
-  if (!d1) return { isNewDay: true, delta: Infinity };
-  const ms = d0 - d1; const days = Math.round(ms / 86400000);
-  return { isNewDay: days !== 0, delta: days };
+function normalizeTrack(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (["scientific","science","sci","sci.","scinetific","scentific","scenitif"].includes(s)) return "scientific";
+  if (["literary","literature","lit","ltr"].includes(s)) return "literary";
+  if (["both","all"].includes(s)) return "both";
+  return "both";
 }
-function addMinutesForToday(mins) {
-  const key = "minutes_by_day";
-  const today = todayStr();
-  let map = {};
-  try { map = JSON.parse(localStorage.getItem(key) || "{}"); } catch {}
-  map[today] = (map[today] || 0) + mins;
-  try { localStorage.setItem(key, JSON.stringify(map)); } catch {}
-  const total = Number(localStorage.getItem("minutes_total") || "0") + mins;
-  localStorage.setItem("minutes_total", String(total));
-  const xp = Number(localStorage.getItem("xp_total") || "0") + mins * 5; // 5 XP per minute
-  localStorage.setItem("xp_total", String(xp));
-  // streak ping
-  localStorage.setItem("streak_last", today);
-  emit("STUDY_ACTIVITY", { minutes: mins, today });
-}
-function useStreaks() {
-  const [current, setCurrent] = useLocalJson("streak_current", 0);
-  const [longest, setLongest] = useLocalJson("streak_longest", 0);
-  const [last, setLast] = useLocalJson("streak_last", null);
-
-  useEffect(() => {
-    const onActivity = () => {
-      const today = todayStr();
-      if (!last) { setCurrent(1); setLongest(1); localStorage.setItem("streak_last", today); return; }
-      const { delta } = calcStreakAfter(last);
-      if (delta === 0) { localStorage.setItem("streak_last", today); return; } // already counted today
-      if (delta === 1) { const nxt = current + 1; setCurrent(nxt); setLongest(Math.max(longest, nxt)); localStorage.setItem("streak_last", today); return; }
-      if (delta > 1 || delta < -1) { setCurrent(1); localStorage.setItem("streak_last", today); setLongest(Math.max(longest, 1)); }
-    };
-    window.addEventListener("STUDY_ACTIVITY", onActivity);
-    return () => window.removeEventListener("STUDY_ACTIVITY", onActivity);
-  }, [current, longest, last, setCurrent, setLast, setLongest]);
-
-  const manualCheckIn = () => { addMinutesForToday(5); };
-  return { current, longest, last, manualCheckIn };
+function normStream(v) {
+  const s = String(v || "both").trim().toLowerCase();
+  return s === "scientific" ? "scientific" : s === "literary" ? "literary" : "both";
 }
 
-/* ------------------------------ Subjects Row ------------------------------ */
-const SUBJECTS_ROW = [
-  { key: "math", label: "بیرکاری", en: "Math", icon: Calculator, gradient: "from-cyan-600/25 to-cyan-500/10" },
-  { key: "physics", label: "فیزیا", en: "Physics", icon: Atom, gradient: "from-indigo-600/25 to-indigo-500/10" },
-  { key: "chemistry", label: "كیمیا", en: "Chemistry", icon: FlaskConical, gradient: "from-emerald-600/25 to-emerald-500/10" },
-  { key: "biology", label: "زیندەزانی", en: "Biology", icon: Microscope, gradient: "from-pink-600/25 to-rose-500/10" },
-  { key: "english", label: "ئینگلیزی", en: "English", icon: Languages, gradient: "from-yellow-600/25 to-amber-500/10" },
-  { key: "kurdish", label: "كوردی", en: "Kurdish", icon: Pen, gradient: "from-fuchsia-600/25 to-purple-500/10" },
-  { key: "arabic", label: "عەرەبی", en: "Arabic", icon: BookOpen, gradient: "from-sky-600/25 to-blue-500/10" },
-];
-
-function SubjectCard({ s, onClick, fav, toggleFav }) {
-  const Icon = s.icon;
-  return (
-    <motion.button whileHover={{ y: -6 }} whileTap={{ scale: 0.97 }} onClick={onClick} className="relative shrink-0 w-[160px] sm:w-[180px] lg:w-[200px] text-right rounded-2xl p-4 ring-1 ring-zinc-800/70 bg-zinc-900/60 backdrop-blur-sm">
-      <div className={`absolute -right-8 -top-16 h-40 w-40 rounded-full blur-2xl opacity-30 bg-gradient-to-tr ${s.gradient}`} />
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="grid place-items-center w-10 h-10 rounded-xl bg-white/5 ring-1 ring-white/10">
-          <Icon size={20} className="text-zinc-100" />
-        </div>
-        <button type="button" onClick={(e) => { e.stopPropagation(); toggleFav?.(s.key); }} className={`p-1.5 rounded-lg ring-1 ring-white/10 ${fav ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-zinc-300"}`} title={fav ? "لابردنی دڵخواز" : "دڵخوازکردن"} aria-label="favorite">
-          {fav ? <Star size={16} /> : <Heart size={16} />}
-        </button>
-      </div>
-      <div className="relative mt-4">
-        <div className="text-zinc-100 font-bold text-base sm:text-lg leading-tight">{s.label}</div>
-        <div className="text-[11px] text-zinc-400">{s.en}</div>
-      </div>
-      <div className="relative mt-4 flex items-center justify-between">
-        <span className="text-[11px] px-2 py-0.5 rounded-full bg:white/5 ring-1 ring-white/10 text-zinc-300 bg-white/5">مامۆستایان</span>
-        <ChevronRight size={16} className="text-zinc-500" />
-      </div>
-    </motion.button>
-  );
-}
-function SubjectsRow() {
+function SubjectsGrid() {
   const navigate = useNavigate();
-  const [favorites, setFavorites] = useLocalJson("fav_subjects", []);
-  const [recents, setRecents] = useLocalJson("recent_teachers", []);
 
-  const grade = (() => { const g = Number(localStorage.getItem("grade") || ""); return Number.isFinite(g) && g > 0 ? g : null; })();
-  const track = localStorage.getItem("track") || "scientific";
+  // favorites (by subject id)
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("fav_subjects_ids") || "[]"); } catch { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem("fav_subjects_ids", JSON.stringify(favorites)); } catch {} }, [favorites]);
 
-  const goTeachers = (s) => {
-    setRecents((old) => { const next = [s.key, ...old.filter((k) => k !== s.key)].slice(0, 6); return next; });
-    const params = new URLSearchParams();
-    params.set("subject", s.label);
-    params.set("subject_key", s.key);
-    if (grade) params.set("grade", String(grade));
-    if (track) params.set("track", String(track));
-    navigate(`/teachers?${params.toString()}`);
+  // filters from localStorage
+  const grade = Number(lsGetRaw("grade", "12")) || 12; // default 12
+  const track = normalizeTrack(lsGetRaw("track", "scientific"));
+
+  const [loading, setLoading] = useState(true);
+  const [subjects, setSubjects] = useState([]);
+  const [counts, setCounts] = useState({});   // { [subjectId]: totalCount }
+
+  // resource-level track filter: always include "both" when track is specific
+  const resourceMatchesTrack = (streamLike) => {
+    const v = normStream(streamLike);
+    if (track === "both") return true;
+    if (v === "both") return true;
+    return v === track;
+  };
+  const resourceMatchesGrade = (g) => {
+    const val = Number(g);
+    if (!Number.isFinite(val)) return true; // keep if missing
+    return val === grade;
   };
 
-  const toggleFav = (key) => setFavorites((old) => (old.includes(key) ? old.filter((k) => k !== key) : [key, ...old]).slice(0, 12));
+  // subject-level STRICT filter (NO null unless track == both)
+  const subjectMatchesTrack = (subjectCode) => {
+    const v = (subjectCode ?? "").toString().trim().toLowerCase();
+    if (track === "scientific") return v === "scientific" || v === "both";
+    if (track === "literary")   return v === "literary"   || v === "both";
+    return true; // track === "both"
+  };
 
-  const items = [...SUBJECTS_ROW].sort((a, b) => {
-    const fa = favorites.includes(a.key) ? 1 : 0; const fb = favorites.includes(b.key) ? 1 : 0;
-    if (fb !== fa) return fb - fa; return a.label.localeCompare(b.label, "ar");
-  });
-  const recentItems = recents.map((k) => SUBJECTS_ROW.find((x) => x.key === k)).filter(Boolean);
+  useEffect(() => {
+    let closed = false;
+    (async () => {
+      setLoading(true);
+      try {
+        // 1) fetch subjects (✅ correct endpoint)
+        const subjResp = await fetchJSON(`${API_SUBJECTS}?page=1&per_page=1000`);
+        const allSubjects = Array.isArray(subjResp?.data)
+          ? subjResp.data.map(s => ({ id: s.id, name: s.name, code: (s.code || "").toLowerCase() }))
+          : [];
+
+        // 2) resources
+        const [docsRes, papersRes] = await Promise.allSettled([
+          fetchJSON(`${API_DOCS}?per_page=500`),
+          fetchJSON(`${API_PAPERS}?per_page=500`),
+        ]);
+        const docs   = docsRes.status === "fulfilled"   && Array.isArray(docsRes.value?.data)   ? docsRes.value.data   : [];
+        const papers = papersRes.status === "fulfilled" && Array.isArray(papersRes.value?.data) ? papersRes.value.data : [];
+
+        // 3) count resources per subject with grade + track filters (✅ subject_id)
+        const map = {};
+        for (const it of docs) {
+          if (!resourceMatchesGrade(it.grade)) continue;
+          if (!resourceMatchesTrack(it.stream)) continue;
+          const sid = it.subject_id || it.subject?.id;
+          if (!sid) continue;
+          map[sid] = (map[sid] || 0) + 1;
+        }
+        for (const p of papers) {
+          if (p.grade != null && !resourceMatchesGrade(p.grade)) continue;
+          if (p.stream != null && !resourceMatchesTrack(p.stream)) continue;
+          const sid = p.subject_id || p.subject?.id;
+          if (!sid) continue;
+          map[sid] = (map[sid] || 0) + 1;
+        }
+
+        // 4) subject list STRICT: (Scientific + Both) or (Literary + Both) depending on track
+        const filtered = allSubjects.filter((s) => subjectMatchesTrack(s.code));
+
+        if (!closed) { setSubjects(filtered); setCounts(map); }
+      } catch (e) {
+        console.error(e);
+        if (!closed) { setSubjects([]); setCounts({}); }
+      } finally {
+        if (!closed) setLoading(false);
+      }
+    })();
+    return () => { closed = true; };
+  }, [grade, track]);
+
+  const toggleFav = (id) =>
+    setFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]).slice(0, 24));
+
+  const items = useMemo(() => {
+    const arr = subjects.slice();
+    arr.sort((a, b) => {
+      const fa = favorites.includes(a.id) ? 1 : 0;
+      const fb = favorites.includes(b.id) ? 1 : 0;
+      if (fb !== fa) return fb - fa;
+      return String(a.name).localeCompare(String(b.name), "ar");
+    });
+    return arr;
+  }, [subjects, favorites]);
 
   return (
-    <Panel className="col-span-full z-10">
+    <Panel className="col-span-full">
       <PanelHeader>
-        <PanelTitle className="text-sky-300">📚 بابەتەکان (سەرەکی)</PanelTitle>
-        <PanelDesc>7 بابەت — کلیک بکە بۆ لاپەڕەی مامۆستایان</PanelDesc>
+        <PanelTitle className="text-sky-300">📚 بابەتەکان</PanelTitle>
+        <PanelDesc>
+          پۆل: {grade} • تڕاک: {streamKurdish(track)} — تەنیا {track === "scientific" ? "زانستی + هاوبەش" : track === "literary" ? "ئەدەبی + هاوبەش" : "هەموو"}، و ئەوانەی داتایان هەیە.
+        </PanelDesc>
       </PanelHeader>
-      <PanelBody className="space-y-4">
-        {recentItems.length > 0 && (
-          <div>
-            <div className="text-[12px] text-zinc-400 mb-2">دوایین سەردانکردن</div>
-            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
-              {recentItems.map((s) => (
-                <button key={s.key} onClick={() => goTeachers(s)} className="snap-start shrink-0 px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-[12px] text-zinc-200 hover:bg-white/10">{s.label}</button>
-              ))}
-            </div>
+      <PanelBody>
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-28 rounded-2xl bg-white/5 ring-1 ring-white/10 animate-pulse" />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-[12.5px] sm:text-sm text-zinc-400 leading-snug">
+            هیچ بابەتێک نیشان نەدرا — تکایە پۆل/تڕاک دڵنیابکە لە localStorage.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4" dir="rtl">
+            {items.map((s) => (
+              <SubjectsCard
+                key={s.id}
+                subject={s}
+                count={counts[s.id] || 0}
+                fav={favorites.includes(s.id)}
+                toggleFav={toggleFav}
+                onClick={() => navigate(`/subjects/${s.id}`)}   
+                isReady={(counts[s.id] || 0) > 0}
+              />
+            ))}
           </div>
         )}
-
-        <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory" dir="rtl">
-          {items.map((s) => (
-            <div key={s.key} className="snap-start">
-              <SubjectCard s={s} onClick={() => goTeachers(s)} fav={favorites.includes(s.key)} toggleFav={toggleFav} />
-            </div>
-          ))}
-        </div>
       </PanelBody>
     </Panel>
   );
 }
 
-/* -------------------------- Pomodoro (tunable minutes) -------------------------- */
+/* ============================== Widgets ============================== */
 function PomodoroTimer() {
-  const [baseMinutes, setBaseMinutes] = useLocalJson("pomodoro_minutes", 25);
-  const [seconds, setSeconds] = useLocalJson("pomodoro_seconds", baseMinutes * 60);
-  const [running, setRunning] = useLocalJson("pomodoro_running", false);
+  const [baseMinutes, setBaseMinutes] = useState(() => Number(lsGetRaw("pomodoro_minutes", "25")) || 25);
+  const [seconds, setSeconds]         = useState(() => Number(lsGetRaw("pomodoro_seconds", String(baseMinutes * 60))) || baseMinutes * 60);
+  const [running, setRunning]         = useState(() => lsGet("pomodoro_running", false));
 
-  // if baseMinutes changes and not running, sync seconds
-  useEffect(() => { if (!running) setSeconds(baseMinutes * 60); }, [baseMinutes]); // eslint-disable-line
-
+  useEffect(() => { if (!running) { setSeconds(baseMinutes * 60); try { localStorage.setItem("pomodoro_minutes", String(baseMinutes)); } catch {} } }, [baseMinutes, running]);
+  useEffect(() => { try { localStorage.setItem("pomodoro_seconds", String(seconds)); } catch {} }, [seconds]);
   useEffect(() => {
+    try { localStorage.setItem("pomodoro_running", JSON.stringify(running)); } catch {}
     if (!running) return;
     const id = setInterval(() => setSeconds((s) => {
-      if (s <= 1) {
-        emit("POMODORO_DONE", { minutes: baseMinutes });
-        addMinutesForToday(baseMinutes);
-        return baseMinutes * 60;
-      }
+      if (s <= 1) { addMinutesForToday(baseMinutes); return baseMinutes * 60; }
       return s - 1;
     }), 1000);
     return () => clearInterval(id);
-  }, [running, setSeconds, baseMinutes]);
+  }, [running, baseMinutes]);
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
 
-  const adjust = (d) => {
-    if (running) return;
-    const next = clamp(baseMinutes + d, 5, 120);
-    setBaseMinutes(next);
-    setSeconds(next * 60);
-  };
+  const adjust = (d) => { if (running) return; const next = clamp(baseMinutes + d, 5, 120); setBaseMinutes(next); setSeconds(next * 60); };
 
   return (
-    <Panel className="z-10">
+    <Panel>
       <PanelHeader>
         <PanelTitle className="text-emerald-300"><Clock3 size={18} /> پۆمۆدۆرۆ</PanelTitle>
         <PanelDesc>كاتی یەك خولەك: دەستکاری بكە پێش دەستپێك</PanelDesc>
       </PanelHeader>
       <PanelBody>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <button onClick={() => adjust(-5)} disabled={running} className={"px-3 py-1.5 rounded-xl ring-1 ring-white/10 " + (running ? "bg-zinc-800/40 text-zinc-500" : "bg-white/5 text-zinc-100")}>-5</button>
-            <div className="text-3xl sm:text-4xl font-extrabold text-zinc-100 tabular-nums">{mm}:{ss}</div>
-            <button onClick={() => adjust(+5)} disabled={running} className={"px-3 py-1.5 rounded-xl ring-1 ring-white/10 " + (running ? "bg-zinc-800/40 text-zinc-500" : "bg-white/5 text-zinc-100")}>+5</button>
+            <button onClick={() => adjust(-5)} disabled={running} className={"px-3 py-1.5 rounded-xl ring-1 ring-white/10 text-[13px] sm:text-sm " + (running ? "bg-zinc-800/40 text-zinc-500" : "bg-white/5 text-zinc-100")}>-5</button>
+            <div className="text-2xl sm:text-4xl font-extrabold text-zinc-100 tabular-nums leading-tight">{mm}:{ss}</div>
+            <button onClick={() => adjust(+5)} disabled={running} className={"px-3 py-1.5 rounded-xl ring-1 ring-white/10 text-[13px] sm:text-sm " + (running ? "bg-zinc-800/40 text-zinc-500" : "bg-white/5 text-zinc-100")}>+5</button>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setRunning((v) => !v)} className="px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-zinc-100">{running ? "واستاندن" : "دەستپێکردن"}</button>
-            <button onClick={() => setSeconds(baseMinutes * 60)} className="px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-zinc-100">ڕێست</button>
-            <button onClick={() => { addMinutesForToday(baseMinutes); emit("POMODORO_DONE", { minutes: baseMinutes }); }} className="px-3 py-1.5 rounded-xl bg-emerald-600/20 ring-1 ring-emerald-500/20 text-emerald-200">✓ تەواو</button>
+            <button onClick={() => setRunning((v) => !v)} className="px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-zinc-100 text-[13px] sm:text-sm">{running ? "واستاندن" : "دەستپێکردن"}</button>
+            <button onClick={() => setSeconds(baseMinutes * 60)} className="px-3 py-1.5 rounded-xl bg-white/5 ring-1 ring-white/10 text-zinc-100 text-[13px] sm:text-sm">ڕێست</button>
+            <button onClick={() => { addMinutesForToday(baseMinutes); }} className="px-3 py-1.5 rounded-xl bg-emerald-600/20 ring-1 ring-emerald-500/20 text-emerald-200 text-[13px] sm:text-sm">✓ تەواو</button>
           </div>
         </div>
       </PanelBody>
@@ -381,73 +554,77 @@ function PomodoroTimer() {
   );
 }
 
-/* ----------------------------- Course Playlist ----------------------------- */
-const teacherCourses = [
-  { id: "algebra-crash", title: "Algebra Crash", subject: "بیرکاری", subject_key: "math", teacher: "Mr. Ali", lessons: 24, rating: 4.8, students: 320 },
-  { id: "physics-speed", title: "Speed & Motion", subject: "فیزیا", subject_key: "physics", teacher: "Dr. Sara", lessons: 18, rating: 4.9, students: 410 },
-  { id: "chem-react", title: "Reactions 101", subject: "كیمیا", subject_key: "chemistry", teacher: "Prof. Ahmed", lessons: 20, rating: 4.7, students: 275 },
-  { id: "bio-cells", title: "Cells & Life", subject: "زیندەزانی", subject_key: "biology", teacher: "Miss Rawan", lessons: 22, rating: 4.6, students: 350 },
-  { id: "eng-speak", title: "Speak Confidently", subject: "ئینگلیزی", subject_key: "english", teacher: "Mr. John", lessons: 16, rating: 4.8, students: 290 },
-  { id: "arabic-gram", title: "نحو سريع", subject: "عەرەبی", subject_key: "arabic", teacher: "أ. مصطفى", lessons: 14, rating: 4.5, students: 210 },
-];
-
-function CourseCard({ c }) {
-  const navigate = useNavigate();
-  const goTeacher = () => {
-    const p = new URLSearchParams();
-    p.set("teacher", c.teacher);
-    p.set("subject", c.subject);
-    p.set("subject_key", c.subject_key);
-    navigate(`/teachers?${p.toString()}`);
-  };
-  const goCourse = () => navigate(`/courses/${c.id}`);
-
+function TasksWidget() {
+  const [tasks, setTasks] = useState(() => lsGet("tasks_widget", []));
+  const [txt, setTxt] = useState("");
+  useEffect(() => { try { localStorage.setItem("tasks_widget", JSON.stringify(tasks)); } catch {} }, [tasks]);
+  const add = () => { const t = txt.trim(); if (!t) return; setTasks([{ id: crypto.randomUUID(), name: t, done: false }, ...tasks]); setTxt(""); };
+  const toggle = (id) => setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const del    = (id) => setTasks(tasks.filter((t) => t.id !== id));
+  const doneCount = tasks.filter((t) => t.done).length;
   return (
-    <motion.div whileHover={{ y: -6 }} className="w-[260px] shrink-0 rounded-2xl ring-1 ring-white/10 bg-white/5 p-4 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl grid place-items-center ring-1 ring-white/10 bg-gradient-to-tr from-sky-800/30 to-indigo-800/20 text-zinc-100 font-bold">
-            {initials(c.teacher)}
-          </div>
-          <div className="min-w-0">
-            <div className="text-zinc-100 text-sm font-semibold truncate">{c.teacher}</div>
-            <div className="text-[11px] text-zinc-400">{c.subject}</div>
-          </div>
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="text-sky-300"><CheckCircle2 size={18} /> ئەرکەکان</PanelTitle>
+        <PanelDesc>{doneCount}/{tasks.length} تەواو</PanelDesc>
+      </PanelHeader>
+      <PanelBody>
+        <div className="flex gap-2 mb-3">
+          <input value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="ئەرکی نوێ..." className="flex-1 px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10 text-[13px] sm:text-sm text-zinc-100 outline-none" />
+          <button onClick={add} className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-100 ring-1 ring-zinc-700 text-[13px] sm:text-sm">زیادکردن</button>
         </div>
-        <div className="px-2 py-1 text-[11px] rounded-lg bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-300">{c.lessons} وانە</div>
-      </div>
-
-      <div className="mt-3 text-zinc-100 font-bold truncate">{c.title}</div>
-
-      <div className="mt-2 flex items-center gap-3 text-xs text-zinc-400">
-        <div className="flex items-center gap-1"><Star size={14} className="text-amber-300" /> {c.rating}</div>
-        <div className="flex items-center gap-1"><Users size={14} /> {c.students}</div>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between">
-        <button onClick={goCourse} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600/20 text-emerald-200 ring-1 ring-emerald-500/20 text-sm">
-          <Play size={16}/> دەستپێك
-        </button>
-        <button onClick={goTeacher} className="px-3 py-1.5 rounded-xl bg-zinc-800/70 text-zinc-100 ring-1 ring-zinc-700/70 text-sm">
-          مامۆستا
-        </button>
-      </div>
-    </motion.div>
+        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+          {tasks.map((t) => (
+            <div key={t.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
+              <label className="flex items-center gap-2 text-zinc-200 text-[13px] sm:text-sm">
+                <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} className="accent-sky-400" />
+                <span className={t.done ? "line-through opacity-60" : ""}>{t.name}</span>
+              </label>
+              <button onClick={() => del(t.id)} className="text-zinc-400 hover:text-zinc-200 text-[13px] sm:text-sm">✕</button>
+            </div>
+          ))}
+          {tasks.length === 0 && <div className="text-[13px] sm:text-sm text-zinc-400">هیچ ئەرکێک نیە</div>}
+        </div>
+      </PanelBody>
+    </Panel>
   );
 }
 
-function CoursePlaylist() {
+function QuickNotes() {
+  const [txt, setTxt] = useState(() => lsGetRaw("quick_notes", ""));
+  useEffect(() => { try { localStorage.setItem("quick_notes", txt); } catch {} }, [txt]);
   return (
-    <Panel className="col-span-full z-10">
+    <Panel>
       <PanelHeader>
-        <PanelTitle className="text-violet-300">لیستی کۆرسەکان</PanelTitle>
-        <PanelDesc>مامۆستایان کۆرسی تایبەتیان هەیە — دەستبکە بە خوێندن</PanelDesc>
+        <PanelTitle className="text-amber-300"><Lightbulb size={18} /> تێبینی خێرا</PanelTitle>
+        <PanelDesc>هەموو شتێک بنوسە</PanelDesc>
       </PanelHeader>
       <PanelBody>
-        <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
-          {teacherCourses.map((c) => (
-            <div key={c.id} className="snap-start">
-              <CourseCard c={c} />
+        <textarea value={txt} onChange={(e) => setTxt(e.target.value)} rows={6}
+                  className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-3 text-zinc-100 outline-none text-[13px] sm:text-sm leading-snug" placeholder="..." />
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function SubjectsProgress({ items }) {
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="text-violet-300">پێشکەوتن</PanelTitle>
+        <PanelDesc>ڕەوشی خوێندن</PanelDesc>
+      </PanelHeader>
+      <PanelBody>
+        <div className="grid grid-cols-2 gap-3">
+          {items.map((it) => (
+            <div key={it.name} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
+              <div className="text-zinc-200 text-[13px] sm:text-sm">{it.name}</div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-24 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-2 bg-sky-400" style={{ width: `${clamp(it.value,0,100)}%` }} />
+                </div>
+                <span className="text-zinc-300 text-[11px] sm:text-xs tabular-nums">{clamp(it.value,0,100)}%</span>
+              </div>
             </div>
           ))}
         </div>
@@ -456,10 +633,9 @@ function CoursePlaylist() {
   );
 }
 
-/* ------------------------------ Simple Panels ------------------------------ */
 function TodaySchedule({ rows }) {
   return (
-    <Panel className="z-10">
+    <Panel>
       <PanelHeader>
         <PanelTitle className="text-cyan-300">خشتەی ئەمڕۆ</PanelTitle>
         <PanelDesc>کات و بابەت</PanelDesc>
@@ -468,8 +644,8 @@ function TodaySchedule({ rows }) {
         <div className="space-y-2">
           {rows.map((r, i) => (
             <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
-              <div className="text-zinc-200 text-sm">{r.subject}</div>
-              <div className="text-zinc-400 text-xs">{r.time}</div>
+              <div className="text-zinc-200 text-[13px] sm:text-sm">{r.subjects}</div>
+              <div className="text-zinc-400 text-[11px] sm:text-xs">{r.time}</div>
             </div>
           ))}
         </div>
@@ -479,7 +655,7 @@ function TodaySchedule({ rows }) {
 }
 function NotificationsPanel({ items }) {
   return (
-    <Panel className="z-10">
+    <Panel>
       <PanelHeader>
         <PanelTitle className="text-rose-300">ئاگادارییەکان</PanelTitle>
         <PanelDesc>هەواڵ و نوێکاری</PanelDesc>
@@ -487,7 +663,7 @@ function NotificationsPanel({ items }) {
       <PanelBody>
         <div className="space-y-2">
           {items.map((t, i) => (
-            <div key={i} className="px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10 text-sm text-zinc-200">{t}</div>
+            <div key={i} className="px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10 text-[13px] sm:text-sm text-zinc-200 leading-snug break-words">{t}</div>
           ))}
         </div>
       </PanelBody>
@@ -496,7 +672,7 @@ function NotificationsPanel({ items }) {
 }
 function ExamsPanel({ items }) {
   return (
-    <Panel className="z-10">
+    <Panel>
       <PanelHeader>
         <PanelTitle className="text-emerald-300">تاقیکردنەوەکان</PanelTitle>
         <PanelDesc>نزیکترین</PanelDesc>
@@ -505,8 +681,8 @@ function ExamsPanel({ items }) {
         <div className="space-y-2">
           {items.map((e, i) => (
             <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
-              <div className="text-zinc-200 text-sm">{e.title}</div>
-              <div className="text-zinc-400 text-xs">{e.date}</div>
+              <div className="text-zinc-200 text-[13px] sm:text-sm">{e.title}</div>
+              <div className="text-zinc-400 text-[11px] sm:text-xs">{e.date}</div>
             </div>
           ))}
         </div>
@@ -516,7 +692,7 @@ function ExamsPanel({ items }) {
 }
 function SuggestionsPanel({ items }) {
   return (
-    <Panel className="col-span-full z-10">
+    <Panel className="col-span-full">
       <PanelHeader>
         <PanelTitle className="text-indigo-300">پێشنیارەکان</PanelTitle>
         <PanelDesc>شتە گرنگەکان بۆ ڕاهێنان</PanelDesc>
@@ -527,10 +703,10 @@ function SuggestionsPanel({ items }) {
             <div key={i} className="shrink-0 w-[220px] rounded-2xl p-4 ring-1 ring-white/10 bg-white/5">
               <div className="flex items-center gap-2">
                 <s.icon className={s.color} size={18} />
-                <div className="text-zinc-100 text-sm font-semibold truncate">{s.text}</div>
+                <div className="text-zinc-100 text-[13px] sm:text-sm font-semibold truncate">{s.text}</div>
               </div>
               {s.url && (
-                <a href={s.url} className="inline-block mt-3 text-xs px-3 py-1.5 rounded-xl bg-zinc-800 text-zinc-100 ring-1 ring-zinc-700">کردنەوە</a>
+                <a href={s.url} className="inline-block mt-3 text-[12px] sm:text-xs px-3 py-1.5 rounded-xl bg-zinc-800 text-zinc-100 ring-1 ring-zinc-700">کردنەوە</a>
               )}
             </div>
           ))}
@@ -540,12 +716,13 @@ function SuggestionsPanel({ items }) {
   );
 }
 function Marquee({ items = [] }) {
-  const shouldReduce = useReducedMotion();
+  const reduce = useReducedMotion();
   if (!items?.length) return null;
   return (
     <div className="relative overflow-hidden rounded-2xl ring-1 ring-zinc-800/70 bg-zinc-900/60">
-      <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "12px 12px" }} />
-      <div className={"flex gap-3 sm:gap-6 whitespace-nowrap p-2.5 sm:p-3 will-change-transform " + (shouldReduce ? "" : "animate-[scroll_22s_linear_infinite]")}>
+      <div className="absolute inset-0 opacity-[0.08]"
+           style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "12px 12px" }} />
+      <div className={"flex gap-3 sm:gap-6 whitespace-nowrap p-2.5 sm:p-3 will-change-transform " + (reduce ? "" : "animate-[scroll_22s_linear_infinite]")}>
         {items.concat(items).map((t, i) => (
           <div key={i} className="px-2.5 sm:px-3 py-1 rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-[12px] sm:text-sm text-zinc-300">{t}</div>
         ))}
@@ -555,204 +732,62 @@ function Marquee({ items = [] }) {
   );
 }
 
-/* -------------------------------- Demo Data -------------------------------- */
-const todaySubjects = [ { time: "08:00", subject: "بیرکاری" }, { time: "09:30", subject: "كوردی" }, { time: "11:00", subject: "فیزیا" } ];
-const exams = [ { title: "بیرکاری", date: "٢٧ی ٥" }, { title: "زیندەزانی", date: "٢٧ی ٥" }, { title: "كیمیا", date: "٢٧ی ٥" }, { title: "كوردی", date: "٢٩ی ٥" } ];
+/* ============================== Demo Data ============================== */
+const todaySubjects = [ { time: "08:00", subjects: "بیرکاری" }, { time: "09:30", subjects: "كوردی" }, { time: "11:00", subjects: "فیزیا" } ];
+const exams         = [ { title: "بیرکاری", date: "٢٧ی ٥" }, { title: "زیندەزانی", date: "٢٧ی ٥" }, { title: "كیمیا", date: "٢٧ی ٥" }, { title: "كوردی", date: "٢٩ی ٥" } ];
 const notifications = ["کتێبی ماتماتیک زیادکرا", "ڤیدیۆی تازەی فیزیا زیادکرا"];
-const suggestions = [ { icon: Languages, color: "text-sky-300", text: "گرامەری ئینگلیزی", url: "/grammars/english" }, { icon: Volume2, color: "text-emerald-300", text: "دەنگەکان", url: "/sounds" }, { icon: Lightbulb, color: "text-violet-300", text: "چۆن باشتر بخوێنین", url: "/tips" } ];
-const motivationalQuote = "هەرچەندە ڕێگا درێژ بێت، بەهێز بەرەوپێش دەچیت 🔥";
-const adsData = [
-  { title: "بیە بۆ گرووپی Telegram ـەوە", description: "کتێب، مەلزمە و پرسیارەکان — بەخۆڕایی.", link: "https://t.me/your_channel", bg: "bg-gradient-to-r from-sky-900/40 via-sky-800/25 to-cyan-900/40" },
-  { title: "Follow لە Instagram بکە", description: "Motivation + Study Hacks هەموو ڕۆژ.", link: "https://instagram.com/your_page", bg: "bg-gradient-to-r from-pink-900/40 via-fuchsia-900/25 to-violet-900/40" },
-  { title: "هەموو کتێبە نوێکان لێرە", description: "دانلودی خێرا و ڕێکخستن.", link: "/books", bg: "bg-gradient-to-r from-indigo-950/50 via-indigo-900/25 to-blue-950/50" },
+const suggestions   = [
+  { icon: Languages, color: "text-sky-300",    text: "گرامەری ئینگلیزی", url: "/grammars/english" },
+  { icon: Lightbulb, color: "text-violet-300", text: "چۆن باشتر بخوێنین", url: "/how-to-study" },
+  { icon: Clock3,    color: "text-cyan-300",   text: "چۆن کات ڕێکبخەین", url: "/how-to-plan" },
+];
+const marqueeItems = [
+  "بەخێربێن بۆ StudentKRD",
+  "ئێمە لێرەین بۆ یارمەتیدانت",
+  "تاقیکردنەوەی ئۆنڵاین",
+  "گەشەپێدان بە بەردەوامی",
+  "پرسیار و وەڵام",
 ];
 
-/* ---------------------------------- Top Hero ---------------------------------- */
-function TopHero() {
+/* ============================== Main Component ============================== */
+export default function Dashboard() {
   const navigate = useNavigate();
-  const shouldReduce = useReducedMotion();
-  const { current } = useStreaks();
 
   return (
-    <div className="col-span-full relative z-10 overflow-hidden rounded-b-[28px] ring-1 ring-zinc-800/70 bg-gradient-to-b from-zinc-900/80 to-zinc-950/80">
-      {/* No top padding: connects to topbar */}
-      <div className="absolute inset-0 -z-10">
-        <Glow className="-top-20 -right-10" color="#22d3ee" />
-        <Glow className="bottom-0 -left-8" color="#8b5cf6" size={420} />
+    <div dir="rtl" className="relative p-3 sm:p-5 font-sans space-y-5 bg-zinc-950 min-h-screen text-right">
+
+      <TopHero />
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 relative z-0">
+        <QuickAction text="کتێب و مەلزەمەکان" to="/subjects?t=books" icon={Book} />
+        <QuickAction text="ڤیدیۆ و وانەکان" to="/subjects?t=videos" icon={Video} />
+        <QuickAction text="بانکی پرسیار" to="/subjects?t=papers" icon={NotebookText} />
+        <QuickAction text="پلانی خوێندن" to="/schedule" icon={CalendarDays} />
       </div>
 
-      <div className="px-4 sm:px-6 pt-4 pb-5">
-        <div className="flex items-center justify-between gap-4" dir="rtl">
-          <div className="min-w-0">
-            {/* <div className="text-zinc-300 text-sm">خوێندکارە جوانەکان 😎</div> */}
-            <div className="text-zinc-100 text-2xl sm:text-3xl font-extrabold leading-tight truncate">بەخێربێیتەوه‌ </div>
-          </div>
+      <Marquee items={marqueeItems} />
 
-          <div className="shrink-0 flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-orange-600/15 ring-1 ring-orange-500/20 text-orange-200">
-              <Flame size={16} />
-              <span className="font-bold">ستیریك: {current || 0}</span>
-            </div>
-            <button onClick={() => navigate('/students')} className="px-3 py-2 rounded-xl bg-zinc-800/70 ring-1 ring-zinc-700/70 text-sm text-zinc-100">خوێندکاران</button>
-            <button onClick={() => navigate('/teachers')} className="px-3 py-2 rounded-xl bg-zinc-800/70 ring-1 ring-zinc-700/70 text-sm text-zinc-100">مامۆستایان</button>
-          </div>
+      {/* Main Content Panels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+        <SubjectsGrid />
+
+        <div className="col-span-full xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          <PomodoroTimer />
+          <TasksWidget />
         </div>
 
-        <p className="mt-3 text-zinc-200 leading-7 font-medium text-base sm:text-lg">{motivationalQuote}</p>
+        <QuickNotes />
 
-        <div className="mt-3 flex items-center gap-2">
-          <button onClick={() => navigate('/search')} className="px-3 py-2 rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-sm text-zinc-100 flex items-center gap-2">
-            <SearchIcon size={16}/> گەڕان
-          </button>
-          <button onClick={() => navigate('/schedule')} className="px-3 py-2 rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-sm text-zinc-100">
-            خشتەی ئەمڕۆ
-          </button>
+        <div className="col-span-full md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          <TodaySchedule rows={todaySubjects} />
+          <ExamsPanel items={exams} />
+          <NotificationsPanel items={notifications} />
+          <SubjectsProgress items={[{ name: "بیرکاری", value: 40 }, { name: "فیزیا", value: 70 }]} />
         </div>
+
+        <SuggestionsPanel items={suggestions} />
       </div>
     </div>
-  );
-}
-
-/* ---------------------------------- Page ---------------------------------- */
-export default function Dashboard() {
-  const shouldReduce = useReducedMotion();
-
-  useEffect(() => {
-    document.documentElement.style.colorScheme = "dark";
-    document.body.style.backgroundColor = "#0b0d12";
-    document.body.style.color = "#a1a1aa";
-    return () => { document.documentElement.style.colorScheme = ""; document.body.style.backgroundColor = ""; document.body.style.color = ""; };
-  }, []);
-
-  return (
-    <>
-      <div className="fixed inset-0 -z-20 bg-[#0b0d12]" />
-      <div className="fixed inset-0 -z-10 bg-gradient-to-tr from-zinc-950/90 via-zinc-950/60 to-indigo-950/80 animate-bg-gradient" />
-      <style>{`
-        @keyframes bg-gradient { 0% { background-position: 0% 50% } 50% { background-position: 100% 50% } 100% { background-position: 0% 50% } }
-        .animate-bg-gradient { background-size: 200% 200%; animation: bg-gradient 25s ease infinite; }
-        @media (prefers-reduced-motion: reduce) { .animate-bg-gradient { animation: none !important; } }
-      `}</style>
-
-      {/* GRID: no top padding so hero touches topbar */}
-      <motion.div initial={shouldReduce ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="relative pt-0 px-0 sm:px-4 min-h-screen grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 overflow-hidden pb-[calc(env(safe-area-inset-bottom,0px)+12px)]" dir="rtl">
-        {/* HERO (connected to topbar) */}
-        <TopHero />
-
-        {/* REKLAM directly under hero */}
-        <CompactPromoSlider ads={adsData} />
-
-        {/* BUTTONS row */}
-        <div className="col-span-full lg:col-span-1 xl:grid-cols-2 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4 z-10">
-          <QuickAction icon={Book} text="کتێبەکان" to="/students?t=books" />
-          <QuickAction icon={NotebookText} text="مەلزمەکان" to="/students?t=booklet" />
-          <QuickAction icon={Video} text="ڤیدیۆکان" to="/students?t=videos" />
-          <QuickAction icon={CalendarDays} text="خشتە" to="/schedule" />
-        </div>
-
-        {/* SUBJECTS */}
-        <SubjectsRow />
-
-        {/* COURSE PLAYLIST */}
-        <CoursePlaylist />
-
-        {/* CORE WIDGETS (keep the rest) */}
-        <PomodoroTimer />
-        <TasksWidget />
-        <QuickNotes />
-        <SubjectProgress items={[ { name: "بیرکاری", value: 78 }, { name: "فیزیا", value: 64 }, { name: "كیمیا", value: 52 }, { name: "كوردی", value: 85 } ]} />
-        <TodaySchedule rows={todaySubjects} />
-        <NotificationsPanel items={notifications} />
-        <ExamsPanel items={exams} />
-
-        {/* SUGGESTIONS at very bottom */}
-        <SuggestionsPanel items={suggestions} />
-
-        {/* FOOTER MARQUEE */}
-        <div className="col-span-full z-10">
-          <Marquee items={["لیستەی کتێبە نوێکان", "وانەی فیزیا لەدوای نیوەڕ", "هاوکاری لە گرووپی خوێندن"]} />
-        </div>
-      </motion.div>
-    </>
-  );
-}
-
-/* ----------------------------- Search Modal (optional route) ---------------------------- */
-// If you already have a global search route, you can remove this modal.
-// Kept here for completeness of earlier builds.
-function SearchModal({ open, onClose }) { return null; } // no-op
-
-/* ------------------------------- Tasks & Notes ------------------------------ */
-function TasksWidget() {
-  const [tasks, setTasks] = useLocalJson("tasks_widget", []);
-  const [txt, setTxt] = useState("");
-  const add = () => { const t = txt.trim(); if (!t) return; setTasks([{ id: crypto.randomUUID(), name: t, done: false }, ...tasks]); setTxt(""); };
-  const toggle = (id) => setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  const del = (id) => setTasks(tasks.filter((t) => t.id !== id));
-  const doneCount = tasks.filter((t) => t.done).length;
-  return (
-    <Panel className="z-10">
-      <PanelHeader>
-        <PanelTitle className="text-sky-300"><CheckCircle2 size={18} /> ئەرکەکان</PanelTitle>
-        <PanelDesc>{doneCount}/{tasks.length} تەواو</PanelDesc>
-      </PanelHeader>
-      <PanelBody>
-        <div className="flex gap-2 mb-3">
-          <input value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="ئەرکی نوێ..." className="flex-1 px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10 text-sm text-zinc-100 outline-none" />
-          <button onClick={add} className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-100 ring-1 ring-zinc-700">زیادکردن</button>
-        </div>
-        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-          {tasks.map((t) => (
-            <div key={t.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
-              <label className="flex items-center gap-2 text-zinc-200 text-sm">
-                <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} className="accent-sky-400" />
-                <span className={t.done ? "line-through opacity-60" : ""}>{t.name}</span>
-              </label>
-              <button onClick={() => del(t.id)} className="text-zinc-400 hover:text-zinc-200">✕</button>
-            </div>
-          ))}
-          {tasks.length === 0 && <div className="text-sm text-zinc-400">هیچ ئەرکێک نیە</div>}
-        </div>
-      </PanelBody>
-    </Panel>
-  );
-}
-function QuickNotes() {
-  const [txt, setTxt] = useLocalJson("quick_notes", "");
-  return (
-    <Panel className="z-10">
-      <PanelHeader>
-        <PanelTitle className="text-amber-300"><Lightbulb size={18} /> تێبینی خێرا</PanelTitle>
-        <PanelDesc>هەموو شتێک بنوسە</PanelDesc>
-      </PanelHeader>
-      <PanelBody>
-        <textarea value={txt} onChange={(e) => setTxt(e.target.value)} rows={6} className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-3 text-zinc-100 outline-none text-sm" placeholder="..." />
-      </PanelBody>
-    </Panel>
-  );
-}
-function SubjectProgress({ items }) {
-  return (
-    <Panel className="z-10">
-      <PanelHeader>
-        <PanelTitle className="text-violet-300">پێشکەوتن</PanelTitle>
-        <PanelDesc>ڕەوشی خوێندن</PanelDesc>
-      </PanelHeader>
-      <PanelBody>
-        <div className="grid grid-cols-2 gap-3">
-          {items.map((it) => (
-            <div key={it.name} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 ring-1 ring-white/10">
-              <div className="text-zinc-200 text-sm">{it.name}</div>
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-24 rounded-full bg-zinc-800 overflow-hidden">
-                  <div className="h-2 bg-sky-400" style={{ width: `${clamp(it.value,0,100)}%` }} />
-                </div>
-                <span className="text-zinc-300 text-xs tabular-nums">{clamp(it.value,0,100)}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </PanelBody>
-    </Panel>
   );
 }

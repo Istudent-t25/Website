@@ -9,7 +9,8 @@
   font-style: normal;
   font-display: swap;
 }
-/* app.css */
+
+/* Dark is the default */
 :root { color-scheme: dark; }
 html, body { background:#0b0d12; }
 
@@ -17,16 +18,17 @@ html[dir="rtl"], [dir="rtl"] { font-family: "Ubuntu"; }
 
 /* Force dark everywhere (forms/scrollbars too) */
 :root {
-  --vh: 1vh;
-  color-scheme: dark; /* was: light dark */
+  --vh: 1vh; /* legacy var (not required but harmless) */
+  color-scheme: dark;
 }
 
 html, body, #root { height: 100%; }
 
 /* Prevent white flash before CSS/JS */
 html {
+  /* Avoid content being hidden under sticky header when using native anchor scrolling */
   scroll-padding-top: calc(env(safe-area-inset-top) + 56px);
-  background: #0a0a0b; /* add */
+  background: #0a0a0b;
 }
 
 body {
@@ -39,12 +41,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none;
 
-  /* DARK as default (fix) */
-  background-color: #0a0a0b; /* was #ffffff */
-  color: #e5e7eb;            /* was #0a0a0a */
+  background-color: #0a0a0b;
+  color: #e5e7eb;
 }
 
-/* Optional: still support a 'dark' class (harmless if you don't use it) */
+/* Optional: still support a 'dark' class */
 html.dark body,
 :root.dark body {
   background-color: #0a0a0b;
@@ -85,8 +86,6 @@ html.dark body,
 }
 
 /* ====== Utility tweaks ====== */
-
-/* Glassy surface — keep only a dark background (remove the light override) */
 .glass {
   background: color-mix(in oklab, #0a0a0b 80%, transparent);
   backdrop-filter: blur(12px);
@@ -94,18 +93,15 @@ html.dark body,
   border: 1px solid rgb(255 255 255 / 0.08);
   border-radius: 16px;
 }
-
 .soft-shadow {
   box-shadow:
     0 10px 25px -10px rgb(0 0 0 / 0.35),
     0 2px 8px -2px rgb(0 0 0 / 0.25);
 }
-
 .lift:hover {
   transform: translateY(-2px);
   transition: transform .18s ease, box-shadow .18s ease;
 }
-
 .hr-soft {
   height: 1px;
   background: linear-gradient(to left, transparent, rgb(255 255 255 / 0.08), transparent);
@@ -117,7 +113,7 @@ html.dark body,
 .under-construction-overlay {
   position: fixed; inset: 0; width: 100%; height: 100%;
   backdrop-filter: blur(8px);
-  background-color: rgba(255, 255, 255, 0.08); /* subtle, still dark-friendly */
+  background-color: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex; justify-content: center; align-items: center;
   z-index: 9999;
@@ -129,25 +125,16 @@ html.dark body,
   border: 1px solid rgba(255,255,255,0.3);
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
-/* --- PWA/standalone paint fixes --- */
-.gpu-fix {
-  backface-visibility: hidden;
-  transform: translateZ(0);
-  will-change: transform;
-}
 
-/* In installed PWA, keep solid bg under glass to avoid black patches */
+/* --- PWA/standalone paint fixes --- */
+.gpu-fix { backface-visibility: hidden; transform: translateZ(0); will-change: transform; }
+.fix-ios { -webkit-transform: translateZ(0); transform: translateZ(0); backface-visibility: hidden; will-change: transform; }
+
 @media (display-mode: standalone) {
   main { background: #0a0a0b !important; }
   .glass {
-    background: rgba(10,10,11,.72);      /* less transparent than browser mode */
+    background: rgba(10,10,11,.72);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
-}
-.fix-ios {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  will-change: transform;
 }

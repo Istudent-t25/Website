@@ -1,10 +1,10 @@
+// src/pages/Gallery.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Image as ImageIcon,
   Loader2,
   Search,
-  Maximize2,
   Minimize2,
   ZoomIn,
   ZoomOut,
@@ -19,7 +19,11 @@ const API_PAPERS = "https://api.studentkrd.com/api/v1/papers";
 
 async function fetchJSON(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error("Network error");
+  if (!r.ok) {
+    const errorBody = await r.text();
+    console.error("API Error Response:", errorBody);
+    throw new Error(`Network error: ${r.status} ${r.statusText}`);
+  }
   return r.json();
 }
 
@@ -49,9 +53,9 @@ export default function Gallery() {
   const params = useMemo(() => new URLSearchParams(loc.search), [loc.search]);
 
   const subjectId = params.get("subject_id");
-  const subject = params.get("subject");
-  const grade = params.get("grade");
-  const stream = params.get("stream");
+  const subject   = params.get("subject");
+  const grade     = params.get("grade");
+  const stream    = params.get("stream");
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -95,11 +99,12 @@ export default function Gallery() {
         setMeta({
           page: j?.current_page || 1,
           last: j?.last_page || 1,
-          total: j?.total || flat.length,
+          total: j?.total ?? flat.length,
         });
       } catch (e) {
         if (!ok) return;
         setErr("هەڵە لە بارکردنی گەلەری.");
+        console.error("Failed to load gallery:", e);
       } finally {
         setLoading(false);
       }
@@ -118,11 +123,11 @@ export default function Gallery() {
       setImages(prev => prev.concat(flat));
       setMeta({
         page: j?.current_page || next,
-        last: j?.last_page || next,
-        total: j?.total || (prev => prev?.length || 0),
+        last: j?.last_page || Math.max(next, meta.last),
+        total: j?.total ?? (images.length + flat.length),
       });
     } catch {
-      setErr("نەتوانرا پەڕەی دواتر بکرێت.");
+      setErr("نەتوانرا پەڕەی دواتر بكرێت.");
     } finally {
       setLoading(false);
     }
@@ -142,8 +147,11 @@ export default function Gallery() {
       if (Array.isArray(p?.items)) {
         for (const it of p.items) {
           if (!it?.url) continue;
-          // Prefer meta?.description if your API adds it later; fallback to label
-          const description = (it?.meta && (it.meta.description || it.meta.desc)) || it?.label || p?.title || "وێنە";
+          const description =
+            (it?.meta && (it.meta.description || it.meta.desc)) ||
+            it?.label ||
+            p?.title ||
+            "وێنە";
           list.push({
             ...base,
             url: it.url,
@@ -177,14 +185,18 @@ export default function Gallery() {
     );
   }, [filteredBySession, q]);
 
-  // Lightbox
+  // Lightbox controls
   const openAt = (i) => { setIdx(i); setZoom(1); setOpen(true); };
   const close = () => setOpen(false);
+
   const next = useCallback(() => {
+    if (view.length === 0) return;
     setIdx((i) => (i + 1) % view.length);
     setZoom(1);
   }, [view.length]);
+
   const prev = useCallback(() => {
+    if (view.length === 0) return;
     setIdx((i) => (i - 1 + view.length) % view.length);
     setZoom(1);
   }, [view.length]);
@@ -204,6 +216,14 @@ export default function Gallery() {
     return () => window.removeEventListener("keydown", onKey);
   }, [onKey]);
 
+  // Lock page scroll while lightbox open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   const downloadCurrent = () => {
     const cur = view[idx];
     if (!cur?.url) return;
@@ -215,20 +235,20 @@ export default function Gallery() {
     a.remove();
   };
 
-  const fit = () => setZoom(1);
-  const zoomIn = () => setZoom((z) => Math.min(4, z + 0.25));
+  const fit     = () => setZoom(1);
+  const zoomIn  = () => setZoom((z) => Math.min(4, z + 0.25));
   const zoomOut = () => setZoom((z) => Math.max(0.5, z - 0.25));
 
   return (
-    <div dir="rtl" className="p-3 sm:p-5 space-y-4">
+    <div dir="rtl" className="p-3 sm:p-5 space-y-4 font-kurdish">
       {/* Header */}
-      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-sky-500/10 to-indigo-500/5 p-3 sm:p-4 sticky top-2 z-10">
+      <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg p-3 sm:p-4 sticky top-2 z-10">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-2 text-white">
+            <div className="flex items-center gap-2 text-white flex-shrink-0">
               <ImageIcon className="w-5 h-5 text-sky-300" />
-              <div className="font-extrabold text-lg">گەلەری — وێنەکانی به‌نده‌كان</div>
-              {meta.total ? <span className="text-[11px] text-zinc-300">({meta.total})</span> : null}
+              <div className="font-extrabold text-lg">گەلەری — وێنەکان</div>
+              {meta.total > 0 && <span className="text-[11px] text-zinc-300">({meta.total})</span>}
             </div>
             <div className="flex-1" />
             <div className="grid grid-cols-1 gap-3 w-full sm:w-auto">
@@ -239,7 +259,7 @@ export default function Gallery() {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="گەڕان لە ناونیشان/وەسف/بابەت…"
-                  className="w-full sm:w-[320px] rounded-2xl bg-zinc-900/60 border border-white/10 text-white text-sm px-10 py-2.5 outline-none focus:ring-2 focus:ring-sky-400/30"
+                  className="w-full sm:w-[320px] rounded-2xl bg-white/5 border border-white/10 text-white text-sm px-10 py-2.5 outline-none focus:ring-2 focus:ring-sky-400/30"
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               </div>
@@ -248,22 +268,22 @@ export default function Gallery() {
 
           {/* filters row */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[12px] text-zinc-300">
+            <span className="inline-flex items-center gap-1 text-[12px] text-zinc-300 flex-shrink-0">
               <Filter className="w-4 h-4" /> فلتەر:
             </span>
 
             {/* Session select */}
-            <label className="flex items-center gap-2 text-[12px] text-zinc-300">
-              به‌ندی:
+            <label className="flex items-center gap-2 text-[12px] text-zinc-300 flex-shrink-0">
+              بەندی:
               <select
                 value={sessionFilter}
                 onChange={(e) => setSessionFilter(e.target.value)}
-                className="rounded-xl bg-zinc-900/60 border border-white/10 text-white px-2 py-1 outline-none focus:ring-2 focus:ring-sky-400/30"
+                className="rounded-xl bg-white/5 border border-white/10 text-white px-2 py-1 outline-none focus:ring-2 focus:ring-sky-400/30"
               >
-                <option value="all">هەموو به‌نده‌كان</option>
+                <option value="all">هەموو بەندەکان</option>
                 {sessions.map((s) => (
                   <option key={s} value={s}>
-                    به‌ندی {s}
+                    بەندی {s}
                   </option>
                 ))}
               </select>
@@ -271,10 +291,10 @@ export default function Gallery() {
 
             {/* Quick chips */}
             {sessions.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 flex-1 min-w-0 overflow-x-auto custom-scrollbar">
                 <button
                   onClick={() => setSessionFilter("all")}
-                  className={`px-2 py-1 rounded-lg text-[11px] border ${
+                  className={`px-2 py-1 rounded-lg text-[11px] border flex-shrink-0 ${
                     sessionFilter === "all" ? "bg-sky-500/20 border-sky-400/30 text-white" : "bg-white/5 border-white/10 text-zinc-300"
                   }`}
                 >
@@ -284,26 +304,18 @@ export default function Gallery() {
                   <button
                     key={`chip-${s}`}
                     onClick={() => setSessionFilter(String(s))}
-                    className={`px-2 py-1 rounded-lg text-[11px] border ${
+                    className={`px-2 py-1 rounded-lg text-[11px] border flex-shrink-0 ${
                       String(sessionFilter) === String(s) ? "bg-sky-500/20 border-sky-400/30 text-white" : "bg-white/5 border-white/10 text-zinc-300"
                     }`}
                   >
-                    {`به‌ندی ${s}`}
+                    {`بەندی ${s}`}
                   </button>
                 ))}
                 {sessions.length > 8 && (
-                  <span className="px-2 py-1 text-[11px] text-zinc-400">…</span>
+                  <span className="px-2 py-1 text-[11px] text-zinc-400 flex-shrink-0">…</span>
                 )}
               </div>
             )}
-
-            {/* Active filters (subject/grade/stream) */}
-            <div className="flex flex-wrap gap-2 ml-auto text-[11px] text-zinc-300">
-              {/* {subjectId && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">#ID بابەت: {subjectId}</span>} */}
-              {/* {subject && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">بابەت: {subject}</span>} */}
-              {grade && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">پۆل: {grade}</span>}
-              {stream && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">پۆڵێن: {streamLabel}</span>}
-            </div>
           </div>
         </div>
       </div>
@@ -311,12 +323,12 @@ export default function Gallery() {
       {/* Error */}
       {err && <div className="text-red-300 text-sm">{err}</div>}
 
-      {/* Grid */}
+      {/* Grid / States */}
       {loading && images.length === 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
           {SKELETONS.map((_, i) => (
-            <div key={i} className="rounded-2xl overflow-hidden bg-zinc-900/60 border border-white/10">
-              <div className="aspect-[3/4] w-full animate-pulse bg-zinc-800/80" />
+            <div key={i} className="rounded-2xl overflow-hidden bg-white/5 border border-white/10">
+              <div className="aspect-w-3 aspect-h-4 w-full animate-pulse bg-zinc-800/80" />
               <div className="p-3 space-y-2">
                 <div className="h-3 w-3/4 bg-zinc-800/70 rounded animate-pulse" />
                 <div className="h-3 w-1/2 bg-zinc-800/60 rounded animate-pulse" />
@@ -325,44 +337,43 @@ export default function Gallery() {
           ))}
         </div>
       ) : view.length === 0 ? (
-        <div className="text-zinc-400">هیچ وێنەیەک بەم فلتەرە نییە.</div>
+        <div className="text-zinc-400 text-center py-12">هیچ وێنەیەک بەم فلتەرە نییە.</div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
             {view.map((im, i) => (
               <button
                 key={`${im.paperId}-${im.session}-${im.sort}-${i}`}
-                className="group text-right rounded-2xl overflow-hidden bg-zinc-900/60 border border-white/10 hover:border-sky-400/30 transition"
+                className="group text-right rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-sky-400/30 transition-all duration-300 relative"
                 onClick={() => openAt(i)}
               >
-                <div className="relative aspect-[3/4] w-full overflow-hidden bg-zinc-800">
+                <div className="relative aspect-w-3 aspect-h-4 w-full overflow-hidden">
                   <img
                     src={im.thumb}
                     alt={im.description || im.label || "image"}
                     loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
-                  {/* badges */}
-                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                    {typeof im.session === "number" && (
-                      <span className="px-2 py-1 rounded-lg text-[10px] bg-black/50 backdrop-blur border border-white/10 text-sky-200">
-                        به‌ندی {im.session}
-                      </span>
-                    )}
-                    {im.subjectName && (
-                      <span className="px-2 py-1 rounded-lg text-[10px] bg-black/50 backdrop-blur border border-white/10 text-zinc-100">
-                        {im.subjectName}
-                      </span>
-                    )}
-                  </div>
-                  <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
+                </div>
+                {/* badges on top of image */}
+                <div className="absolute top-3 right-3 flex flex-col gap-1 items-end pointer-events-none">
+                  {typeof im.session === "number" && (
+                    <span className="px-2 py-1 rounded-lg text-[10px] bg-black/50 backdrop-blur-sm border border-white/10 text-sky-200">
+                      بەندی {im.session}
+                    </span>
+                  )}
+                  {im.subjectName && (
+                    <span className="px-2 py-1 rounded-lg text-[10px] bg-black/50 backdrop-blur-sm border border-white/10 text-zinc-100">
+                      {im.subjectName}
+                    </span>
+                  )}
                 </div>
                 <div className="p-3">
-                  {/* Title/Description block */}
-                  <div className="text-[12px] text-zinc-200 font-medium line-clamp-1">
+                  <div className="text-[12px] text-zinc-200 font-medium">
                     {im.title || "وێنە"}
                   </div>
-                  <div className="text-[11px] text-zinc-400 line-clamp-2">
+                  <div className="text-[11px] text-zinc-400">
                     {im.description || im.label || "—"}
                   </div>
                 </div>
@@ -375,7 +386,7 @@ export default function Gallery() {
               <button
                 onClick={loadMore}
                 disabled={loading}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm border border-white/10"
+                className="px-6 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm border border-white/10 transition-all duration-300"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
@@ -391,74 +402,57 @@ export default function Gallery() {
       {/* LIGHTBOX */}
       {open && view[idx] && (
         <div
-          className="fixed inset-0 bg-black/90 z-50 flex flex-col"
+          className="fixed inset-0 bg-black/95 z-50 flex flex-col"
           onClick={(e) => { if (e.target === e.currentTarget) close(); }}
         >
           {/* Top bar */}
-          <div className="p-2 sm:p-3 flex items-center justify-between">
+          <div className="p-2 sm:p-3 flex items-center justify-between border-b border-white/5">
             <div className="flex items-center gap-2 text-[12px] text-zinc-300">
-              <span className="hidden sm:inline-block px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                {view[idx]?.subjectName || "بابەت"}
-              </span>
+              <div className="hidden sm:inline-block px-2 py-1 rounded-lg bg-white/5 border border-white/10">{view[idx]?.subjectName || "بابەت"}</div>
               {typeof view[idx]?.session === "number" && (
-                <span className="px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                  به‌ندی {view[idx].session}
-                </span>
+                <div className="px-2 py-1 rounded-lg bg-white/5 border border-white/10">بەندی {view[idx].session}</div>
               )}
-              <span className="px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                پەڕە {idx + 1} / {view.length}
-              </span>
+              <div className="px-2 py-1 rounded-lg bg-white/5 border border-white/10">پەڕە {idx + 1} / {view.length}</div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={fit} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm" title="فیت">
-                <Minimize2 className="w-4 h-4" />
-              </button>
-              <button onClick={zoomOut} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm" title="زوم کەم">
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <button onClick={zoomIn} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm" title="زوم زیاد">
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <button onClick={downloadCurrent} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm" title="داگرتن">
-                <Download className="w-4 h-4" />
-              </button>
-              <button onClick={close} className="ml-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm" title="داخستن">
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={fit} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm transition-colors duration-200 hover:bg-white/10" title="فیت"><Minimize2 className="w-4 h-4" /></button>
+              <button onClick={zoomOut} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm transition-colors duration-200 hover:bg-white/10" title="زوم کەم"><ZoomOut className="w-4 h-4" /></button>
+              <button onClick={zoomIn} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm transition-colors duration-200 hover:bg-white/10" title="زوم زیاد"><ZoomIn className="w-4 h-4" /></button>
+              <button onClick={downloadCurrent} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm transition-colors duration-200 hover:bg-white/10" title="داگرتن"><Download className="w-4 h-4" /></button>
+              <button onClick={close} className="ml-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm transition-colors duration-200" title="داخستن"><X className="w-4 h-4" /></button>
             </div>
           </div>
 
-          {/* Viewer */}
-          <div className="relative flex-1 overflow-hidden">
-            {/* Prev / Next */}
-            <div className="absolute inset-y-0 left-0 w-16 flex items-center justify-center">
-              <button
-                onClick={(e) => { e.stopPropagation(); prev(); }}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-white"
-                title="پەڕەی پێشوو"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="absolute inset-y-0 right-0 w-16 flex items-center justify-center">
-              <button
-                onClick={(e) => { e.stopPropagation(); next(); }}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-white"
-                title="پەڕەی داهاتوو"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-            </div>
+          {/* Viewer stage */}
+          <div className="relative flex-1 min-h-0 overflow-hidden flex items-center justify-center">
+            {/* Side Prev / Next */}
+            {view.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); prev(); }}
+                  className="absolute left-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-300"
+                  title="پەڕەی پێشوو"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); next(); }}
+                  className="absolute right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-300"
+                  title="پەڕەی داهاتوو"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+              </>
+            )}
 
-            {/* Image canvas */}
-            <div className="w-full h-full flex items-center justify-center select-none">
-              <div className="max-w-[95vw] max-h-[75vh] overflow-auto">
+            <div className="h-full w-full overflow-auto">
+              <div className="mx-auto h-full flex justify-center items-start pt-8 pb-16">
                 <img
                   ref={imgRef}
                   src={view[idx].url}
-                  alt={view[idx].description || view[idx].label || "image"}
-                  style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
-                  className="transition-transform duration-200 block mx-auto"
+                  alt={view[idx].description || view[idx].title || view[idx].label || "image"}
+                  style={{ width: `${zoom * 100}%`, height: "auto", display: "block", maxWidth: "100%" }}
+                  className="select-none"
                   draggable={false}
                 />
               </div>
@@ -466,21 +460,10 @@ export default function Gallery() {
           </div>
 
           {/* Bottom caption */}
-          <div className="w-full border-t border-white/10 bg-black/70 backdrop-blur">
-            <div className="max-w-5xl mx-auto p-3 sm:p-4">
-              <div className="text-right">
-                <div className="text-[13px] text-white font-semibold">
-                  {view[idx].title || "وێنە"}
-                </div>
-                <div className="text-[12px] text-zinc-300 leading-6">
-                  {view[idx].description || view[idx].label || "—"}
-                </div>
-                <div className="mt-1 text-[11px] text-zinc-400 flex flex-wrap gap-2">
-                  {view[idx]?.subjectName && <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">{view[idx].subjectName}</span>}
-                  {typeof view[idx]?.session === "number" && <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">به‌ندی {view[idx].session}</span>}
-                  <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">پەڕە {idx + 1}/{view.length}</span>
-                </div>
-              </div>
+          <div className="shrink-0 w-full border-t border-white/5 bg-black/50 backdrop-blur-lg">
+            <div className="max-w-5xl mx-auto p-3 sm:p-4 text-right">
+              <div className="text-[13px] text-white font-semibold">{view[idx].title || "وێنە"}</div>
+              <div className="text-[12px] text-zinc-300 leading-6">{view[idx].description || view[idx].label || "—"}</div>
             </div>
           </div>
         </div>

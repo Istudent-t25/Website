@@ -21,6 +21,15 @@ async function fetchJSON(url) {
   return r.json();
 }
 
+// normalize "track" to "stream"
+function normalizeStream(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (["scientific", "science", "sci", "scinetific", "scentific", "scenitif"].includes(s)) return "scientific";
+  if (["literary", "literature", "lit", "ltr"].includes(s)) return "literary";
+  if (["both", "all"].includes(s)) return "both";
+  return "";
+}
+
 function streamKurdish(s) {
   if (!s) return null;
   const v = String(s).toLowerCase();
@@ -49,6 +58,39 @@ function buildQuery({ subjectId, subject, grade, stream, page = 1, perPage = 12 
   return `${API_DOCS}?${sp.toString()}`;
 }
 
+/* -------- viewer helpers (for openInViewer) -------- */
+function toCU(raw) {
+  if (!raw) return "";
+  try {
+    // make sure we return an absolute, well-formed URL (keeps query params)
+    const u = new URL(raw, window.location.origin);
+    return u.toString();
+  } catch {
+    // last resort: basic cleanup
+    if (raw.startsWith("//")) return `${window.location.protocol}${raw}`;
+    return raw;
+  }
+}
+function getExt(u) {
+  try {
+    const path = new URL(u).pathname;
+    const clean = path.includes(".") ? path.substring(path.lastIndexOf(".") + 1) : "";
+    return clean.toLowerCase();
+  } catch {
+    const p = String(u).split("?")[0];
+    return p.includes(".") ? p.substring(p.lastIndexOf(".") + 1).toLowerCase() : "";
+  }
+}
+function isPDF(u) {
+  return getExt(u) === "pdf";
+}
+function isImage(u) {
+  return /^(png|jpg|jpeg|gif|webp|bmp|tiff|svg)$/i.test(getExt(u));
+}
+function isVideoFile(u) {
+  return /^(mp4|webm|mov|mkv|m4v|m3u8|ts)$/i.test(getExt(u));
+}
+
 /* ----------------- skeletons ----------------- */
 function SkeletonBar({ className = "" }) {
   return <div className={`animate-pulse rounded-md bg-white/10 ${className}`} />;
@@ -75,51 +117,55 @@ function DocCardSkeleton() {
 }
 
 /* ----------------- components ----------------- */
-function Thumb({ src, alt }) {
+function Thumb({ src, alt, onClick }) {
   return (
-    <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-800">
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-800 group"
+      title={alt || "thumbnail"}
+    >
       {src ? (
-        <img
-          src={src}
-          alt={alt || "thumbnail"}
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="lazy"
-        />
+        <>
+          <img
+            src={src}
+            alt={alt || "thumbnail"}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+        </>
       ) : (
         <div className="absolute inset-0 grid place-items-center text-zinc-500">
           <BookOpen className="w-8 h-8" />
         </div>
       )}
-    </div>
+    </button>
   );
 }
 
 function BookCard({ doc }) {
   const navigate = useNavigate();
   const title = doc?.title || "کتێب/بوکلت";
-  const fileUrl = doc?.file_url;
+  const fileUrl = doc?.file_url || doc?.pdf_url || doc?.image_url || doc?.thumb_url || "";
   const subject = doc?.subject?.name;
   const grade = doc?.grade;
   const track = streamKurdish(doc?.stream);
   const teacher = doc?.teacher?.full_name;
   const type = typeKurdish(doc?.type);
 
-  const view = () => {
-    if (!fileUrl) return;
-    const qs = new URLSearchParams({
-      url: fileUrl,
-      title,
-      label: [subject, grade ? `پۆل ${grade}` : null, track && track !== "—" ? `تڕاک ${track}` : null]
-        .filter(Boolean)
-        .join(" • "),
-      from: "/resources/books",
-    });
-    navigate(`/viewer?${qs.toString()}`);
+  const openInViewer = (item) => {
+    const raw   = item?.pdf_url || item?.file_url || item?.image_url || item?.thumb_url || "";
+    const url   = toCU(raw);
+    if (!url) return;
+    const t     = item?.title || item?.name || "Viewer";
+    const kind  = isPDF(url) ? "pdf" : isImage(url) ? "image" : isVideoFile(url) ? "video" : "file";
+    navigate(`/viewer?u=${encodeURIComponent(url)}&t=${encodeURIComponent(t)}&type=${kind}`);
   };
 
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden hover:border-white/20 transition">
-      <Thumb src={doc?.thumb_url} alt={title} />
+      <Thumb src={doc?.thumb_url} alt={title} onClick={() => openInViewer(doc)} />
       <div className="p-3 sm:p-4">
         <div className="flex items-start gap-3">
           <div className="shrink-0 rounded-xl bg-black/30 border border-white/10 p-2">
@@ -138,7 +184,7 @@ function BookCard({ doc }) {
                 </span>
               )}
               {track && track !== "—" && (
-                <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">تڕاک {track}</span>
+                <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10">جۆر {track}</span>
               )}
               {teacher && (
                 <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 inline-flex items-center gap-1">
@@ -150,7 +196,7 @@ function BookCard({ doc }) {
 
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={view}
+                onClick={() => openInViewer(doc)}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
               >
                 بینین
@@ -186,10 +232,15 @@ export default function BooksAndBooklets() {
   const loc = useLocation();
   const params = useMemo(() => new URLSearchParams(loc.search), [loc.search]);
 
-  const subjectId = params.get("subject_id");
-  const subject = params.get("subject");
-  const grade = params.get("grade");
-  const stream = params.get("stream");
+  const subjectIdQS = params.get("subject_id");
+  const subjectQS   = params.get("subject");
+  const gradeQS     = params.get("grade");
+  const streamQS    = params.get("stream");
+
+  // sensible defaults if not provided via query
+  const grade   = gradeQS || localStorage.getItem("grade") || "";
+  const stream0 = normalizeStream(streamQS || localStorage.getItem("track") || "");
+  const stream  = stream0 || ""; // empty means "no filter" for API
 
   const [docs, setDocs] = useState([]);
   const [meta, setMeta] = useState({ page: 1, last: 1, total: 0 });
@@ -208,7 +259,14 @@ export default function BooksAndBooklets() {
       setDocs([]);
       setMeta({ page: 1, last: 1, total: 0 });
       try {
-        const url = buildQuery({ subjectId, subject, grade, stream, page: 1, perPage: 12 });
+        const url = buildQuery({
+          subjectId: subjectIdQS,
+          subject: subjectQS,
+          grade,
+          stream,
+          page: 1,
+          perPage: 12,
+        });
         const j = await fetchJSON(url);
         if (!ok) return;
         setDocs(j?.data || []);
@@ -225,14 +283,21 @@ export default function BooksAndBooklets() {
       }
     })();
     return () => { ok = false; };
-  }, [subjectId, subject, grade, stream]);
+  }, [subjectIdQS, subjectQS, grade, stream]);
 
   const loadMore = async () => {
     if (meta.page >= meta.last) return;
     const next = meta.page + 1;
     setLoading(true);
     try {
-      const url = buildQuery({ subjectId, subject, grade, stream, page: next, perPage: 12 });
+      const url = buildQuery({
+        subjectId: subjectIdQS,
+        subject: subjectQS,
+        grade,
+        stream,
+        page: next,
+        perPage: 12,
+      });
       const j = await fetchJSON(url);
       setDocs(prev => prev.concat(j?.data || []));
       setMeta({ page: j?.current_page || next, last: j?.last_page || next, total: j?.total || 0 });
@@ -269,15 +334,15 @@ export default function BooksAndBooklets() {
 
           {/* context badges */}
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-300">
-            {subjectId && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">#ID بابەت: {subjectId}</span>}
-            {subject && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">بابەت: {subject}</span>}
+            {subjectIdQS && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">#ID بابەت: {subjectIdQS}</span>}
+            {subjectQS && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">بابەت: {subjectQS}</span>}
             {grade && (
               <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">
                 <GraduationCap className="inline w-3 h-3 mr-1" />
                 پۆل: {grade}
               </span>
             )}
-            {stream && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">تڕاک: {trackLabel}</span>}
+            {stream && <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10">جۆر: {trackLabel}</span>}
             <span className="px-2 py-1 rounded-xl bg-white/5 border border-white/10 inline-flex items-center gap-1">
               <BadgeInfo className="w-3 h-3" /> تکایە کرتە لە «بینین» بکە بۆ پەڕەی دیمەنەری فایل
             </span>

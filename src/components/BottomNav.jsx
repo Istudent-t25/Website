@@ -6,7 +6,7 @@ import { useScrollDirection } from '../hooks/useScrollDirection';
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
   { to: "/subjects", label: "بابەتەکان", icon: Library },
-  { to: "/exams", label: "پرسارەکان", icon: BookMarked },
+  { to: "/exam", label: "تاقیكردنه‌وه‌", icon: BookMarked },
   { to: "/course", label: "وانەکان", icon: Book },
   // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
