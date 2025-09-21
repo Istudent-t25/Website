@@ -1,132 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Volume2,
-  BookOpen,
-  MessageCircle,
-  HelpCircle,
-  Lightbulb,
-  Star,
-  StarOff,
-  Search,
-  ChevronRight,
-  ChevronLeft,
-  Play,
-  Pause,
-  RefreshCw,
-  Trophy, 
-  CheckCircle2,
-  XCircle,
-  X,
-  ClipboardList, 
+  Star, StarOff, Search, ChevronDown, RefreshCw, BookOpenCheck, House,
+  Shuffle, SkipBack, SkipForward, Volume2, Copy as CopyIcon, Share2, Sparkles
 } from "lucide-react";
 
-/* ======================= DATA ======================= */
-const wordsData = [
-  { 
-    id: 1, word: 'anxious', ipa: '/ˈæŋkʃəs/', kurdishMeaning: 'نیگەران، دڵەڕاوکێ', kurdishReading: 'ئەنگیۆس',
-    silentLetters: [], exampleSentence: 'She felt anxious about her exam results.',
-    examQuestions: [
-      { question: 'واتای کوردی وشەی "anxious" چییە؟', answer: 'نیگەران، دڵەڕاوکێ' },
-      { question: 'وشەیەکی هاومانای "anxious" بنووسە.', answer: 'Nervous یان Worried.' },
-      { question: 'وشەی "anxious" لە ڕستەیەکدا بەکاربهێنە.', answer: 'خوێندکارەکە نیگەران بوو لە ئەنجامی تاقیکردنەوەی کۆتایی.' },
-    ],
-  },
-  { 
-    id: 2, word: 'knife', ipa: '/naɪf/', kurdishMeaning: 'چەقۆ', kurdishReading: 'نایف',
-    silentLetters: ['k'], exampleSentence: 'He used a sharp knife to cut the apple.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "knife"؟', answer: 'پیتی "k" بێدەنگە.' },
-      { question: 'IPA وشەی "knife" چییە؟', answer: '/naɪf/' },
-      { question: 'وشەی "چەقۆ" بکە بە ئینگلیزی.', answer: 'Knife' },
-    ],
-  },
-  { 
-    id: 3, word: 'psalm', ipa: '/sɑːm/', kurdishMeaning: 'سەروود، سرووت', kurdishReading: 'سام',
-    silentLetters: ['p'], exampleSentence: 'We sang a psalm during the church service.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "psalm"؟', answer: 'پیتی "p" بێدەنگە.' },
-      { question: 'واتای کوردی وشەی "psalm" چییە؟', answer: 'سەروود، سرووت' },
-      { question: 'نموونەیەکی ڕستە بۆ وشەی "psalm" بنووسە.', answer: 'کۆڕی مۆسیقا سروودێکی جوانیان وت.' },
-    ],
-  },
-  { 
-    id: 4, word: 'debt', ipa: '/dɛt/', kurdishMeaning: 'قەرز', kurdishReading: 'دێت',
-    silentLetters: ['b'], exampleSentence: 'He has to pay off a small debt.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "debt"؟', answer: 'پیتی "b" بێدەنگە.' },
-      { question: 'وشەی "debt" بە مانای چی دێت؟', answer: 'بڕێک پارە کە قەرزاری کەسێکیت.' },
-    ],
-  },
-  { 
-    id: 5, word: 'island', ipa: '/ˈaɪlənd/', kurdishMeaning: 'دوورگە', kurdishReading: 'ئایلاند',
-    silentLetters: ['s'], exampleSentence: 'We went on vacation to a tropical island.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "island"؟', answer: 'پیتی "s" بێدەنگە.' },
-      { question: 'چۆن وشەی "island" دەخوێنرێتەوە؟', answer: 'بە /ˈaɪlənd/ دەخوێنرێتەوە، لەگەڵ "s"ی بێدەنگ.' },
-    ],
-  },
-  { 
-    id: 6, word: 'knight', ipa: '/naɪt/', kurdishMeaning: 'ئەسپ سوار، سوارچاک', kurdishReading: 'نایت',
-    silentLetters: ['k', 'g', 'h'], exampleSentence: 'A brave knight defended the kingdom.',
-    examQuestions: [
-      { question: 'کام پیتەکان بێدەنگن لە وشەی "knight"؟', answer: 'پیتەکانی "k"، "g"، و "h" هەموویان بێدەنگن.' },
-      { question: '"knight" چی دەکات؟', answer: 'سوارچاک جەنگاوەرێکی ئازایە کە خزمەتی پادشا یان شاژنێک دەکات.' },
-    ],
-  },
-  { 
-    id: 7, word: 'listen', ipa: '/ˈlɪsən/', kurdishMeaning: 'گوێ گرتن', kurdishReading: 'لِسِن',
-    silentLetters: ['t'], exampleSentence: 'Please listen to my instructions carefully.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "listen"؟', answer: 'پیتی "t" بێدەنگە.' },
-      { question: 'چۆن وشەی "listen" دەخوێنرێتەوە؟', answer: 'وشەکە بە /ˈlɪsən/ دەخوێنرێتەوە، نەک /ˈlɪstən/.' },
-    ],
-  },
-  { 
-    id: 8, word: 'honest', ipa: '/ˈɒnɪst/', kurdishMeaning: 'ڕاستگۆ', kurdishReading: 'ئۆنێست',
-    silentLetters: ['h'], exampleSentence: 'He is a very honest and trustworthy person.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "honest"؟', answer: 'پیتی "h" بێدەنگە.' },
-      { question: 'واتای کوردی وشەی "honest" چییە؟', answer: 'ڕاستگۆ' },
-    ],
-  },
-  { 
-    id: 9, word: 'column', ipa: '/ˈkɒləm/', kurdishMeaning: 'ستوون', kurdishReading: 'کۆلەم',
-    silentLetters: ['n'], exampleSentence: 'The temple was supported by large columns.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "column"؟', answer: 'پیتی "n" بێدەنگە.' },
-      { question: 'چۆن وشەی "column" دەخوێنرێتەوە؟', answer: 'بە /ˈkɒləm/ دەخوێنرێتەوە، نەک /ˈkɒləmn/.' },
-    ],
-  },
-  { 
-    id: 10, word: 'doubt', ipa: '/daʊt/', kurdishMeaning: 'گومان', kurdishReading: 'داوت',
-    silentLetters: ['b'], exampleSentence: 'I have no doubt that he will succeed.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "doubt"؟', answer: 'پیتی "b" بێدەنگە.' },
-      { question: 'وشەی "doubt" بە مانای چی دێت؟', answer: 'هەستێکی نادڵنیایی یان نەبوونی متمانە.' },
-    ],
-  },
-  { 
-    id: 11, word: 'castle', ipa: '/ˈkɑːsəl/', kurdishMeaning: 'قەڵا', kurdishReading: 'کاسڵ',
-    silentLetters: ['t'], exampleSentence: 'We visited an old castle on our trip.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "castle"؟', answer: 'پیتی "t" بێدەنگە.' },
-      { question: 'واتای کوردی وشەی "castle" چییە؟', answer: 'قەڵا' },
-    ],
-  },
-  { 
-    id: 12, word: 'aisle', ipa: '/aɪl/', kurdishMeaning: 'ڕێڕەو', kurdishReading: 'ئایل',
-    silentLetters: ['s'], exampleSentence: 'She walked down the wedding aisle.',
-    examQuestions: [
-      { question: 'کام پیت بێدەنگە لە وشەی "aisle"؟', answer: 'پیتی "s" بێدەنگە.' },
-      { question: 'چۆن وشەی "aisle" دەخوێنرێتەوە؟', answer: 'بە /aɪl/ دەخوێنرێتەوە، لەگەڵ "s"ی بێدەنگ.' },
-      { question: 'نموونەیەکی ڕستە بۆ وشەی "aisle" بنووسە.', answer: 'کارمەندی فڕۆکەکە داوای لێکردم لە ڕێڕەوەکە دووربکەومەوە.' },
-    ],
-  },
-];
-
 /* ======================= HELPERS ======================= */
-const LS_KEY = "sounds_page_state_v2";
+const LS_KEY = "sounds_page_state_v15";
 const usePersisted = (initial) => {
   const [state, setState] = useState(() => {
     try {
@@ -143,657 +23,419 @@ const usePersisted = (initial) => {
   return [state, setState];
 };
 
-// ttsSpeak now uses a fixed rate of 1
-function ttsSpeak(text, lang = "en-US", rate = 1) { // Removed rate parameter from persist, fixed to 1
+const Collapsible = ({ children, isOpen }) => (
+  <AnimatePresence initial={false}>
+    {isOpen && (
+      <motion.div
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: "auto", opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.25 }}
+        style={{ overflow: "hidden" }}
+      >
+        {children}
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+const SPRING = { type: "spring", stiffness: 260, damping: 26, mass: 0.7 };
+const cls = (...a) => a.filter(Boolean).join(" ");
+
+/* Speak helper (Web Speech API) */
+function speak(text) {
   try {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) return false;
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
-    u.rate = rate; // Always use 1
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer English voices
+    const v = voices.find(v => v.lang?.toLowerCase().startsWith("en-")) || voices[0];
+    if (v) u.voice = v;
+    u.rate = 0.95; u.pitch = 1.0;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  } catch {}
-}
-
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+    return true;
+  } catch { return false; }
 }
 
 /* ======================= MAIN COMPONENT ======================= */
 export default function SoundsPage() {
   const [persist, setPersist] = usePersisted({
-    activeId: wordsData[0]?.id || 1,
     favorites: [],
     search: "",
     onlyFavs: false,
-    // rate: 1, // Removed 'rate' from persisted state
+    activeId: null,
   });
 
-  const filtered = useMemo(() => {
-    let list = wordsData;
-    if (persist.search.trim()) {
-      const q = persist.search.toLowerCase();
-      list = list.filter(
-        (w) =>
-          w.word.toLowerCase().includes(q) ||
-          w.ipa.toLowerCase().includes(q) ||
-          w.kurdishMeaning.includes(persist.search)
-      );
-    }
-    if (persist.onlyFavs) {
-      list = list.filter((w) => persist.favorites.includes(w.id));
-    }
-    return list;
-  }, [persist.search, persist.onlyFavs, persist.favorites]);
+  const [wordsData, setWordsData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [openPlaces, setOpenPlaces] = useState({});
+  const [openUnits, setOpenUnits] = useState({});
+  const isTouchDevice = useMemo(() => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches, []);
 
-  const currentIndex = useMemo(() => { // Memoize currentIndex
-    return Math.max(0, filtered.findIndex((w) => w.id === persist.activeId));
-  }, [filtered, persist.activeId]);
-  
-  const currentWord = filtered[currentIndex] || filtered[0] || wordsData[0];
+  const searchRef = useRef(null);
+  const placeAnchors = useRef({});
 
-  const [mode, setMode] = useState("idle"); // 'idle'|'en'|'ku'|'speak'|'quiz'
-  const [readingText, setReadingText] = useState("");
-  const [autoPlay, setAutoPlay] = useState(false);
+  const fetchWords = useCallback(async () => {
+    setIsLoading(true);
+    setIsError(false);
+    try {
+      const spIn = new URLSearchParams(window.location.search);
+      const subjectParam = spIn.get("subject_id") || spIn.get("subjectId");
+      const subjectName = spIn.get("subject");
 
-  const totalQ = currentWord?.examQuestions?.length || 0;
-  const [qIndex, setQIndex] = useState(0);
-  const [reveal, setReveal] = useState(false);
-
-  // Exam Center states - Timer-related states removed
-  const [examOpen, setExamOpen] = useState(false);
-  const [examList, setExamList] = useState([]);
-  const [examAnswers, setExamAnswers] = useState({});
-  const [examDone, setExamDone] = useState(false); // Only exam done state remains
-
-  const autoIntRef = useRef(null);
-  // timerRef and its useEffect removed as per request
-
-  useEffect(() => {
-    setMode("idle");
-    setReadingText("");
-    setQIndex(0);
-    setReveal(false);
-  }, [currentWord?.id]);
-
-  useEffect(() => {
-    if (!autoPlay) {
-      if (autoIntRef.current) clearInterval(autoIntRef.current);
-      return;
-    }
-    autoIntRef.current = setInterval(() => {
-      if (currentWord?.exampleSentence) {
-        ttsSpeak(currentWord.exampleSentence, "en-US", 1); // Fixed rate to 1
+      const url = new URL("https://api.studentkrd.com/api/v1/sounds");
+      url.searchParams.set("all", "true");
+      // send both, server can accept either
+      if (subjectParam) {
+        url.searchParams.set("subject_id", subjectParam);
+        url.searchParams.set("subjectId", subjectParam);
       }
-    }, 5000);
-    return () => clearInterval(autoIntRef.current);
-  }, [autoPlay, currentWord]); // Removed persist.rate from dependency array
+      if (subjectName) {
+        url.searchParams.set("subject", subjectName);
+      }
+      // pass through grade/stream if present
+      ["grade", "stream"].forEach(k => {
+        const v = spIn.get(k);
+        if (v) url.searchParams.set(k, v);
+      });
 
-  // Timer useEffect removed as per request (examOpen, examDone, examStart, examSeconds)
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error("Network response was not ok.");
+      const data = await response.json();
+      const words = Array.isArray(data) ? data : data.data;
 
-  // --- Scroll Lock for Modal ---
-  useEffect(() => {
-    if (examOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+      setWordsData(words.map(item => ({
+        id: item.id,
+        word: item.word,
+        ipa: item.phonetic,
+        kurdishMeaning: item.kurdish_meaning,
+        kurdishReading: item.kurdish_reading,
+        exampleSentence: item.sentence,
+        place: item.place,
+        unit: item.unit,
+        subjectId: item.subject_id ?? item.subjectId ?? item.subject?.id ?? null,
+        subjectName: item.subject?.name ?? null,
+      })));
+      setPersist(s => ({ ...s, activeId: words[0]?.id || null }));
+    } catch (e) {
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
     }
-    return () => {
-      document.body.style.overflow = ''; // Clean up on unmount
+  }, [setPersist]);
+
+
+  useEffect(() => { fetchWords(); }, [fetchWords]);
+
+  /* -------- Derived data -------- */
+  const groupedWords = useMemo(() => {
+    const groups = {};
+    const filtered = wordsData.filter(w => {
+      if (persist.onlyFavs && !persist.favorites.includes(w.id)) return false;
+      if (persist.search.trim()) {
+        const q = persist.search.toLowerCase();
+        return w.word?.toLowerCase().includes(q) ||
+               w.ipa?.toLowerCase().includes(q) ||
+               w.kurdishMeaning?.includes(persist.search) ||
+               w.kurdishReading?.includes(persist.search);
+      }
+      return true;
+    });
+    for (const w of filtered) {
+      if (!groups[w.place]) groups[w.place] = {};
+      if (!groups[w.place][w.unit]) groups[w.place][w.unit] = [];
+      groups[w.place][w.unit].push(w);
+    }
+    return groups;
+  }, [wordsData, persist.search, persist.onlyFavs, persist.favorites]);
+
+  const allWords = useMemo(() => {
+    return Object.values(groupedWords).flatMap(units => Object.values(units).flatMap(v => v));
+  }, [groupedWords]);
+
+  const currentIndex = useMemo(() => Math.max(0, allWords.findIndex(w => w.id === persist.activeId)), [allWords, persist.activeId]);
+  const currentWord = allWords[currentIndex] || allWords[0] || {};
+
+  const setActiveId = useCallback((id) => setPersist(s => ({ ...s, activeId: id })), [setPersist]);
+  const toggleFavorite = useCallback((id) => setPersist(s => {
+    const favs = new Set(s.favorites);
+    favs.has(id) ? favs.delete(id) : favs.add(id);
+    return { ...s, favorites: [...favs] };
+  }), [setPersist]);
+
+  const togglePlace = useCallback((place) => setOpenPlaces(prev => ({ ...prev, [place]: !prev[place] })), []);
+  const toggleUnit = useCallback((place, unit) => setOpenUnits(prev => ({ ...prev, [`${place}-${unit}`]: !prev[`${place}-${unit}`] })), []);
+
+  /* -------- Enhancements: keyboard + actions -------- */
+  const goPrev = useCallback(() => {
+    if (!allWords.length) return;
+    const idx = (currentIndex - 1 + allWords.length) % allWords.length;
+    setActiveId(allWords[idx].id);
+  }, [allWords, currentIndex, setActiveId]);
+
+  const goNext = useCallback(() => {
+    if (!allWords.length) return;
+    const idx = (currentIndex + 1) % allWords.length;
+    setActiveId(allWords[idx].id);
+  }, [allWords, currentIndex, setActiveId]);
+
+  const goRandom = useCallback(() => {
+    if (!allWords.length) return;
+    let idx = Math.floor(Math.random() * allWords.length);
+    if (idx === currentIndex && allWords.length > 1) idx = (idx + 1) % allWords.length;
+    setActiveId(allWords[idx].id);
+  }, [allWords, currentIndex, setActiveId]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); goPrev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); goNext(); }
+      if (e.key.toLowerCase() === "f") { e.preventDefault(); if (currentWord?.id) toggleFavorite(currentWord.id); }
+      if (e.key.toLowerCase() === "r") { e.preventDefault(); goRandom(); }
+      if (e.key === "Enter" && currentWord?.word) { e.preventDefault(); speak(currentWord.word); }
     };
-  }, [examOpen]);
-  // --- End Scroll Lock ---
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [currentWord, goPrev, goNext, goRandom, toggleFavorite]);
 
-  const setActiveId = useCallback((id) => setPersist((s) => ({ ...s, activeId: id })), [setPersist]);
-  const toggleFavorite = useCallback((id) =>
-    setPersist((s) => {
-      const favs = new Set(s.favorites);
-      favs.has(id) ? favs.delete(id) : favs.add(id);
-      return { ...s, favorites: [...favs] };
-    }), [setPersist]);
+  /* -------- Tilt effect for spotlight card -------- */
+  const cardRef = useRef(null);
+  const onTilt = (e) => {
+    if (isTouchDevice) return;
+    const el = cardRef.current; if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / rect.width;
+    const dy = (e.clientY - cy) / rect.height;
+    el.style.setProperty("--rx", `${(-dy * 6).toFixed(2)}deg`);
+    el.style.setProperty("--ry", `${(dx * 8).toFixed(2)}deg`);
+  };
+  const resetTilt = () => {
+    if (isTouchDevice) return;
+    const el = cardRef.current; if (!el) return;
+    el.style.setProperty("--rx", `0deg`);
+    el.style.setProperty("--ry", `0deg`);
+  };
 
-  const nextWord = useCallback(() => {
-    if (!filtered.length) return;
-    const i = currentIndex >= filtered.length - 1 ? 0 : currentIndex + 1;
-    setActiveId(filtered[i].id);
-  }, [filtered, currentIndex, setActiveId]);
+  const copy = async (text) => { try { await navigator.clipboard.writeText(text||""); } catch {} };
+  const share = async (title, text) => { try { if (navigator.share) await navigator.share({ title, text }); else await copy(`${title}\n${text}`); } catch {} };
 
-  const prevWord = useCallback(() => {
-    if (!filtered.length) return;
-    const i = currentIndex <= 0 ? filtered.length - 1 : currentIndex - 1;
-    setActiveId(filtered[i].id);
-  }, [filtered, currentIndex, setActiveId]);
-
-  const handleReadEnglish = useCallback(() => {
-    setMode("en");
-    setReadingText(currentWord.exampleSentence);
-    ttsSpeak(currentWord.exampleSentence, "en-US", 1); // Fixed rate to 1
-  }, [currentWord]); // Removed persist.rate from dependency array
-
-
-  const handleSpeakWord = useCallback(() => {
-    setMode("speak");
-    setReadingText("");
-    ttsSpeak(currentWord.word, "en-US", 1); // Fixed rate to 1
-  }, [currentWord]); // Removed persist.rate from dependency array
-
-  const startQuiz = useCallback(() => {
-    setMode("quiz");
-    setReadingText("");
-    setQIndex(0);
-    setReveal(false);
-  }, []);
-
-  const showAnswer = useCallback(() => setReveal(true), []);
-
-  const nextQuestion = useCallback(() => {
-    if (!totalQ) return;
-    const next = (qIndex + 1) % totalQ;
-    setQIndex(next);
-    setReveal(false);
-  }, [qIndex, totalQ]);
-
-  // Exam Center
-  const shufflePool = useCallback((count = 14) => {
-    const pool = [];
-    for (const w of wordsData) {
-      for (const q of w.examQuestions || []) {
-        pool.push({ id: `${w.id}-${q.question}`, word: w.word, question: q.question, answer: q.answer });
-      }
-    }
-    return shuffle(pool).slice(0, Math.min(count, pool.length));
-  }, []);
-
-  const openExam = useCallback(() => {
-    const list = shufflePool(14);
-    setExamList(list);
-    setExamAnswers({});
-    setExamDone(false);
-    setExamOpen(true);
-  }, [shufflePool]);
-
-  const closeExam = useCallback(() => {
-    setExamOpen(false);
-    setExamDone(false);
-    setExamList([]);
-    setExamAnswers({});
-  }, []);
-
-  const submitExam = useCallback(() => setExamDone(true), []);
-
-  const examScore = useMemo(() => {
-    if (!examDone) return { correct: 0, total: examList.length };
-    let correct = 0;
-    for (const it of examList) {
-      const u = (examAnswers[it.id] || "").trim().toLowerCase();
-      const a = (it.answer || "").trim().toLowerCase();
-      if (u && a && (u === a || a.includes(u) || u.includes(a))) correct++;
-    }
-    return { correct, total: examList.length };
-  }, [examDone, examList, examAnswers]);
-
-  const overallProgress = Math.round(((persist.favorites.length || 0) / wordsData.length) * 100);
-  const wordProgress = totalQ ? Math.min(100, Math.round(((qIndex + (reveal ? 1 : 0)) / totalQ) * 100)) : 0;
-
+  /* ======================= UI ======================= */
   return (
-    <div dir="rtl" className="min-h-[100dvh] bg-gradient-to-b from-emerald-50 to-white dark:from-zinc-950 dark:to-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-zinc-900/70 bg-white/90 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-white/10">
-        <div className="max-w-6xl mx-auto px-4 py-2">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <input
-                value={persist.search}
-                onChange={(e) => setPersist((s) => ({ ...s, search: e.target.value }))}
-                placeholder="گەڕان بە وشە، IPA یان واتاکەی…"
-                className="w-full pr-10 pl-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              <Search size={18} className="absolute right-3 top-2.5 text-zinc-400" />
-            </div>
+    <div dir="rtl" className="h-[100dvh] bg-zinc-950 text-zinc-50 flex flex-col overflow-y-auto overflow-x-hidden">
+      {/* Background aurora */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl"/>
+        <div className="absolute -bottom-24 -left-24 w-[28rem] h-[28rem] rounded-full bg-cyan-500/10 blur-3xl"/>
+        <div className="absolute top-1/3 left-1/4 w-72 h-72 rounded-full bg-fuchsia-500/10 blur-3xl"/>
+      </div>
 
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2 sticky top-0 z-30 bg-gradient-to-b from-zinc-950/80 to-transparent backdrop-blur">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-xl blur-md bg-emerald-400/30"/>
+              <div className="relative rounded-xl px-2 py-1 bg-zinc-900 ring-1 ring-white/10 inline-flex items-center gap-2">
+                <BookOpenCheck className="w-4 h-4 text-emerald-300"/>
+                <span className="font-extrabold text-sm sm:text-base">ده‌نگه‌کان</span>
+              </div>
+            </div>
+            <span className="hidden sm:inline text-sm text-zinc-400">— English Pronunciation Vault</span>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
-              onClick={() => setPersist((s) => ({ ...s, onlyFavs: !s.onlyFavs }))}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ${ // Smaller for mobile
-                persist.onlyFavs
-                  ? "bg-amber-500 text-white"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
-              }`}
+              onClick={() => setPersist(s => ({ ...s, onlyFavs: !s.onlyFavs }))}
+              className={cls("px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg border text-[10px] sm:text-xs",
+                persist.onlyFavs ? "bg-yellow-500/20 border-yellow-400/30 text-yellow-100" : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10")}
+              title="فقط دڵخواز"
             >
-              تەنها دڵخوازەکان
+              <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1"/> دڵخواز
             </button>
-
-            {/* Removed "خێرایی خوێندنەوە" (Speed Reading) control */}
-            {/*
-            <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span className="text-zinc-500">خێرایی خوێندنەوە:</span>
-              <input
-                type="range"
-                min="0.7"
-                max="1.3"
-                step="0.1"
-                value={persist.rate}
-                onChange={(e) => setPersist((s) => ({ ...s, rate: parseFloat(e.target.value) }))}
-                className="accent-emerald-600"
-              />
-            </div>
-            */}
-
-            <button
-              onClick={openExam}
-              className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              <Trophy size={16} /> ناوەندی تاقیکردنەوە
+            <button onClick={fetchWords} className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] sm:text-xs">
+              <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1"/> نوێکردنەوە
+            </button>
+            <button onClick={() => window.history.back()} className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] sm:text-xs">
+              <House className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1"/> گەڕانەوە
             </button>
           </div>
         </div>
+
+        {/* Search */}
+        <div className="mt-3 relative max-w-full sm:max-w-xl">
+          <input
+            dir="ltr"
+            ref={searchRef}
+            value={persist.search}
+            onChange={(e) => setPersist(s => ({ ...s, search: e.target.value }))}
+            placeholder="/  گەڕان بە وشە، IPA، یان واتا…"
+            className="w-full rounded-2xl bg-zinc-900/70 border border-white/10 text-sm px-9 py-2.5 outline-none focus:ring-2 focus:ring-emerald-400/30"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"/>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-grow overflow-y-auto"> {/* This div will scroll */}
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          {/* HERO */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-emerald-800 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-            <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute -right-10 -bottom-20 h-72 w-72 rounded-full bg-emerald-300/10 blur-3xl" />
-            <div className="relative p-6 sm:p-8">
-              <div className="flex items-start justify-between">
-                <button
-                  onClick={() => toggleFavorite(currentWord.id)}
-                  className="rounded-xl bg-white/10 hover:bg-white/20 transition p-2 ring-1 ring-white/10"
-                  aria-label="favorite"
-                  title="دڵخواز"
-                >
-                  {persist.favorites.includes(currentWord.id) ? (
-                    <Star size={20} className="text-amber-300" />
-                  ) : (
-                    <StarOff size={20} className="text-white/80" />
-                  )}
-                </button>
-
-                <div className="flex items-center gap-2">
+      {/* Main */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 px-4 pb-5 overflow-hidden">
+        {/* Spotlight */}
+        <div className="min-h-[18rem] lg:h-full lg:sticky lg:top-24">
+          <motion.div
+            ref={cardRef}
+            onMouseMove={onTilt}
+            onMouseLeave={resetTilt}
+            className="relative rounded-3xl p-[2px] bg-[conic-gradient(at_70%_30%,#22d3ee_0deg,#a78bfa_140deg,#34d399_260deg,#22d3ee_360deg)]"
+            style={{ transform: "perspective(900px) rotateX(var(--rx,0)) rotateY(var(--ry,0))" }}
+          >
+            <div className="rounded-3xl bg-zinc-950 ring-1 ring-white/10 overflow-hidden">
+              <div className="p-5 sm:p-7">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-zinc-400">{allWords.length ? `${currentIndex+1} / ${allWords.length}` : "—"}</div>
                   <button
-                    onClick={openExam}
-                    className="sm:hidden inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/15 text-white hover:bg-white/25" // Smaller for mobile
+                    onClick={(e) => { e.stopPropagation(); if (currentWord?.id) toggleFavorite(currentWord.id); }}
+                    className="rounded-xl bg-white/5 hover:bg-white/10 transition p-2 ring-1 ring-white/10"
+                    aria-label="favorite"
+                    title="دڵخواز"
                   >
-                    <Trophy size={16} /> ناوەندی تاقیکردنەوە
-                  </button>
-                  <div className="text-[11px] px-3 py-1 rounded-full bg-white/15 text-white ring-1 ring-white/20">
-                    پێشکەوتنی گشتی: {overallProgress}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-2 text-center">
-                <h1 className="text-5xl sm:text-7xl font-black tracking-tight text-white leading-none">
-                  {currentWord.word.split("").map((ch, i) => (
-                    <span key={i} className={currentWord.silentLetters.includes(ch.toLowerCase()) ? "opacity-45" : ""}>
-                      {ch}
-                    </span>
-                  ))}
-                </h1>
-
-                <p className="mt-2 text-2xl font-bold text-white/95">{currentWord.ipa}</p>
-                <p className="mt-2 text-white/90 text-lg" dir="rtl">{currentWord.kurdishMeaning}</p>
-
-                {totalQ > 0 && mode === "quiz" && (
-                  <div className="mt-4">
-                    <div className="h-2 w-full rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-emerald-300" style={{ width: `${wordProgress}%` }} />
-                    </div>
-                  </div>
-                )}
-
-                {readingText && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    dir={mode === "ku" ? "rtl" : "ltr"}
-                    className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 text-white font-medium backdrop-blur"
-                  >
-                    {readingText}
-                  </motion.div>
-                )}
-
-                {mode === "quiz" && currentWord.examQuestions?.length > 0 && (
-                  <div className="mt-5 text-left max-w-2xl mx-auto">
-                    <div className="rounded-2xl bg-white/95 text-zinc-800 p-4 ring-1 ring-white/10">
-                      <p className="text-lg font-semibold">
-                        {currentWord.examQuestions[qIndex].question}
-                      </p>
-
-                      {reveal ? (
-                        <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-emerald-800 text-sm">
-                          {currentWord.examQuestions[qIndex].answer}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={showAnswer}
-                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition"
-                        >
-                          <Lightbulb size={18} /> نیشاندانی وەڵام
-                        </button>
-                      )}
-
-                      <div className="mt-3 flex items-center justify-between">
-                        <button
-                          onClick={nextQuestion}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 transition"
-                        >
-                          دووبارەکردنەوە <RefreshCw size={16} />
-                        </button>
-                        <div className="hidden sm:block text-xs text-white/80">
-                          {/* hint only; no inline status line */}
-                          &nbsp;
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-6 flex flex-wrap justify-center gap-3">
-                  <button
-                    onClick={handleReadEnglish}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition ${ // Smaller for mobile
-                      mode === "en" ? "bg-emerald-500 text-white" : "bg-white/15 text-white hover:bg-white/25"
-                    }`}
-                  >
-                    <BookOpen size={18} /> ڕستەی ئینگلیزی
-                  </button>
-
-          
-                  <button
-                    onClick={handleSpeakWord}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition ${ // Smaller for mobile
-                      mode === "speak" ? "bg-emerald-500 text-white" : "bg-white/15 text-white hover:bg-white/25"
-                    }`}
-                  >
-                    <Volume2 size={18} /> دەنگی وشە
-                  </button>
-
-                  <button
-                    onClick={startQuiz}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition ${ // Smaller for mobile
-                      mode === "quiz" ? "bg-emerald-500 text-white" : "bg-white/15 text-white hover:bg-white/25"
-                    }`}
-                  >
-                    <HelpCircle size={18} /> پرسیاری وشە
-                  </button>
-
-                  <button
-                    onClick={() => setAutoPlay((v) => !v)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition ${ // Smaller for mobile
-                      autoPlay ? "bg-white/90 text-emerald-700" : "bg-white/15 text-white hover:bg-white/25"
-                    }`}
-                  >
-                    {autoPlay ? <Pause size={18} /> : <Play size={18} />}
-                    خوێندنەوەی خۆکار
+                    {persist.favorites.includes(currentWord?.id) ? (
+                      <Star className="w-5 h-5 text-yellow-300"/>
+                    ) : (
+                      <StarOff className="w-5 h-5 text-white/80"/>
+                    )}
                   </button>
                 </div>
 
+                {/* Place / Unit badge */}
+                {(currentWord.place || currentWord.unit) && (
+                  <div className="mt-4 mb-5 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 ring-1 ring-white/10">
+                    {currentWord.place && <span className="text-sm font-semibold text-emerald-200">{currentWord.place}</span>}
+                    {currentWord.unit && <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">به‌شی {currentWord.unit}</span>}
+                  </div>
+                )}
+
+                {/* Word */}
+                <div className="text-center select-none">
+                  <div className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight leading-none drop-shadow-[0_6px_24px_rgba(34,211,238,0.25)]">
+                    {currentWord.word || "—"}
+                  </div>
+                  {currentWord.ipa && <div className="mt-2 text-xl sm:text-2xl font-bold text-cyan-200/90">{currentWord.ipa}</div>}
+                  {currentWord.kurdishReading && <div dir="rtl" className="mt-1 text-base sm:text-lg font-semibold text-zinc-200">{currentWord.kurdishReading}</div>}
+                  {currentWord.kurdishMeaning && <div dir="rtl" className="mt-1 text-sm text-zinc-400">{currentWord.kurdishMeaning}</div>}
+                </div>
+
+                {/* Controls */}
                 <div className="mt-6 flex items-center justify-center gap-2">
-                  <button onClick={nextWord} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 text-white hover:bg-white/25">
-                    داهاتوو <ChevronLeft size={18} />
+                  <button onClick={goPrev} className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10"><SkipBack className="w-5 h-5"/></button>
+                  <button onClick={() => { if (!currentWord.word) return; const ok = speak(currentWord.word); if (!ok) navigator.clipboard.writeText(currentWord.word); }} className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 ring-1 ring-emerald-400/30 inline-flex items-center gap-2">
+                    <Volume2 className="w-5 h-5"/> <span className="text-sm">خوێندنەوە</span>
                   </button>
-                  <button onClick={prevWord} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 text-white hover:bg-white/25">
-                    <ChevronRight size={18} /> پێشوو
-                  </button>
+                  <button onClick={goNext} className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10"><SkipForward className="w-5 h-5"/></button>
+                </div>
+
+                <div className="mt-3 flex items-center justify-center gap-2 text-[10px] sm:text-xs text-zinc-400 flex-wrap">
+                  <button onClick={goRandom} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 inline-flex items-center gap-1"><Shuffle className="w-3 h-3 sm:w-4 sm:h-4"/> هەڕەمەکی</button>
+                  <button onClick={() => copy(currentWord.word || "")} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 inline-flex items-center gap-1"><CopyIcon className="w-3 h-3 sm:w-4 sm:h-4"/> کۆپی</button>
+                  <button onClick={() => share("وشە", `${currentWord.word || ""} — ${currentWord.ipa || ""}`)} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 inline-flex items-center gap-1"><Share2 className="w-3 h-3 sm:w-4 sm:h-4"/> هاوبەشکردن</button>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* WORDS GRID */}
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {filtered.map((w) => {
-              const active = w.id === currentWord.id;
-              const fav = persist.favorites.includes(w.id);
-              return (
-                <motion.button // Added motion for animations
-                  key={w.id}
-                  onClick={() => setActiveId(w.id)}
-                  whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }} // Lift and add more shadow on hover
-                  whileTap={{ scale: 0.98 }} // Slightly shrink on tap
-                  className={`group relative rounded-2xl border overflow-hidden p-3 text-right transition ring-1 ${
-                    active
-                      ? "bg-emerald-600 text-white border-emerald-700 ring-white/10 shadow-lg" // More shadow for active
-                      : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-md" // Enhanced hover border and shadow
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className={`text-base sm:text-lg font-extrabold tracking-tight ${active ? "text-white" : "text-zinc-900 dark:text-zinc-100"}`}>
-                      {w.word}
-                    </h3>
-                    <span
-                      className={`grid place-items-center h-6 w-6 rounded-md ${active ? "bg-white/15" : "bg-zinc-100 dark:bg-zinc-800"}`}
-                      title={fav ? "دڵخواز" : "زیادکردن بۆ دڵخواز"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(w.id);
-                      }}
-                    >
-                      {fav ? (
-                        <Star size={14} className={active ? "text-amber-300" : "text-amber-400"} />
-                      ) : (
-                        <StarOff size={14} className={active ? "text-white/80" : "text-zinc-400"} />
-                      )}
-                    </span>
-                  </div>
-                  <div className={`text-xs mt-1 ${active ? "text-white/80" : "text-zinc-500"}`}>{w.ipa}</div>
-                  <div className={`text-[10px] sm:text-[11px] mt-1 line-clamp-1 ${active ? "text-white/80" : "text-zinc-500"}`} dir="rtl">
-                    {w.kurdishMeaning}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Sticky footer for per-word QUIZ */}
-      {mode === "quiz" && totalQ > 0 && (
-        <div className="sticky bottom-0 z-30 border-t border-zinc-200 dark:border-white/10 bg-white/95 dark:bg-zinc-900/90 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-3 text-sm">
-            <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
-              <ClipboardList size={16} />
-              <span>پرسیار: {qIndex + 1} / {totalQ}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={prevWord} className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200">
-                گۆڕینی وشە
-              </button>
-              <button onClick={nextQuestion} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white">
-                پرسیاری داهاتوو
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Exam Center */}
-      <ExamCenter
-        open={examOpen}
-        onClose={closeExam}
-        list={examList}
-        answers={examAnswers}
-        setAnswers={setExamAnswers}
-        onSubmit={submitExam}
-        done={examDone}
-        score={examScore}
-      />
-
-      <style>
-        {`
-          @keyframes fade-in { from { opacity:.0; transform: translateY(-6px);} to {opacity:1; transform: translateY(0);} }
-          .animate-[fade-in_.25s_ease-out_both] { animation: fade-in .25s ease-out both; }
-        `}
-      </style>
-    </div>
-  );
-}
-
-/* ======================= Exam Center Component ======================= */
-function ExamCenter({
-  open,
-  onClose,
-  list,
-  answers,
-  setAnswers,
-  onSubmit,
-  done,
-  score,
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onEsc = (e) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center"> {/* Removed p-4 for full-page */}
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
-      {/* Panel (full-page, light theme polished) */}
-      <div className="relative w-full h-full bg-white dark:bg-zinc-900 rounded-none sm:rounded-2xl shadow-2xl ring-1 ring-zinc-200 dark:ring-white/10 flex flex-col"> {/* Removed max-w-2xl and sm:h-[90dvh] for full-page */}
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-200 dark:border-white/10 bg-white/95 dark:bg-zinc-900/90 sticky top-0">
-          <div className="flex items-center gap-2">
-            <Trophy className="text-emerald-600" size={18} />
-            <h3 className="font-extrabold text-zinc-900 dark:text-zinc-100">ناوەندی تاقیکردنەوە</h3>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <button onClick={onClose} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-800 border border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-white/10">
-              داخستن <X size={16} />
-            </button>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Body - now flex-grow and scrollable */}
-        <div className="flex-grow overflow-y-auto px-4 py-4 bg-white dark:bg-zinc-900">
-          {/* Summary */}
-          {done && (
-            <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 p-4">
-              <div className="font-bold">ئەنجام:</div>
-              <div className="text-sm mt-1">
-                <span className="font-semibold">{score.correct}</span> لە <span className="font-semibold">{score.total}</span> ڕاست — ڕێژە:{" "}
-                <span className="font-semibold">{Math.round((score.correct / Math.max(1, score.total)) * 100)}%</span>
-              </div>
-            </div>
+        {/* Browser */}
+        <div className="min-h-[40vh] overflow-y-auto pr-0 lg:pr-2">
+          {isError && (
+            <div className="bg-rose-500/10 border border-rose-400/30 text-rose-200 rounded-xl p-4 mb-4 text-center">ببورە، کێشەیەک ڕوویدا. دووبارە هەوڵبدەرەوە.</div>
           )}
 
-          {/* Questions list (light theme tidy cards) */}
-          <div className="grid grid-cols-1 gap-3">
-            {list.map((it, idx) => {
-              const id = it.id;
-              const value = answers[id] || "";
-              const correct = (it.answer || "").trim().toLowerCase();
-              const user = value.trim().toLowerCase();
-              const right = user && (user === correct || correct.includes(user) || user.includes(correct));
-              const show = done;
-
-              return (
-                <div
-                  key={id}
-                  className={`rounded-xl p-4 border ${
-                    show
-                      ? right
-                        ? "bg-emerald-50 border-emerald-300 text-emerald-900"
-                        : "bg-rose-50 border-rose-300 text-rose-900"
-                      : "bg-white border-zinc-200 text-zinc-800 dark:bg-zinc-900 dark:border-white/10 dark:text-zinc-100"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400">پرسیار {idx + 1}</div>
-                    {show && (
-                      <div className="text-xs font-semibold flex items-center gap-1">
-                        {right ? (
-                          <>
-                            <CheckCircle2 className="text-emerald-700" size={16} /> ڕاست
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="text-rose-700" size={16} /> هەڵە
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-2 font-semibold">{it.question}</div>
-                  <div className="mt-1 text-[12px] text-zinc-500 dark:text-zinc-400">وشە: <span className="font-mono">{it.word}</span></div>
-
-                  {!show ? (
-                    <input
-                      value={value}
-                      onChange={(e) => setAnswers((s) => ({ ...s, [id]: e.target.value }))}
-                      placeholder="وەڵام بنووسە…"
-                      className="mt-3 w-full px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-zinc-800 dark:bg-zinc-800 dark:border-white/10 dark:text-zinc-100"
-                    />
-                  ) : (
-                    <div className="mt-3 text-sm">
-                      <div>
-                        وەڵامی تۆ:{" "}
-                        <span className={`font-semibold ${right ? "text-emerald-700" : "text-rose-700"}`}>
-                          {value || "—"}
-                        </span>
-                      </div>
-                      {!right && (
-                        <div>
-                          وەڵامی دروست: <span className="font-semibold">{it.answer}</span>
-                        </div>
-                      )}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl bg-white/5 animate-pulse"/>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.keys(groupedWords).map(place => (
+                <div key={place} className="space-y-2" ref={el => (placeAnchors.current[place] = el)}>
+                  <button
+                    onClick={() => togglePlace(place)}
+                    className="flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
+                  >
+                    <h2 className="text-lg font-extrabold">{place}</h2>
+                    <ChevronDown className={cls("w-5 h-5 text-zinc-400 transition-transform", openPlaces[place] ? "rotate-180" : "rotate-0")} />
+                  </button>
+                  <Collapsible isOpen={openPlaces[place]}>
+                    <div className="space-y-2 pr-2">
+                      {Object.keys(groupedWords[place]).map(unit => {
+                        const key = `${place}-${unit}`;
+                        return (
+                          <div key={key} className="space-y-2">
+                            <button
+                              onClick={() => toggleUnit(place, unit)}
+                              className="flex items-center justify-between w-full px-4 py-2 rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
+                            >
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">به‌شی {unit}</span>
+                              <ChevronDown className={cls("w-4 h-4 text-zinc-400 transition-transform", openUnits[key] ? "rotate-180" : "rotate-0")} />
+                            </button>
+                            <Collapsible isOpen={openUnits[key]}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-2">
+                                {groupedWords[place][unit].map((w) => {
+                                  const active = w.id === currentWord.id;
+                                  const fav = persist.favorites.includes(w.id);
+                                  return (
+                                    <motion.button
+                                      key={w.id}
+                                      onClick={() => setActiveId(w.id)}
+                                      whileHover={{ y: -2 }}
+                                      transition={SPRING}
+                                      className={cls(
+                                        "group text-right rounded-2xl overflow-hidden border ring-1 p-3 sm:p-4",
+                                        active
+                                          ? "bg-emerald-600/20 border-emerald-400/30 ring-emerald-400/20"
+                                          : "bg-zinc-950/60 border-white/10 hover:border-emerald-400/30"
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className={cls("font-extrabold leading-tight line-clamp-2", active ? "text-emerald-100" : "text-white")}>{w.word}</div>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); toggleFavorite(w.id); }}
+                                          className="h-7 w-7 grid place-items-center rounded-md bg-white/5 hover:bg-white/10 ring-1 ring-white/10"
+                                          title={fav ? "دڵخواز" : "زیادکردن بۆ دڵخواز"}
+                                        >
+                                          {fav ? <Star className={cls("w-4 h-4", active ? "text-yellow-300" : "text-yellow-400")} /> : <StarOff className={cls("w-4 h-4", active ? "text-white/80" : "text-zinc-400")} />}
+                                        </button>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] sm:text-[11px]">
+                                        {w.ipa && <span className={cls("px-2 py-0.5 rounded-full font-mono", active ? "bg-white/10 text-white" : "bg-white/5 text-zinc-300")}>{w.ipa}</span>}
+                                        {w.kurdishReading && <span dir="rtl" className={cls("px-2 py-0.5 rounded-full font-semibold", active ? "bg-white/10 text-white" : "bg-white/5 text-zinc-300")}>{w.kurdishReading}</span>}
+                                        {w.kurdishMeaning && <span dir="rtl" className={cls("px-2 py-0.5 rounded-full", active ? "bg-white/10 text-white" : "bg-white/5 text-zinc-300")}>{w.kurdishMeaning}</span>}
+                                      </div>
+                                    </motion.button>
+                                  );
+                                })}
+                              </div>
+                            </Collapsible>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </Collapsible>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Footer actions (light theme consistent) */}
-        <div className="border-t border-zinc-200 dark:border-white/10 bg-white/95 dark:bg-zinc-900/90 backdrop-blur sticky bottom-0">
-          <div className="px-4 py-3 flex items-center justify-between gap-3">
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              گشتی: {list.length} پرسیار
-            </div>
-            <div className="flex items-center gap-2">
-              {!done ? (
-                <>
-                  <button
-                    onClick={onSubmit}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-                  >
-                    ناردنی وەڵامەکان
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="px-4 py-2 rounded-lg bg-zinc-100 text-zinc-800 border border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-white/10"
-                  >
-                    داخستن
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={onClose}
-                  id="open-exam-again"
-                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-                >
-                  تاقیکردنەوەی نوێ
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Footer hints */}
+      <div className="px-4 pb-4 text-[11px] text-zinc-400 grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div>کورتەڕێک: <kbd className="px-1.5 py-0.5 rounded bg-white/10">/</kbd> گەڕان</div>
+        <div><kbd className="px-1.5 py-0.5 rounded bg-white/10">←</kbd>/<kbd className="px-1.5 py-0.5 rounded bg-white/10">→</kbd> پێش/دواتر</div>
+        <div className="hidden sm:block"><kbd className="px-1.5 py-0.5 rounded bg-white/10">F</kbd> دڵخواز · <kbd className="px-1.5 py-0.5 rounded bg-white/10">R</kbd> هەڕەمەکی</div>
       </div>
     </div>
   );

@@ -159,7 +159,6 @@ function AppShell() {
           paddingTop: `calc(${headerH}px + env(safe-area-inset-top, 0px))`,
           paddingBottom: `calc(84px + env(safe-area-inset-bottom, 0px))`,
           marginInline: "auto",
-          maxWidth: "1100px",
           width: "100%",
         }}
       >
@@ -178,6 +177,16 @@ function AppShell() {
     </div>
   );
 }
+function NoChromeLayout() {
+  return (
+    <div dir="rtl" className="bg-zinc-950 text-zinc-100 min-h-[100dvh]">
+      {/* No Header / No BottomNav */}
+      <main className="min-h-[100dvh] overflow-y-auto px-3 md:px-6">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
 
 /* ─────────────────────────────
     Main App
@@ -189,10 +198,11 @@ export default function App() {
         <Route element={<RedirectIfAuthed />}>
           <Route path="/auth" element={<AuthWizard />} />
         </Route>
+
         <Route element={<RequireAuth />}>
+          {/* Regular app pages WITH Header + BottomNav */}
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/sounds" element={<SoundsPage />} />
             <Route path="/grammar" element={<GrammarPage />} />
             <Route path="/students/" element={<Students />} />
             <Route path="/exams/grade12" element={<ExamsGrade12 />} />
@@ -201,14 +211,18 @@ export default function App() {
             <Route path="/exams/bank" element={<ExamBank />} />
             <Route path="/settings" element={<ProfileSettings />} />
             <Route path="/exam" element={<ExamQuiz />} />
-            <Route path="/secure-viewer" element={<SecureResourceViewer />} />
-            <Route path="/secure-video" element={<SecureVideo />} />
             <Route path="/study" element={<StudyHub />} />
             <Route path="/course" element={<CoursePage />} />
             <Route path="/subjects">
               <Route index element={<SubjectsHub />} />
               <Route path=":id" element={<SubjectDetail />} />
             </Route>
+            {/* Keep other standard pages here */}
+          </Route>
+
+          {/* Exception pages WITHOUT Header + BottomNav */}
+          <Route element={<NoChromeLayout />}>
+            <Route path="/viewer" element={<ResourceViewer />} />
             <Route path="/resources">
               <Route path="books" element={<BooksAndBooklets />} />
               <Route path="books-literary" element={<BooksLiterary />} />
@@ -218,10 +232,15 @@ export default function App() {
               <Route path="gallery" element={<Gallery />} />
               <Route path="texts" element={<EpisodePage />} />
               <Route path="scientist" element={<ScientistPage />} />
+              <Route path="sounds" element={<SoundsPage />} />
             </Route>
+
+            {/* Optional: also full-screen */}
+            <Route path="/secure-viewer" element={<SecureResourceViewer />} />
+            <Route path="/secure-video" element={<SecureVideo />} />
           </Route>
-          <Route path="/viewer" element={<ResourceViewer />} />
         </Route>
+
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AuthProvider>
