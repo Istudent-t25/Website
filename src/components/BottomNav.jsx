@@ -1,13 +1,13 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, Library, BookMarked, Settings, Book } from "lucide-react";
+import { Home, Library, BookMarked, Settings, Book,Newspaper } from "lucide-react";
 import { useScrollDirection } from '../hooks/useScrollDirection';
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
   { to: "/subjects", label: "بابەتەکان", icon: Library },
   { to: "/exam", label: "تاقیكردنه‌وه‌", icon: BookMarked },
-  { to: "/suggest", label: "زانیاری", icon: Book },
+  { to: "/news", label: "هه‌واڵه‌كان", icon: Newspaper },
   // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];

@@ -1,12 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Search, Home, Library, BookMarked, Book, Settings } from "lucide-react";
+import { Search, Home, Library, BookMarked, Book,Newspaper, Settings } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
   { to: "/subjects", label: "بابەتەکان", icon: Library },
   { to: "/exam", label: "تاقیكردنه‌وه‌", icon: BookMarked },
-  { to: "/suggest", label: "زانیاری", icon: Book },
+    { to: "/news", label: "هه‌واڵه‌كان", icon: Newspaper },
+  
   // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];

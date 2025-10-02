@@ -34,6 +34,7 @@ import SecureVideo from "./pages/Courses/SecureVideo";
 import SubjectPage from "./pages/Courses/SubjectPage";
 import CoursePage from "./pages/Courses/CoursePage";
 import StudyHub from "./pages/StudyHub.jsx";
+import DocsGallery from "./pages/DocsGallery.jsx";
 
 import { SubjectsHub, SubjectDetail } from "@/pages/subjects";
 import BooksAndBooklets from "@/pages/resources/books/BooksAndBooklets";
@@ -47,6 +48,10 @@ import EpisodePage from './pages/resources/EpisodePage.jsx';
 import ScientistPage from "./pages/resources/ScientistPage.jsx";
 import ScientistListPage from "./pages/resources/ScientistListPage.jsx";
 import SuggestPage from "./pages/SuggestPage.jsx";
+import StudyGuidePage from "./pages/StudyGuidePage.jsx";
+import UnitConverter from "./pages/UnitConverter.jsx";
+import NewsShowcase from "./pages/news/NewsPage.jsx";
+import NewsPreview from "./pages/news/NewsPreview.jsx";
 /* ─────────────────────────────
     Auth Context
     ───────────────────────────── */
@@ -205,12 +210,13 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/grammar" element={<GrammarPage />} />
-            <Route path="/students/" element={<Students />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/settings" element={<ProfileSettings />} />
             <Route path="/exam" element={<ExamQuiz />} />
             <Route path="/study" element={<StudyHub />} />
             <Route path="/suggest" element={<SuggestPage />} />
+            <Route path="/news" element={<NewsShowcase />} />
+
             <Route path="/subjects">
               <Route index element={<SubjectsHub />} />
               <Route path=":id" element={<SubjectDetail />} />
@@ -221,6 +227,10 @@ export default function App() {
           {/* Exception pages WITHOUT Header + BottomNav */}
           <Route element={<NoChromeLayout />}>
             <Route path="/viewer" element={<ResourceViewer />} />
+            <Route path="/docs" element={<DocsGallery />} />
+            <Route path="/guide" element={<StudyGuidePage />} />
+            <Route path="/news/:slug" element={<NewsPreview />} />
+            <Route path="/unit-converter" element={<UnitConverter />} />
             <Route path="/resources">
               <Route path="books" element={<BooksAndBooklets />} />
               <Route path="books-literary" element={<BooksLiterary />} />

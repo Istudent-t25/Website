@@ -6,7 +6,7 @@ import {
   LibraryBig,
   BookMarked,
   Calculator, Atom, Microscope, Languages, Pen, BookOpen,
-  Star, CheckCircle2, CircleDashed, Info, ChevronDown, AlertTriangle, TrendingUp
+  Star, CheckCircle2, CircleDashed, Info, ChevronDown, AlertTriangle, TrendingUp, Search
 } from "lucide-react";
 
 /* ============================== Config / APIs ============================== */
@@ -96,17 +96,19 @@ const StatTile = memo(function StatTile({ label, value, sub, icon: Icon }) {
 const SubjectsCard = memo(function SubjectsCard({ subject, count, onClick, isReady, colorIdx = 1 }) {
   const Icon = iconForSubject(subject.name);
   const reduce = useReducedMotion();
-  const colors = {
-    1: 'from-cyan-500 to-blue-500',
-    2: 'from-purple-500 to-pink-500',
-    3: 'from-emerald-500 to-green-600',
-    4: 'from-amber-500 to-orange-600',
-    5: 'from-indigo-500 to-purple-600',
-    6: 'from-teal-500 to-cyan-600',
-    7: 'from-rose-500 to-pink-600',
-    8: 'from-fuchsia-500 to-violet-600'
+  
+  // Refined palette: Deep, cool, non-childish gradients using related dark shades
+  const deepCoolColors = {
+    1: 'from-sky-700 to-blue-800',
+    2: 'from-purple-700 to-violet-800',
+    3: 'from-emerald-700 to-teal-800',
+    4: 'from-indigo-700 to-fuchsia-800',
+    5: 'from-cyan-700 to-sky-800',
+    6: 'from-rose-700 to-pink-800',
+    7: 'from-lime-700 to-green-800',
+    8: 'from-blue-700 to-indigo-800',
   };
-  const gradient = colors[((colorIdx - 1) % 8) + 1];
+  const gradient = deepCoolColors[((colorIdx - 1) % 8) + 1];
 
   return (
     <motion.button
@@ -132,18 +134,7 @@ const SubjectsCard = memo(function SubjectsCard({ subject, count, onClick, isRea
         </div>
         <div className="mt-3">
           <div className="text-white font-bold text-[13.5px] sm:text-lg truncate">{subject.name}</div>
-          {/* <div className="text-[11.5px] text-zinc-400">ژمارەی داتا: {count}</div> */}
         </div>
-        {isReady && (
-          <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(100, (count / 20) * 100)}%` }}
-              transition={{ duration: 0.7, ease: EASE }}
-              className={`h-full bg-gradient-to-r ${gradient}`}
-            />
-          </div>
-        )}
       </div>
     </motion.button>
   );
@@ -192,6 +183,7 @@ export default function SubjectsHub() {
       try {
         const [subjectsJSON, docs, papers] = await Promise.all([
           fetchJSON(`${API_SUBJECTS}?page=1&per_page=100`, controller.signal),
+          // Fetch all data for the selected grade and track
           fetchAllPages(API_DOCS, buildParams({ grade, stream: track, per_page: "100" }), controller.signal),
           fetchAllPages(API_PAPERS, buildParams({ grade, stream: track, per_page: "100" }), controller.signal),
         ]);
@@ -227,7 +219,7 @@ export default function SubjectsHub() {
     return () => { ok = false; controller.abort(); };
   }, [grade, track]);
 
-  // search & grouping (dashboard-style grouping)
+  // search & grouping
   const queryFiltered = useMemo(() => {
     if (!q.trim()) return allSubjects;
     const needle = q.trim().toLowerCase();
@@ -242,7 +234,8 @@ export default function SubjectsHub() {
     const lit = src.filter((s) => s.code === "literary" || s.code === "both");
     if (track === "scientific") return { mode: "scientific", sci };
     if (track === "literary") return { mode: "literary", lit };
-    return { mode: "both", sci, lit };
+    // 'both' or null/default track when grade >= 10
+    return { mode: "both", sci, lit }; 
   }, [queryFiltered, wantsStream, track]);
 
   const filterReady = (arr) => (onlyReady ? arr.filter((s) => avail.any.has(s.id)) : arr);
@@ -258,7 +251,6 @@ export default function SubjectsHub() {
   const readySubjects = allSubjects.filter((s) => avail.any.has(s.id)).length;
 
   // handlers
-  const openSubject = (id) => useNavigate()(`/subjects/${id}`);
   const handleGradeChange = (e) => {
     const newGrade = e.target.value === "null" ? null : Number(e.target.value);
     setGrade(newGrade);
@@ -275,7 +267,7 @@ export default function SubjectsHub() {
   return (
     <div dir="rtl" className="relative p-3 sm:p-5 font-sans space-y-5 bg-zinc-950 min-h-screen text-right">
       {/* dotted page bg like dashboard */}
-      <div className="fixed inset-0 -z-10 h-full w-full bg-black bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]" />
+      <div className="fixed inset-0 -z-10 h-full w-full" />
 
       {/* Hero / Header Bar */}
       <motion.div
@@ -286,9 +278,9 @@ export default function SubjectsHub() {
       >
         {/* glow blobs */}
         <div className="absolute -top-24 -right-10 w-[320px] h-[320px] blur-3xl opacity-30"
-             style={{ background: "radial-gradient(50% 50% at 50% 50%, #22d3ee55 0%, transparent 70%)" }} />
+          style={{ background: "radial-gradient(50% 50% at 50% 50%, #22d3ee55 0%, transparent 70%)" }} />
         <div className="absolute -bottom-10 -left-10 w-[420px] h-[420px] blur-3xl opacity-30"
-             style={{ background: "radial-gradient(50% 50% at 50% 50%, #8b5cf655 0%, transparent 70%)" }} />
+          style={{ background: "radial-gradient(50% 50% at 50% 50%, #8b5cf655 0%, transparent 70%)" }} />
 
         <div className="relative p-4 sm:p-6 pb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -333,9 +325,9 @@ export default function SubjectsHub() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="گەڕان بۆ ناوی بابەت..."
-              className="w-full pe-28 ps-4 py-3 rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100 placeholder-zinc-500 outline-none focus:ring-zinc-700 text-[13.5px] sm:text-base"
+              className="w-full ps-3 pe-4 py-3 rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100 placeholder-zinc-500 outline-none focus:ring-zinc-700 text-[13.5px] sm:text-base"
             />
-            <div className="absolute inset-y-0 right-0 flex items-center gap-2 pr-2">
+            <div className="absolute inset-y-0 left-0 flex items-center gap-2 pl-2">
               <button type="button"
                 onClick={() => setOnlyReady((v) => !v)}
                 className={`px-3 py-1.5 rounded-xl ring-1 text-[12px] sm:text-sm transition
@@ -344,23 +336,20 @@ export default function SubjectsHub() {
                   <Star className="w-4 h-4" /> تەنیا ئامادە
                 </div>
               </button>
-              <button type="submit" className="px-3 py-1.5 rounded-xl bg-cyan-600/25 ring-1 ring-cyan-500/25 text-[12px] sm:text-sm text-cyan-100 hover:bg-cyan-600/35 transition">
-                گەڕان
-              </button>
             </div>
           </form>
 
           <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1">
             <Info className="w-3.5 h-3.5" />
-            <span>بابەتەکان بەپێی پۆل/تڕاک فلتەر دەبن. داتاکان لە کتێب/کاغەزەکانەوە هاتوون.</span>
+            <span>بابەتەکان بەپێی پۆل/جۆر فلتەر دەبن. داتاکان لە کتێب/فایله‌كانه‌وه‌ هاتوون.</span>
           </div>
 
           {/* dashboard-like stat tiles */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <StatTile label="کۆی بابەتەکان" value={totalSubjects} sub="هەموو پۆلەکان" icon={BookMarked} />
             <StatTile label="بابه‌ته‌ ئاماده‌كان" value={readySubjects} sub="هەمان ئێستا داتایان هەیە" icon={CheckCircle2} />
-            <StatTile label="ژمارەی کتێب" value={totals.docs} sub="Documents" icon={TrendingUp} />
-            <StatTile label="ژمارەی کاغەزەکان" value={totals.papers} sub="Papers" icon={Star} />
+            <StatTile label="ژمارەی کتێب" value={totals.docs} sub="كتێبه‌كان" icon={TrendingUp} />
+            <StatTile label="ژمارەی فایله‌كان" value={totals.papers} sub="فایله‌كان" icon={Star} />
           </div>
         </div>
       </motion.div>
@@ -415,49 +404,54 @@ export default function SubjectsHub() {
               ) : (
                 <div className="space-y-6">
                   {/* scientific / both */}
-                  <div>
-                    <div className="text-cyan-300 font-semibold mb-3 flex items-center gap-2">
-                      <Atom className="w-4 h-4" /> زانستی و هاوبەش
-                    </div>
-                    {filterReady(grouped.sci || []).length === 0 ? (
-                      <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                        {(grouped.sci || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
-                          <SubjectsCard
-                            key={s.id}
-                            subject={s}
-                            count={getCount(s.id)}
-                            isReady={avail.any.has(s.id)}
-                            colorIdx={i + 1}
-                            onClick={() => nav(`/subjects/${s.id}`)}
-                          />
-                        ))}
+                  {(grouped.mode === "scientific" || grouped.mode === "both") && (
+                    <div>
+                      <div className="text-sky-400 font-semibold mb-3 flex items-center gap-2">
+                        <Atom className="w-4 h-4" /> زانستی و هاوبەش
                       </div>
-                    )}
-                  </div>
+                      {filterReady(grouped.sci || []).length === 0 ? (
+                        <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                          {(grouped.sci || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
+                            <SubjectsCard
+                              key={s.id}
+                              subject={s}
+                              count={getCount(s.id)}
+                              isReady={avail.any.has(s.id)}
+                              colorIdx={i + 1}
+                              onClick={() => nav(`/subjects/${s.id}`)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* literary */}
-                  <div>
-                    <div className="text-fuchsia-300 font-semibold mb-3 flex items-center gap-2">
-                      <Pen className="w-4 h-4" /> ئەدەبی
-                    </div>
-                    {filterReady(grouped.lit || []).length === 0 ? (
-                      <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                        {(grouped.lit || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
-                          <SubjectsCard
-                            key={s.id}
-                            subject={s}
-                            count={getCount(s.id)}
-                            isReady={avail.any.has(s.id)}
-                            colorIdx={i + 1}
-                            onClick={() => nav(`/subjects/${s.id}`)}
-                          />
-                        ))}
+                  {(grouped.mode === "literary" || grouped.mode === "both") && (
+                    <div>
+                      <div className="text-purple-400 font-semibold mb-3 flex items-center gap-2">
+                        <Pen className="w-4 h-4" /> ئەدەبی
                       </div>
-                    )}
-                  </div>
+                      {filterReady(grouped.lit || []).length === 0 ? (
+                        <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                          {(grouped.lit || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
+                            <SubjectsCard
+                              key={s.id}
+                              subject={s}
+                              count={getCount(s.id)}
+                              isReady={avail.any.has(s.id)}
+                              colorIdx={i + 5} 
+                              onClick={() => nav(`/subjects/${s.id}`)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </>
