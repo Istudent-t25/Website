@@ -1,4 +1,6 @@
-// src/pages/SubjectDetail.jsx
+// src/pages/SubjectDetail.jsx — Dashboard‑style Subject Detail (RTL, Dark, Motion)
+// Matches the new Dashboard / SubjectsHub vibe: hero bar, stat tiles, glass cards, tighter mobile.
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,26 +15,32 @@ import {
   Sparkles,
   AudioLines,
   AlertTriangle,
+  Info,
+  BookMarked,
 } from "lucide-react";
+import HeaderGradientBar from "@/components/HeaderGradientBar";
+import useLocalAppearance from "@/lib/useLocalAppearance";
 
 /* =========================
    CONFIG / META
    ========================= */
-const API_DOCS = "https://api.studentkrd.com/api/v1/documents";
-const API_PAPERS = "https://api.studentkrd.com/api/v1/papers";
-const API_SOUNDS = "https://api.studentkrd.com/api/v1/sounds";
-// optional: resolve slug -> subject data
-const API_SUBJECT_LOOKUP = "https://api.studentkrd.com/api/v1/subjects/find";
+const API_BASE = "https://api.studentkrd.com/api/v1";
+const API_DOCS = `${API_BASE}/documents`;
+const API_PAPERS = `${API_BASE}/papers`;
+const API_SOUNDS = `${API_BASE}/sounds`;
+const API_SUBJECT_FIND = `${API_BASE}/subjects/find`;
+const API_SUBJECTS = `${API_BASE}/subjects`;
 
 const STREAM_MAP = { scientific: "زانستی", literary: "ئەدەبی", both: "هاوبەش" };
 
 /* ✅ Only these subjects can show "Sounds" */
-const SOUND_SUBJECT_IDS = [1];               // add more IDs if needed
-const SOUND_SUBJECT_SLUGS = ["english"];     // add more slugs if needed
+const SOUND_SUBJECT_IDS = [1];
+const SOUND_SUBJECT_SLUGS = ["english"];
 
 /* =========================
    UTILITIES
    ========================= */
+const EASE = [0.22, 1, 0.36, 1];
 const SPRING = { type: "spring", stiffness: 220, damping: 22, mass: 0.9 };
 
 async function fetchJSON(url) {
@@ -40,6 +48,57 @@ async function fetchJSON(url) {
   if (!r.ok) throw new Error("Network error");
   return r.json();
 }
+
+/** Try multiple endpoints/shapes to resolve subject by id/slug */
+async function resolveSubject({ id, slug }) {
+  const tryList = [];
+
+  if (slug) {
+    const u = new URL(API_SUBJECT_FIND);
+    u.searchParams.set("slug", slug);
+    tryList.push(u.toString());
+  }
+  if (id != null) {
+    // /subjects/find?id=ID
+    let u = new URL(API_SUBJECT_FIND);
+    u.searchParams.set("id", String(id));
+    tryList.push(u.toString());
+
+    // /subjects/find?subject_id=ID
+    u = new URL(API_SUBJECT_FIND);
+    u.searchParams.set("subject_id", String(id));
+    tryList.push(u.toString());
+
+    // /subjects/:id
+    tryList.push(`${API_SUBJECTS}/${id}`);
+
+    // /subjects?subject_id=ID
+    u = new URL(API_SUBJECTS);
+    u.searchParams.set("subject_id", String(id));
+    tryList.push(u.toString());
+  }
+
+  for (const url of tryList) {
+    try {
+      const j = await fetchJSON(url);
+      const obj = j?.data ?? j;
+      if (!obj) continue;
+
+      // support list or single
+      const one = Array.isArray(obj) ? obj[0] : obj;
+      if (!one) continue;
+
+      const name = one.name || one.title || null;
+      const rid = one.id ?? one.subject_id ?? id ?? null;
+
+      if (name || rid != null) return { id: rid, name };
+    } catch {
+      // keep trying next pattern
+    }
+  }
+  return { id: id ?? null, name: null };
+}
+
 function mapTrackToStream(track) {
   const t = (track || "").toLowerCase();
   if (t.includes("scientific") || t.includes("sci") || t === "زانستی") return "scientific";
@@ -55,31 +114,33 @@ function streamKurdish(s) {
    UI PRIMITIVES
    ========================= */
 const Badge = ({ children }) => (
-  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full ring-1 ring-white/10 text-[10px] text-zinc-200 bg-white/5">
+  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full ring-1 ring-white/10 text-[10px] text-zinc-200 bg-white/5 text-shadow-sm">
     {children}
   </span>
 );
 
 const Count = ({ n }) =>
   n > 0 ? (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] text-[10px] px-1 rounded-full bg-white/10 ring-1 ring-white/15 text-zinc-100">
+    <span className="ml-2 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] text-[10px] px-1 rounded-full bg-white/10 ring-1 ring-white/15 text-zinc-100 text-shadow-sm">
       {n}
     </span>
   ) : null;
 
 const CardButton = ({ icon, title, desc, onClick, count, disabled, isActive = false }) => (
   <motion.button
+    type="button"
     onClick={onClick}
     disabled={disabled}
     whileHover={!disabled ? { y: -2, scale: 1.005 } : undefined}
     transition={SPRING}
     className={[
-      "group flex items-start gap-3 rounded-2xl p-4 text-right",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40",
+      "group flex items-start gap-3 rounded-2xl p-4 text-right w-full",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50",
+      "bg-white/5 border border-white/10 backdrop-blur-md",
       disabled
-        ? "bg-zinc-900/40 border border-white/5 text-zinc-500 cursor-not-allowed"
-        : "bg-zinc-900/60 border border-white/10 hover:bg-zinc-900/80",
-      isActive ? "ring-2 ring-sky-500/50" : "",
+        ? "text-zinc-500 cursor-not-allowed"
+        : "hover:bg-white/10 hover:border-cyan-400/30",
+      isActive ? "ring-2 ring-cyan-400/50" : "",
     ].join(" ")}
   >
     <div
@@ -90,22 +151,33 @@ const CardButton = ({ icon, title, desc, onClick, count, disabled, isActive = fa
     >
       {React.cloneElement(icon, {
         size: 18,
-        className: `${icon.props.className || ""} ${disabled ? "text-zinc-600" : ""}`,
+        className: `${icon.props.className || ""} ${disabled ? "text-zinc-600" : "text-cyan-400"}`,
       })}
     </div>
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 text-sm font-bold text-white mb-0.5">
+      <div className="flex items-center gap-2 text-sm font-bold text-white mb-0.5 text-shadow-md">
         <span className="truncate">{title}</span>
         <Count n={count || 0} />
       </div>
-      {desc && <div className="text-[12px] text-zinc-400 line-clamp-1">{desc}</div>}
+      {desc && <div className="text-[12px] text-zinc-400 line-clamp-1 text-shadow-sm">{desc}</div>}
     </div>
   </motion.button>
 );
 
 const SkeletonRow = () => (
-  <div className="rounded-2xl h-[72px] bg-zinc-900/60 border border-white/10 overflow-hidden relative">
-    <div className="absolute inset-0 animate-pulse bg-white/5" />
+  <div className="rounded-2xl h-[72px] bg-white/5 border border-white/10 backdrop-blur-md overflow-hidden relative shimmer" />
+);
+
+const StatTile = ({ label, value, sub, icon: Icon }) => (
+  <div className="rounded-2xl ring-1 ring-white/10 bg-white/5 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+    <div className="grid place-items-center w-10 h-10 rounded-xl bg-white/10 ring-1 ring-white/15 shrink-0">
+      <Icon className="w-5 h-5 text-white" />
+    </div>
+    <div className="min-w-0">
+      <div className="text-zinc-300 text-[11.5px] truncate">{label}</div>
+      <div className="text-zinc-50 font-bold text-base sm:text-lg leading-5">{value}</div>
+      {sub && <div className="text-[11px] text-zinc-500">{sub}</div>}
+    </div>
   </div>
 );
 
@@ -113,6 +185,8 @@ const SkeletonRow = () => (
    MAIN COMPONENT
    ========================= */
 export default function SubjectDetail() {
+  useLocalAppearance(); // read & apply theme/accent/fontScale from localStorage
+
   const params = useParams();
   const rawParam = params?.id ? decodeURIComponent(params.id) : "";
   const isNumeric = /^\d+$/.test(rawParam);
@@ -125,6 +199,7 @@ export default function SubjectDetail() {
 
   // resolved subject
   const [resolvedId, setResolvedId] = useState(subjectIdFromRoute);
+  const [subjectName, setSubjectName] = useState(null);
   const [resolvedDisplay, setResolvedDisplay] = useState(
     subjectSlug || (subjectIdFromRoute ? `بابەت #${subjectIdFromRoute}` : "بابەت")
   );
@@ -164,40 +239,57 @@ export default function SubjectDetail() {
     }
   }, []);
 
-  // slug -> id (optional)
+  // Resolve subject on first load (ID or slug)
   useEffect(() => {
     let ok = true;
     (async () => {
-      if (subjectIdFromRoute) {
-        setResolvedId(subjectIdFromRoute);
-        setResolvedDisplay(`بابەت #${subjectIdFromRoute}`);
+      // if route gave id, resolve name
+      if (subjectIdFromRoute != null) {
+        const { id, name } = await resolveSubject({ id: subjectIdFromRoute });
+        if (!ok) return;
+        setResolvedId(id ?? subjectIdFromRoute);
+        if (name) {
+          setSubjectName(name);
+          setResolvedDisplay(name);
+        } else {
+          setSubjectName(null);
+          setResolvedDisplay(`بابەت #${subjectIdFromRoute}`);
+        }
         return;
       }
-      if (!subjectSlug) return;
-      try {
-        const url = new URL(API_SUBJECT_LOOKUP);
-        url.searchParams.set("slug", subjectSlug);
-        const j = await fetchJSON(url.toString());
-        const sub = j?.data || j;
-        if (ok && sub) {
-          const id = sub.id ?? null;
-          setResolvedId(id);
-          setResolvedDisplay(sub.name || subjectSlug);
-        } else if (ok) {
-          setResolvedId(null);
-          setResolvedDisplay(subjectSlug);
-        }
-      } catch {
-        if (ok) {
-          setResolvedId(null);
+
+      // if route gave slug, resolve id + name
+      if (subjectSlug) {
+        const { id, name } = await resolveSubject({ slug: subjectSlug });
+        if (!ok) return;
+        setResolvedId(id ?? null);
+        if (name) {
+          setSubjectName(name);
+          setResolvedDisplay(name);
+        } else {
+          setSubjectName(null);
           setResolvedDisplay(subjectSlug);
         }
       }
     })();
-    return () => {
-      ok = false;
-    };
+    return () => { ok = false; };
   }, [subjectIdFromRoute, subjectSlug]);
+
+  // Safety: whenever we have an ID but no name yet, try again (covers API variants)
+  useEffect(() => {
+    let ok = true;
+    (async () => {
+      if (resolvedId != null && !subjectName) {
+        const { name } = await resolveSubject({ id: resolvedId });
+        if (!ok) return;
+        if (name) {
+          setSubjectName(name);
+          setResolvedDisplay(name);
+        }
+      }
+    })();
+    return () => { ok = false; };
+  }, [resolvedId, subjectName]);
 
   // params builder
   const buildParams = (base = {}) => {
@@ -254,9 +346,7 @@ export default function SubjectDetail() {
         if (ok) setLoading(false);
       }
     })();
-    return () => {
-      ok = false;
-    };
+    return () => { ok = false; };
   }, [resolvedId, subjectSlug, grade, stream, isSoundsSubject]);
 
   // navigation helpers
@@ -310,44 +400,57 @@ export default function SubjectDetail() {
   };
 
   const subjectHeader = useMemo(() => {
+    if (subjectName) return subjectName;
     if (resolvedDisplay) return resolvedDisplay;
     if (resolvedId) return `بابەت #${resolvedId}`;
     return "بابەت";
-  }, [resolvedDisplay, resolvedId]);
+  }, [subjectName, resolvedDisplay, resolvedId]);
+
+  const routeChip = subjectSlug
+    ? `/subjects/${subjectSlug}`
+    : resolvedId
+    ? `/subjects/${resolvedId}`
+    : "/subjects";
 
   const showAnything = Object.values(counts).some((c) => c > 0);
+
+  // derived totals for tiles
+  const totalResources = counts.docs + counts.notes + counts.iq + counts.ne + counts.gallery + counts.episode + counts.scientist + (isSoundsSubject ? counts.sounds : 0);
 
   return (
     <section
       dir="rtl"
-      className={[
-        "relative w-full overflow-hidden",
-        // break out of AppShell padding to become FULL WIDTH:
-        "mx-[-12px] md:mx-[-24px]",
-        "pb-6",
-      ].join(" ")}
+      className="relative w-full overflow-hidden pb-6 min-h-screen"
+      style={{ fontSize: "calc(1rem * var(--font-scale, 1))" }}
     >
-      {/* Edge-to-edge sticky header (no gradients) */}
-      <div className="sticky top-2 z-10 px-3 md:px-6">
-        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 backdrop-blur px-3 sm:px-4 py-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 text-white min-w-0">
-              <Link
-                to="/subjects"
-                className="text-zinc-300 hover:text-white text-xs sm:text-sm shrink-0"
-              >
-                بابەتەکان
-              </Link>
-              <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="font-extrabold text-base sm:text-lg truncate">
-                {subjectHeader}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] sm:text-xs">
+      <style>{`
+        .text-shadow-md { text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.6); }
+        .text-shadow-sm { text-shadow: 0px 0.5px 2px rgba(0, 0, 0, 0.5); }
+        .shimmer{position:relative;overflow:hidden}
+        .shimmer::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);animation:shimmer 1.6s infinite}
+        @keyframes shimmer{to{transform:translateX(100%)}}
+      `}</style>
+
+      {/* dotted background like dashboard */}
+      <div className="fixed inset-0 -z-10 h-full w-full bg-black bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]" />
+
+      {/* Hero */}
+      <div className="px-3 md:px-6 pt-2">
+        <HeaderGradientBar title={subjectHeader} subtitle={routeChip} showQuickControls={false} />
+      </div>
+
+      {/* Crumbs + badges */}
+      <div className="mt-2 px-3 md:px-6">
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl px-3 sm:px-4 py-2.5">
+          <div className="flex items-center gap-2 text-white min-w-0 text-xs sm:text-sm">
+            <Link to="/subjects" className="text-zinc-300 hover:text-white shrink-0 text-shadow-sm">بابەتەکان</Link>
+            <ChevronRight className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span className="font-extrabold truncate text-shadow-md">{subjectHeader}</span>
+
+            <div className="ml-auto flex items-center gap-2 text-[11px] sm:text-xs">
               {typeof grade === "number" && (
                 <Badge>
-                  <GraduationCap className="w-3 h-3 text-sky-400" />
-                  پۆل {grade}
+                  <GraduationCap className="w-3 h-3 text-cyan-400" /> پۆل {grade}
                 </Badge>
               )}
               {stream && <Badge>جۆر: {streamKurdish(stream)}</Badge>}
@@ -357,12 +460,25 @@ export default function SubjectDetail() {
         </div>
       </div>
 
-      {/* Edge-to-edge content card (solid bg) */}
+      {/* Stat tiles row (dashboard style) */}
       <div className="mt-3 px-3 md:px-6">
-        <div className="rounded-3xl border border-white/10 bg-zinc-900/60 p-4 sm:p-6">
-          {/* States */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <StatTile label="کۆی سەرچاوە" value={totalResources} sub="هەموو جۆرەکان" icon={BookMarked} />
+          <StatTile label="کتێب/مه‌لزه‌مه‌" value={counts.docs} sub="Documents" icon={BookOpenCheck} />
+          <StatTile label="تێبینی + ئەسیلە" value={counts.notes + counts.iq} sub="Notes & IQ" icon={ListChecks} />
+          <StatTile label="وێنە/ئێپسۆد/زانا" value={counts.gallery + counts.episode + counts.scientist} sub="Misc" icon={Sparkles} />
+        </div>
+        <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1">
+          <Info className="w-3.5 h-3.5" />
+          <span>ئامارەکان بەپێی پۆل/تڕاک فلتەرکراون. داتاکان داینامیکیە.</span>
+        </div>
+      </div>
+
+      {/* Content panel */}
+      <div className="mt-3 px-3 md:px-6">
+        <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 sm:p-6">
           {error && (
-            <div className="mb-3 flex items-center gap-2 text-rose-200 text-sm bg-rose-500/10 border border-rose-400/20 rounded-xl p-3">
+            <div className="mb-3 flex items-center gap-2 text-rose-200 text-sm bg-rose-500/10 border border-rose-400/20 rounded-xl p-3 text-shadow-sm" aria-live="polite">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span className="break-words">{error}</span>
             </div>
@@ -370,7 +486,7 @@ export default function SubjectDetail() {
 
           {loading ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-zinc-300 text-sm">
+              <div className="flex items-center gap-2 text-zinc-300 text-sm text-shadow-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>داتاکان بار دەبن…</span>
               </div>
@@ -383,90 +499,35 @@ export default function SubjectDetail() {
               <motion.div
                 key="grid"
                 layout
-                className={[
-                  "grid gap-3",
-                  "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6",
-                ].join(" ")}
+                className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
               >
                 {counts.docs > 0 && (
-                  <CardButton
-                    icon={<BookOpenCheck className="text-emerald-300" />}
-                    title="کتێب و مه‌لزه‌مه‌"
-                    desc="کتێب / مەلزمە"
-                    onClick={goBooks}
-                    count={counts.docs}
-                  />
+                  <CardButton icon={<BookOpenCheck />} title="کتێب و مه‌لزه‌مه‌" desc="کتێب / مەلزمە" onClick={goBooks} count={counts.docs} />
                 )}
                 {counts.notes > 0 && (
-                  <CardButton
-                    icon={<FileText className="text-purple-300" />}
-                    title="تێبینی گرنگ"
-                    desc="PDF ـە گرنگەکان"
-                    onClick={goNotes}
-                    count={counts.notes}
-                  />
+                  <CardButton icon={<FileText />} title="تێبینی گرنگ" desc="PDF ـە گرنگەکان" onClick={goNotes} count={counts.notes} />
                 )}
                 {counts.iq > 0 && (
-                  <CardButton
-                    icon={<ListChecks className="text-amber-300" />}
-                    title="ئەسیلەی گرنگ"
-                    desc="پرسیارە گرنگەکان"
-                    onClick={goIQ}
-                    count={counts.iq}
-                  />
+                  <CardButton icon={<ListChecks />} title="ئەسیلەی گرنگ" desc="پرسیارە گرنگەکان" onClick={goIQ} count={counts.iq} />
                 )}
                 {counts.ne > 0 && (
-                  <CardButton
-                    icon={<ListChecks className="text-cyan-300" />}
-                    title="ئه‌سیله‌ی نیشتیمانی(وزاری)"
-                    desc="ساڵه‌ گرنگه‌كان"
-                    onClick={goNE}
-                    count={counts.ne}
-                  />
+                  <CardButton icon={<ListChecks />} title="ئه‌سیله‌ی نیشتیمانی(وزاری)" desc="ساڵه‌ گرنگه‌كان" onClick={goNE} count={counts.ne} />
                 )}
                 {counts.gallery > 0 && (
-                  <CardButton
-                    icon={<ImageIcon className="text-sky-300" />}
-                    title="وێنه‌كان"
-                    desc="وێنەکان به‌ باسكردنه‌وه‌"
-                    onClick={goGallery}
-                    count={counts.gallery}
-                  />
+                  <CardButton icon={<ImageIcon />} title="وێنه‌كان" desc="وێنەکان به‌ باسكردنه‌وه‌" onClick={goGallery} count={counts.gallery} />
                 )}
                 {counts.episode > 0 && (
-                  <CardButton
-                    icon={<Sparkles className="text-sky-300" />}
-                    title="ئیپسۆد"
-                    desc="سه‌رجه‌م ئیپسۆد"
-                    onClick={goEpisode}
-                    count={counts.episode}
-                  />
+                  <CardButton icon={<Sparkles />} title="ئیپسۆد" desc="سه‌رجه‌م ئیپسۆد" onClick={goEpisode} count={counts.episode} />
                 )}
                 {counts.scientist > 0 && (
-                  <CardButton
-                    icon={<GraduationCap className="text-rose-300" />}
-                    title="زاناكان"
-                    desc="زاناكان و لێکۆڵینەوە"
-                    onClick={goScientist}
-                    count={counts.scientist}
-                  />
+                  <CardButton icon={<GraduationCap />} title="زاناكان" desc="زاناكان و لێکۆڵینەوە" onClick={goScientist} count={counts.scientist} />
                 )}
-
-                {/* ✅ Sounds only when allowed */}
                 {isSoundsSubject && counts.sounds > 0 && (
-                  <CardButton
-                    icon={<AudioLines className="text-emerald-300" />}
-                    title="دەنگەکان"
-                    desc="وشەکان و خوێندنەوە"
-                    onClick={goSounds}
-                    count={counts.sounds}
-                  />
+                  <CardButton icon={<AudioLines />} title="دەنگەکان" desc="وشەکان و خوێندنەوە" onClick={goSounds} count={counts.sounds} />
                 )}
 
                 {!showAnything && (
-                  <div className="col-span-full text-zinc-400 text-sm py-4">
-                    هیچ سەرچاوەیەک بۆ ئەم بابەتە نەدۆزرایەوە.
-                  </div>
+                  <div className="col-span-full text-zinc-400 text-sm py-4 text-shadow-sm">هیچ سەرچاوەیەک بۆ ئەم بابەتە نەدۆزرایەوە.</div>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -474,7 +535,7 @@ export default function SubjectDetail() {
         </div>
       </div>
 
-      {/* Simple divider (no gradient) */}
+      {/* Divider */}
       <div className="mt-4 px-3 md:px-6">
         <div className="h-px bg-white/10 rounded" />
       </div>

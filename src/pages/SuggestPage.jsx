@@ -19,7 +19,7 @@ function Aurora() {
   
 }
 
-export default function ExamsPage() {
+export default function SuggestPage() {
   const nav = useNavigate();
 
   return (

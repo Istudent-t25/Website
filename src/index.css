@@ -9,7 +9,16 @@
   font-style: normal;
   font-display: swap;
 }
-
+@font-face {
+  font-family: "Doulos ";
+  src: url("/fonts/DoulosSIL-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* .Doulos{
+  font-family: Doulos;
+} */
 /* Dark is the default */
 :root { color-scheme: dark; }
 html, body { background:#0b0d12; }
@@ -137,4 +146,8 @@ html.dark body,
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
+}
+:root {
+  --accent: #22d3ee;   /* cyan-400 default */
+  --font-scale: 1;     /* 0.9..1.2 applied to root container */
 }

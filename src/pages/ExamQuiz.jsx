@@ -1,163 +1,240 @@
 // src/pages/ExamQuiz.jsx — StudentKRD (RTL)
-// v2 — Fresh card designs + ultra-mobile UX
-// - Two modes: Practice (preview with reveal) & Real Exam (no reveal until end)
-// - Start Options: Mode + Timer (Off/20/45/60/Custom)
-// - Sticky Info Bar: timer, progress ring, play/pause/reset, submit
-// - New Cards:
-//   * Subject cards: soft neon border + subtle glow
-//   * Exam cards: split meta layout + pill tags
-//   * Question card: letter chips (A/B/C/D), pressed states, better spacing
-//   * Palette: compact rounded pills
-// - Autosave per exam id; Resume/Clear
-// - Keyboard: 1–4 answer, ←/→ navigate
+// First-design UI + API data (exam-sets & exam-questions) + no artwork bg
+// Enhancements: change answers any time, final review of correct answers,
+// autosave/resume via localStorage, cached sets, simple level stats.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  BookOpenCheck,
-  BookOpen,
-  GraduationCap,
-  Filter,
-  Home,
-  Search,
-  Timer as TimerIcon,
-  Pause,
-  Play,
-  RotateCw,
-  ChevronRight,
-  ChevronLeft,
-  CheckCircle2,
-  XCircle,
-  Award,
-  ListChecks,
-  Grid,
-  Sparkles,
-  Layers,
-  Eye,
-  EyeOff,
+  BookOpenCheck, BookOpen, GraduationCap, Filter, Search,
+  Timer as TimerIcon, Pause, Play, RotateCw, ChevronRight, ChevronLeft,
+  CheckCircle2, XCircle, Award, ListChecks, Sparkles, Layers,
+  Eye, EyeOff, Download, Info, Clock, Target, TrendingUp, Brain,
+  Zap, Trophy, ArrowRight, ArrowLeft, RefreshCw, Calendar, Lightbulb
 } from "lucide-react";
 
 /* =========================
-   API ENDPOINTS (adjust if needed)
+   CONSTANTS & HELPERS
    ========================= */
+const SPRING = { type: "spring", stiffness: 300, damping: 30 };
 const API_SETS = "https://api.studentkrd.com/api/v1/exam-sets";
 const API_QUESTIONS = "https://api.studentkrd.com/api/v1/exam-questions";
 
-/* =========================
-   HELPERS / UX
-   ========================= */
-const SPRING = { type: "spring", stiffness: 260, damping: 24, mass: 0.6 };
-const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
-const letterToIndex = (ch) => ({ A: 1, B: 2, C: 3, D: 4 }[(ch || "").toUpperCase()] || 1);
-const termLabel = (t) => (t === "term2" ? "خولی ٢" : t === "term1" ? "خولی ١" : t || "");
-const kindLabel = (k) => (k === "national" ? "نیشتمانی" : k || "");
-const streamLabel = (s) => ({ scientific: "زانستی", literary: "ئەدەبی", both: "هاوبەش" }[(s || "").toLowerCase()] || s || "");
+// LocalStorage keys
+const LS_CACHE_SETS = "examquiz:cache:sets";       // { ts, data: [] }
+const LS_STATE = "examquiz:state";                 // last in-progress attempt
+const LS_STATS = "examquiz:stats";                 // exam-id → {best, attempts, lastPct, lastAt}
 
-// Fetch all pages (Laravel-style pagination)
-async function fetchAllPages(baseUrl, params = {}) {
+const streamLabel = (s) => ({ scientific: "زانستی", literary: "ئەدەبی", both: "هاوبەش" }[(s || "").toLowerCase()] || s || "");
+const termLabel   = (t) => (t === "term2" ? "خولی ٢" : t === "term1" ? "خولی ١" : t || "");
+const kindLabel   = (k) => (k === "national" ? "نیشتمانی" : k || "");
+const letterToIndex = (ch) => ({ A: 1, B: 2, C: 3, D: 4 }[(ch || "").toUpperCase()] || 1);
+
+function useLocalAppearance() {
+  const [accent] = useState("#06b6d4");
+  const [fontScale] = useState(1);
+  const [reduced] = useState("off");
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--font-scale", String(fontScale));
+  }, [accent, fontScale]);
+
+  return { accent, fontScale, reduced };
+}
+
+function saveJSON(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+function loadJSON(key, fallback=null) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+
+/** Fetch all pages (Laravel pagination friendly) with caching */
+async function fetchAllPagesWithCache(baseUrl, params = {}, cacheKey = null, cacheSeconds = 60) {
+  // try cache
+  if (cacheKey) {
+    const cached = loadJSON(cacheKey, null);
+    if (cached && (Date.now() - cached.ts) / 1000 < cacheSeconds) {
+      return cached.data || [];
+    }
+  }
+  // network
   const sp = new URLSearchParams({ per_page: "50", ...params });
   let url = `${baseUrl}?${sp.toString()}`;
   let out = [];
   for (;;) {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("Network error");
+    const r = await fetch(url, { credentials: "include" }).catch(() => null);
+    if (!r || !r.ok) throw new Error("Network error");
     const j = await r.json();
     const pageData = Array.isArray(j?.data) ? j.data : (Array.isArray(j) ? j : []);
     out = out.concat(pageData);
     if (!j?.next_page_url) break;
     url = j.next_page_url;
   }
+  if (cacheKey) saveJSON(cacheKey, { ts: Date.now(), data: out });
   return out;
 }
-function useQuery() {
-  const { search } = useLocation();
-  return useMemo(() => new URLSearchParams(search), [search]);
+
+/** Normalize a question row to the first-design shape */
+function normalizeQuestion(row, i) {
+  const safe = (v) => (v == null ? "" : String(v));
+  const hasABCD = row.option_a || row.option_b || row.option_c || row.option_d;
+
+  let option_a = safe(row.option_a), option_b = safe(row.option_b),
+      option_c = safe(row.option_c), option_d = safe(row.option_d);
+  let correct_option = row.correct_option;
+
+  if (!hasABCD && Array.isArray(row.options)) {
+    option_a = safe(row.options[0]);
+    option_b = safe(row.options[1]);
+    option_c = safe(row.options[2]);
+    option_d = safe(row.options[3]);
+    if (!correct_option && Number.isFinite(row.correct_index)) {
+      correct_option = ["A","B","C","D"][Math.max(1, Math.min(4, row.correct_index)) - 1];
+    }
+  }
+
+  return {
+    id: row.id ?? `q${i + 1}`,
+    question: safe(row.question),
+    option_a, option_b, option_c, option_d,
+    correct_option: (correct_option || "A").toUpperCase(),
+    analysis: safe(row.analysis),
+    image_url: row.image_url || null,
+    position: row.position ?? i + 1,
+  };
 }
 
 /* =========================
-   PAGE
+   MAIN PAGE
    ========================= */
 export default function ExamQuiz() {
-  const nav = useNavigate();
-  const q = useQuery();
+  const { fontScale, accent, reduced } = useLocalAppearance();
 
-  const qSubjectId = q.get("subject_id") || "";
-  const qGrade = q.get("grade") || "";
-  const qStream = q.get("stream") || "";
+  // Views: dashboard | subjects | exams | quiz | result
+  const [view, setView] = useState("dashboard");
 
-  const [view, setView] = useState("subjects"); // subjects | exams | options | quiz | result
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sets, setSets] = useState([]);
+  // Data lists
+  const [allSets, setAllSets] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [examsForSubject, setExamsForSubject] = useState([]);
 
-  const [subject, setSubject] = useState(null);
-  const [examSets, setExamSets] = useState([]);
-  const [examSearch, setExamSearch] = useState("");
-  const [examYear, setExamYear] = useState("all");
-  const [examTerm, setExamTerm] = useState("all");
-  const [examKind, setExamKind] = useState("all");
+  // Selections
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedExam, setSelectedExam] = useState(null);
 
-  const [exam, setExam] = useState(null);
+  // Options
   const [mode, setMode] = useState("exam"); // exam | practice
-  const [customMin, setCustomMin] = useState("45");
+  const [duration, setDuration] = useState(45); // minutes
 
+  // Quiz state
   const [questions, setQuestions] = useState([]);
-  const [order, setOrder] = useState([]);
-  const [idx, setIdx] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [elapsed, setElapsed] = useState(0);
-  const [duration, setDuration] = useState(45 * 60); // 0 = no timer
-  const [running, setRunning] = useState(false);
-  const [revealAll, setRevealAll] = useState(false);
-  const tickRef = useRef(null);
+  const [timeLeft, setTimeLeft] = useState(45 * 60);
+  const [isRunning, setIsRunning] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(false);
 
-  const storeKey = useMemo(() => (exam?.id ? `examquiz:${exam.id}` : "examquiz:pending"), [exam?.id]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  /* Load Sets + Subjects */
+  // Stats (level-like data): best score & attempts per exam
+  const [stats, setStats] = useState(() => loadJSON(LS_STATS, {})); // examId -> {best, attempts, lastPct, lastAt}
+
+  // Load sets (with cache; fallback to cached if network fails)
   useEffect(() => {
-    let ok = true;
+    let alive = true;
     setLoading(true); setErr("");
     (async () => {
       try {
-        const params = {};
-        if (qGrade) params.grade = String(qGrade);
-        if (qStream) params.stream = String(qStream);
-        const rows = await fetchAllPages(API_SETS, params);
-        if (!ok) return;
+        const rows = await fetchAllPagesWithCache(API_SETS, {}, LS_CACHE_SETS, 90);
+        if (!alive) return;
 
-        // Build subjects list
+        setAllSets(rows);
+
+        // Build subjects list from sets
         const bySub = new Map();
         rows.forEach((r) => {
-          const sid = r.subject_id; const sname = r.subject?.name || "";
-          if (!bySub.has(sid)) bySub.set(sid, { id: sid, name: sname, count: 0, streams: new Set(), years: new Set(), minGrade: r.grade ?? null, maxGrade: r.grade ?? null });
+          const sid = r.subject_id;
+          const sname = r.subject?.name || "";
+          if (!bySub.has(sid)) {
+            bySub.set(sid, {
+              id: sid, name: sname, count: 0,
+              streams: new Set(), years: new Set(),
+              minGrade: r.grade ?? null, maxGrade: r.grade ?? null
+            });
+          }
           const ent = bySub.get(sid);
-          ent.count++; if (r.stream) ent.streams.add(r.stream);
-          if (typeof r.year === "number") ent.years.add(r.year);
-          if (typeof r.grade === "number") {
+          ent.count++;
+          if (r.stream) ent.streams.add(r.stream);
+          if (Number.isFinite(r.year)) ent.years.add(r.year);
+          if (Number.isFinite(r.grade)) {
             ent.minGrade = ent.minGrade == null ? r.grade : Math.min(ent.minGrade, r.grade);
             ent.maxGrade = ent.maxGrade == null ? r.grade : Math.max(ent.maxGrade, r.grade);
           }
         });
-        const subjectsArr = [...bySub.values()].map((s) => ({ ...s, streams: [...s.streams], years: [...s.years].sort((a, b) => b - a) })).sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
-        setSets(rows); setSubjects(subjectsArr);
-        if (qSubjectId) {
-          const found = subjectsArr.find((s) => String(s.id) === String(qSubjectId));
-          if (found) { setSubject(found); setView("exams"); }
+        const subjectsArr = [...bySub.values()]
+          .map(s => ({
+            ...s,
+            streams: [...s.streams],
+            years: [...s.years].sort((a,b) => b - a)
+          }))
+          .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
+        setSubjects(subjectsArr);
+
+        // Auto-resume if saved state exists
+        const saved = loadJSON(LS_STATE, null);
+        if (saved?.exam && Array.isArray(saved.questions)) {
+          setSelectedSubject(subjectsArr.find(s => String(s.id) === String(saved.exam.subject_id)) || null);
+          setSelectedExam(saved.exam);
+          setQuestions(saved.questions);
+          setAnswers(saved.answers || {});
+          setCurrentIndex(saved.currentIndex || 0);
+          setTimeLeft(saved.timeLeft ?? 45 * 60);
+          setIsRunning(false); // paused when restoring
+          setShowAnswers(false);
+          setView("quiz");
         }
       } catch (e) {
-        if (!ok) return; setErr("نەتوانرا لیستی تاقیکردنەوەکان هێنابخرێت.");
-      } finally { if (ok) setLoading(false); }
+        if (!alive) return;
+        // try cached if fetch failed
+        const cached = loadJSON(LS_CACHE_SETS, null);
+        if (cached?.data?.length) {
+          setAllSets(cached.data);
+          // subjects from cache
+          const bySub = new Map();
+          cached.data.forEach((r) => {
+            const sid = r.subject_id;
+            const sname = r.subject?.name || "";
+            if (!bySub.has(sid)) {
+              bySub.set(sid, { id: sid, name: sname, count: 0, streams: new Set(), years: new Set(), minGrade: r.grade ?? null, maxGrade: r.grade ?? null });
+            }
+            const ent = bySub.get(sid);
+            ent.count++;
+            if (r.stream) ent.streams.add(r.stream);
+            if (Number.isFinite(r.year)) ent.years.add(r.year);
+            if (Number.isFinite(r.grade)) {
+              ent.minGrade = ent.minGrade == null ? r.grade : Math.min(ent.minGrade, r.grade);
+              ent.maxGrade = ent.maxGrade == null ? r.grade : Math.max(ent.maxGrade, r.grade);
+            }
+          });
+          const subjectsArr = [...bySub.values()].map(s => ({ ...s, streams: [...s.streams], years: [...s.years].sort((a,b)=>b-a) }));
+          setSubjects(subjectsArr);
+        } else {
+          setErr("نەتوانرا زانیاریەکان هێنابخرێت.");
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
-    return () => { ok = false; };
-  }, [qSubjectId, qGrade, qStream]);
+    return () => { alive = false; };
+  }, []);
 
-  /* Subject → its exam sets */
+  // Build exams for selected subject
   useEffect(() => {
-    if (!subject) return;
-    const list = sets.filter((r) => String(r.subject_id) === String(subject.id));
+    if (!selectedSubject) { setExamsForSubject([]); return; }
+    const list = allSets.filter(r => String(r.subject_id) === String(selectedSubject.id));
     const sorted = list.slice().sort((a, b) => {
       const y = (b.year || 0) - (a.year || 0); if (y !== 0) return y;
       const tOrder = { term2: 2, term1: 1, "": 0 };
@@ -165,563 +242,932 @@ export default function ExamQuiz() {
       const k = (b.kind === "national") - (a.kind === "national"); if (k !== 0) return k;
       return (b.id || 0) - (a.id || 0);
     });
-    setExamSets(sorted);
-    setExamSearch(""); setExamYear("all"); setExamTerm("all"); setExamKind("all");
-  }, [subject, sets]);
+    setExamsForSubject(sorted);
+  }, [selectedSubject, allSets]);
 
-  /* Timer */
+  // Timer
   useEffect(() => {
-    if (!running || duration === 0) { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = null; return; }
-    tickRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = null; };
-  }, [running, duration]);
-
-  /* Keyboard */
-  useEffect(() => {
-    if (view !== "quiz") return;
-    const onKey = (e) => {
-      if (e.key >= "1" && e.key <= "4") {
-        const choice = Number(e.key);
-        const q = questions[order[idx]]; if (!q) return;
-        setAnswers((prev) => ({ ...prev, [q.id]: choice }));
-      }
-      if (e.key === "ArrowRight") setIdx((v) => clamp(v + 1, 0, order.length - 1));
-      if (e.key === "ArrowLeft") setIdx((v) => clamp(v - 1, 0, order.length - 1));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [view, idx, order, questions]);
-
-  /* Autosave */
-  useEffect(() => {
-    if (view !== "quiz") return;
-    const payload = { exam, questions, order, idx, answers, elapsed, duration, mode, ts: Date.now() };
-    localStorage.setItem(storeKey, JSON.stringify(payload));
-  }, [view, exam, questions, order, idx, answers, elapsed, duration, mode, storeKey]);
-
-  const resumeSaved = () => {
-    const raw = localStorage.getItem(storeKey); if (!raw) return;
-    try {
-      const s = JSON.parse(raw); if (!s || !Array.isArray(s.questions)) return;
-      setExam(s.exam || null); setQuestions(s.questions); setOrder(s.order || [...s.questions.keys()]);
-      setIdx(s.idx || 0); setAnswers(s.answers || {}); setElapsed(s.elapsed || 0);
-      setDuration(s.duration ?? 45 * 60); setMode(s.mode || "exam");
-      setView("quiz"); setRunning(true);
-    } catch {}
-  };
-  const clearSaved = () => localStorage.removeItem(storeKey);
-
-  /* Normalize question */
-  function normalizeQuestion(row, i) {
-    const options = [row.option_a, row.option_b, row.option_c, row.option_d].filter(Boolean);
-    return {
-      id: row.id ?? `q${i + 1}`,
-      question: row.question,
-      options: options.length === 4 ? options : options.concat(["", "", "", ""]).slice(0, 4),
-      correct_index: letterToIndex(row.correct_option), // 1..4
-      image_url: row.image_url || null,
-      hint_title: row.hint_title || null,
-      analysis: row.analysis || null,
-      position: row.position ?? i + 1,
-    };
-  }
-
-  /* Load questions for a set */
-  async function loadQuestionsForSet(setRow) {
-    const rows = await fetchAllPages(API_QUESTIONS, { exam_set_id: String(setRow.id) });
-    let list = rows.map(normalizeQuestion);
-    if (!list.length) {
-      const all = await fetchAllPages(API_QUESTIONS);
-      list = all.filter((r) => r.exam_set_id === setRow.id).map(normalizeQuestion);
+    let interval;
+    if (isRunning && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            setIsRunning(false);
+            setView("result");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
-    const take = list.slice(0, 50);
-    return { list: take, order: shuffle([...take.keys()]) };
-  }
+    return () => clearInterval(interval);
+  }, [isRunning, timeLeft]);
 
-  /* Start */
-  const startExam = async (setRow, pickedMode, pickedMinutes) => {
+  // Autosave quiz state
+  useEffect(() => {
+    if (view !== "quiz") return;
+    const payload = {
+      exam: selectedExam,
+      questions,
+      answers,
+      currentIndex,
+      timeLeft,
+      mode,
+      ts: Date.now(),
+    };
+    saveJSON(LS_STATE, payload);
+  }, [view, selectedExam, questions, answers, currentIndex, timeLeft, mode]);
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
+  };
+
+  const currentQuestion = questions[currentIndex];
+
+  // Start quiz with API questions
+  const startQuiz = async (examRow, selectedMode, minutes) => {
     try {
       setLoading(true); setErr("");
-      setExam(setRow); setAnswers({}); setIdx(0); setElapsed(0); setRevealAll(false);
-      const mins = Number(pickedMinutes || 0);
-      setDuration(isFinite(mins) && mins > 0 ? mins * 60 : 0);
-      setMode(pickedMode);
+      setSelectedExam(examRow);
+      setMode(selectedMode);
+      setTimeLeft(Math.max(1, Number(minutes || 45)) * 60);
+      setAnswers({}); setCurrentIndex(0); setShowAnswers(false);
 
-      const { list, order } = await loadQuestionsForSet(setRow);
-      setQuestions(list); setOrder(order); setView("quiz"); setRunning(true);
+      const rows = await fetchAllPagesWithCache(API_QUESTIONS, { exam_set_id: String(examRow.id) }, null, 0);
+      const list = rows.map(normalizeQuestion);
+      if (!list.length) throw new Error("No questions returned.");
+
+      setQuestions(list);
+      setIsRunning(true);
+      setView("quiz");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      setErr("نەتوانرا پرسیارەکان دابەزێندرێت."); setView("exams");
-    } finally { setLoading(false); }
+      setErr("نەتوانرا پرسیارەکان دابەزێندرێت.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
-  const total = useMemo(() => order.length, [order]);
-  const currentQ = useMemo(() => questions[order[idx]] || null, [questions, order, idx]);
+  const submitQuiz = () => {
+    setIsRunning(false);
+    setView("result");
 
-  const remaining = duration === 0 ? Infinity : Math.max(0, duration - elapsed);
-  const timeIsUp = duration > 0 && remaining === 0;
-  const done = timeIsUp || (total > 0 && answeredCount === total);
+    // update level stats
+    if (selectedExam && questions.length) {
+      const correct = questions.reduce((s, q) => s + (answers[q.id] === letterToIndex(q.correct_option) ? 1 : 0), 0);
+      const pct = Math.round((correct / questions.length) * 100);
+      const prev = loadJSON(LS_STATS, {});
+      const cur = prev[String(selectedExam.id)] || { best: 0, attempts: 0, lastPct: 0, lastAt: 0 };
+      const updated = {
+        best: Math.max(cur.best || 0, pct),
+        attempts: (cur.attempts || 0) + 1,
+        lastPct: pct,
+        lastAt: Date.now(),
+        subject_id: selectedExam.subject_id,
+        title: selectedExam.title,
+      };
+      const next = { ...prev, [String(selectedExam.id)]: updated };
+      saveJSON(LS_STATS, next);
+      setStats(next);
+      // clear autosave so "resume" doesn't bring finished one
+      saveJSON(LS_STATE, null);
+    }
+  };
 
   const score = useMemo(() => {
-    if (!done) return null;
-    let s = 0; for (const qi of order) { const q = questions[qi]; const picked = answers[q.id]; if (picked === q.correct_index) s++; }
-    return s;
-  }, [done, order, questions, answers]);
+    const total = questions.length || 0;
+    if (view !== "result" || total === 0) return { correct: 0, total: 0, percentage: 0 };
+    const correct = questions.reduce((s, q) => s + (answers[q.id] === letterToIndex(q.correct_option) ? 1 : 0), 0);
+    return { correct, total, percentage: Math.round((correct / total) * 100) };
+  }, [view, questions, answers]);
 
-  const submitNow = () => { setRunning(false); setView("result"); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const retry = () => {
-    clearSaved(); setView("subjects"); setSubject(null); setExam(null);
-    setQuestions([]); setOrder([]); setAnswers({}); setIdx(0); setElapsed(0);
-    setRunning(false); setRevealAll(false); setMode("exam"); setDuration(45 * 60);
-  };
-
-  const years = useMemo(() => {
-    const ys = new Set(); examSets.forEach((e) => Number.isFinite(e.year) && ys.add(e.year));
-    return ["all", ...[...ys].sort((a, b) => b - a)];
-  }, [examSets]);
-  const filteredExams = useMemo(() => {
-    const n = examSearch.trim().toLowerCase();
-    return examSets.filter((e) => {
-      const match = (s) => (s || "").toString().toLowerCase().includes(n);
-      const byYear = examYear === "all" || String(e.year) === String(examYear);
-      const byTerm = examTerm === "all" || (e.term || "") === examTerm;
-      const byKind = examKind === "all" || (e.kind || "") === examKind;
-      return byYear && byTerm && byKind && (!n || match(e.title) || match(e.subject?.name) || match(termLabel(e.term)) || match(kindLabel(e.kind)) || match(String(e.grade || "")) || match(String(e.year || "")));
-    });
-  }, [examSets, examSearch, examYear, examTerm, examKind]);
+  const resumeAvailable = !!loadJSON(LS_STATE, null)?.exam;
 
   return (
-    <div dir="rtl" className="p-3 sm:p-5 space-y-4">
-      {/* Page Header */}
-      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 p-3 sm:p-4 sticky top-2 z-20 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/40">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-white min-w-0">
-            <BookOpenCheck className="w-5 h-5 text-emerald-300 shrink-0" />
-            <div className="font-extrabold text-lg sm:text-xl truncate">
-              {view === "subjects" && "هەڵبژاردنى بابەت"}
-              {view === "exams" && <>هەڵبژاردنى تاقیکردنەوە — {subject?.name || ""}</>}
-              {view === "options" && <>هەڵبژاردنەکان — {exam?.title || subject?.name || ""}</>}
-              {view === "quiz" && <>تاقیکردنەوە — {exam?.title || subject?.name || ""}</>}
-              {view === "result" && "ئەنجامەکان"}
+    <div
+      dir="rtl"
+      className="min-h-screen bg-[#0b0b0c] text-white font-sans" // ✅ clean solid background, no artwork
+      style={{ fontSize: `calc(1rem * ${fontScale})` }}
+    >
+      <div className="relative z-10">
+        {err && (
+          <div className="mx-auto max-w-7xl px-6 pt-4">
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-200 px-4 py-3 text-sm">{err}</div>
+          </div>
+        )}
+
+        <AnimatePresence mode="wait">
+          {view === "dashboard" && (
+            <Dashboard
+              key="dashboard"
+              subjects={subjects}
+              stats={stats}
+              onSelectSubject={(subject) => { setSelectedSubject(subject); setView("subjects"); }}
+              onStartQuickQuiz={() => setView("subjects")}
+              loading={loading}
+            />
+          )}
+
+          {view === "subjects" && (
+            <SubjectSelection
+              key="subjects"
+              subjects={subjects}
+              selectedSubject={selectedSubject}
+              onSelect={(subject) => { setSelectedSubject(subject); setView("exams"); }}
+              onBack={() => setView("dashboard")}
+            />
+          )}
+
+          {view === "exams" && (
+            <ExamSelection
+              key="exams"
+              subject={selectedSubject}
+              exams={examsForSubject.map(e => ({
+                ...e,
+                duration: Number.isFinite(e.duration) ? e.duration : Number.isFinite(e.time_minutes) ? e.time_minutes : 45,
+                title: e.title || [e.subject?.name, e.year ? `${e.year}-${(e.year || 0) + 1}` : "", termLabel(e.term), kindLabel(e.kind)].filter(Boolean).join(" · "),
+              }))}
+              onBack={() => setView("subjects")}
+              onStartQuiz={startQuiz}
+              resumeAvailable={resumeAvailable}
+              onResume={() => {
+                const saved = loadJSON(LS_STATE, null);
+                if (saved?.exam && Array.isArray(saved.questions)) {
+                  setSelectedExam(saved.exam);
+                  setQuestions(saved.questions);
+                  setAnswers(saved.answers || {});
+                  setCurrentIndex(saved.currentIndex || 0);
+                  setTimeLeft(saved.timeLeft ?? 45 * 60);
+                  setMode(saved.mode || "exam");
+                  setIsRunning(false);
+                  setShowAnswers(false);
+                  setView("quiz");
+                }
+              }}
+              onClearSaved={() => saveJSON(LS_STATE, null)}
+              stats={stats}
+            />
+          )}
+
+          {view === "quiz" && (
+            <QuizInterface
+              key="quiz"
+              exam={selectedExam}
+              question={currentQuestion}
+              questionIndex={currentIndex}
+              totalQuestions={questions.length}
+              answers={answers}
+              timeLeft={timeLeft}
+              isRunning={isRunning}
+              mode={mode}
+              showAnswers={showAnswers}
+              onAnswer={(questionId, answer) => setAnswers(prev => ({ ...prev, [questionId]: answer }))}
+              onNext={() => setCurrentIndex(prev => Math.min(prev + 1, questions.length - 1))}
+              onPrev={() => setCurrentIndex(prev => Math.max(prev - 1, 0))}
+              onJumpTo={setCurrentIndex}
+              onToggleTimer={() => setIsRunning(!isRunning)}
+              onToggleAnswers={() => setShowAnswers(!showAnswers)}
+              onSubmit={submitQuiz}
+              questions={questions}
+            />
+          )}
+
+          {view === "result" && (
+            <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ResultView
+                exam={selectedExam}
+                score={score}
+                onRetry={() => {
+                  setView("dashboard");
+                  setAnswers({});
+                  setCurrentIndex(0);
+                  setTimeLeft(45 * 60);
+                  setIsRunning(false);
+                  setShowAnswers(false);
+                  setSelectedExam(null);
+                  setQuestions([]);
+                }}
+              />
+              {/* ✅ Full review with correct answers */}
+              <ReviewList
+                questions={questions}
+                answers={answers}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <style>{`
+        :root { --accent: ${accent}; }
+        ${reduced === "on" ? `
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
+        ` : ''}
+      `}</style>
+    </div>
+  );
+}
+
+/* =========================
+   DASHBOARD
+   ========================= */
+function Dashboard({ subjects, stats, onSelectSubject, onStartQuickQuiz, loading }) {
+  const totalExams = subjects.reduce((sum, s) => sum + s.count, 0);
+  // Build recent activity from stats
+  const recent = Object.entries(stats || {})
+    .sort((a,b) => (b[1].lastAt || 0) - (a[1].lastAt || 0))
+    .slice(0, 3)
+    .map(([id, s]) => ({
+      subject: s.title || "ئازمون",
+      score: s.lastPct ?? 0,
+      date: "تازە"
+    }));
+
+  const recentActivity = recent.length ? recent : [
+    { subject: "ماتماتیک", score: 85, date: "نموونە" },
+    { subject: "فیزیا",   score: 92, date: "نموونە" },
+    { subject: "کیمیا",    score: 78, date: "نموونە" }
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-screen p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4">
+          <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}
+            className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-r from-cyan-500 to-blue-600 mb-4">
+            <Brain size={40} className="text-white" />
+          </motion.div>
+
+          <motion.h1 initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+            className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+            تاقیکردنەوەی زیرەک
+          </motion.h1>
+
+          <motion.p initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}
+            className="text-xl text-gray-300 max-w-2xl mx-auto">
+            ئامادەکاری بۆ تاقیکردنەوەکانت بە شێوەیەکی زیرەک و کاریگەر
+          </motion.p>
+        </div>
+
+        {/* Quick Stats */}
+        <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 mb-4">
+              <BookOpen size={24} className="text-white" />
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">{loading ? "…" : subjects.length}</div>
+            <div className="text-gray-300">بابەت</div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 mb-4">
+              <Target size={24} className="text-white" />
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">{loading ? "…" : totalExams}</div>
+            <div className="text-gray-300">تاقیکردنەوە</div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 mb-4">
+              <TrendingUp size={24} className="text-white" />
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">
+              {Object.values(stats || {}).length ? Math.max(...Object.values(stats).map(s => s.best || 0)) + "%" : "—"}
+            </div>
+            <div className="text-gray-300">باشترین نرێژ</div>
+          </div>
+        </motion.div>
+
+        {/* Quick Actions */}
+        <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <button
+            onClick={onStartQuickQuiz}
+            className="group relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl p-8 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 mb-4">
+                <Zap size={32} className="text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">دەستپێکردنی خێرا</h3>
+              <p className="text-blue-100">تاقیکردنەوەیەک هەڵبژێرە و دەست بکە</p>
+              <div className="flex items-center mt-4 text-blue-100">
+                <span className="text-sm">بڕۆ</span>
+                <ArrowLeft size={16} className="mr-2" />
+              </div>
+            </div>
+          </button>
+
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-600 mb-4">
+              <ListChecks size={32} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4">چالاکی دواییەکان</h3>
+            <div className="space-y-3">
+              {recentActivity.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div>
+                    <div className="text-white font-medium">{item.subject}</div>
+                    <div className="text-sm text-gray-400">{item.date}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-white">{item.score}%</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          {/* <button onClick={() => nav(-1)} className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white">
-            <Home className="w-4 h-4" /> گەڕانەوە
-          </button> */}
-        </div>
-      </div>
+        </motion.div>
 
-      {err && <div className="text-red-300 text-sm">{err}</div>}
-
-      <AnimatePresence mode="popLayout">
-        {view === "subjects" && (
-          <motion.div key="subjects" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={SPRING} className="space-y-3">
-            <SubjectPicker loading={loading} subjects={subjects} preFilters={{ grade: qGrade, stream: qStream }} onSelect={(s) => { setSubject(s); setView("exams"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
-          </motion.div>
-        )}
-
-        {view === "exams" && (
-          <motion.div key="exams" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={SPRING} className="space-y-3">
-            <ExamPicker loading={loading} subject={subject} years={years} list={filteredExams} examYear={examYear} examTerm={examTerm} examKind={examKind} onYear={setExamYear} onTerm={setExamTerm} onKind={setExamKind} search={examSearch} onSearch={setExamSearch} onBack={() => setView("subjects")} onSelect={(meta) => { setExam(meta); setView("options"); }} onResume={resumeSaved} hasSaved={!!localStorage.getItem(storeKey)} onClearSaved={clearSaved} />
-          </motion.div>
-        )}
-
-        {view === "options" && (
-          <motion.div key="options" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={SPRING} className="space-y-3">
-            <StartOptions exam={exam} mode={mode} onMode={setMode} customMin={customMin} onCustomMin={setCustomMin} onCancel={() => setView("exams")} onStart={() => startExam(exam, mode, customMin)} />
-          </motion.div>
-        )}
-
-        {view === "quiz" && (
-          <motion.div key="quiz" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={SPRING} className="space-y-3">
-            <QuizHeaderSticky meta={exam} remaining={duration === 0 ? null : Math.max(0, remaining)} answered={answeredCount} total={total} running={running} onPause={() => setRunning(false)} onPlay={() => setRunning(true)} onReset={() => { setElapsed(0); setRunning(false); }} onSubmit={submitNow} mode={mode} revealAll={revealAll} onToggleReveal={() => setRevealAll((v) => !v)} />
-
-            <QuestionCard q={currentQ} index={idx} total={total} answer={currentQ ? answers[currentQ.id] : undefined} onPick={(n) => { if (!currentQ) return; setAnswers((prev) => ({ ...prev, [currentQ.id]: n })); }} onPrev={() => setIdx((v) => clamp(v - 1, 0, total - 1))} onNext={() => setIdx((v) => clamp(v + 1, 0, total - 1))} mode={mode} revealAll={revealAll} />
-
-            <Palette questions={questions} order={order} idx={idx} answers={answers} onJump={(i) => setIdx(clamp(i, 0, total - 1))} />
-          </motion.div>
-        )}
-
-        {view === "result" && (
-          <motion.div key="result" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={SPRING} className="space-y-4">
-            <ResultCard meta={exam} score={score ?? 0} total={total} elapsed={elapsed} onRetry={retry} />
-            <ReviewList questions={questions} order={order} answers={answers} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* =========================
-   SUBJECT PICKER — New card style
-   ========================= */
-function SubjectPicker({ loading, subjects, preFilters, onSelect }) {
-  const [q, setQ] = useState("");
-  const filtered = useMemo(() => {
-    const n = q.trim().toLowerCase(); if (!n) return subjects;
-    const match = (s) => (s || "").toString().toLowerCase().includes(n);
-    return subjects.filter((s) => match(s.name));
-  }, [subjects, q]);
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-950/60 p-3 sm:p-4 space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 justify-between">
-        <div className="relative w-full sm:max-w-sm">
-          <input dir="rtl" value={q} onChange={(e) => setQ(e.target.value)} placeholder="گەڕان لە ناوی بابەت..." className="w-full rounded-2xl bg-zinc-900/60 border border-white/10 text-white text-[13px] sm:text-sm px-9 py-2.5 outline-none focus:ring-2 focus:ring-emerald-400/30" />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-        </div>
-        {(preFilters?.grade || preFilters?.stream) && (
-          <div className="inline-flex flex-wrap gap-2 text-[11px] text-zinc-300">
-            {preFilters.grade && (<span className="px-2 py-0.5 rounded-xl bg-white/5 border border-white/10 inline-flex items-center gap-1"><GraduationCap className="w-3 h-3" /> پۆل: {preFilters.grade}</span>)}
-            {preFilters.stream && (<span className="px-2 py-0.5 rounded-xl bg-white/5 border border-white/10 inline-flex items-center gap-1"><Filter className="w-3 h-3" /> {streamLabel(preFilters.stream)}</span>)}
-          </div>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          {Array.from({ length: 8 }).map((_, i) => (<div key={i} className="h-24 rounded-2xl bg-white/5 animate-pulse" />))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-zinc-300 text-center py-6">هیچ بابەتێک نەدۆزرایەوە.</div>
-      ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          {filtered.map((s) => (
-            <button key={s.id} onClick={() => onSelect(s)} className="group text-right rounded-2xl border border-emerald-400/10 bg-zinc-950/60 p-[1px] transition focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
-              <div className="rounded-2xl h-full w-full bg-gradient-to-br from-white/5 to-transparent p-4 ring-1 ring-inset ring-white/5 group-hover:ring-emerald-300/20">
-                <div className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-emerald-300" /><div className="text-white font-bold line-clamp-1">{s.name}</div></div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-zinc-300">
-                  {s.minGrade != null && s.maxGrade != null && (<Badge>پۆل {s.minGrade === s.maxGrade ? s.minGrade : `${s.minGrade}–${s.maxGrade}`}</Badge>)}
-                  {s.streams.length > 0 && <Badge>{s.streams.map(streamLabel).join(" / ")}</Badge>}
-                  {s.years.length > 0 && <Badge>{s.years[0]}–{s.years[0] + 1}</Badge>}
-                  <Badge className="inline-flex items-center gap-1"><Sparkles className="w-3 h-3" /> {s.count} تاقیکردنەوە</Badge>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* =========================
-   EXAM PICKER — Split meta card
-   ========================= */
-function ExamPicker({ loading, subject, years, list, examYear, examTerm, examKind, onYear, onTerm, onKind, search, onSearch, onBack, onSelect, hasSaved, onResume, onClearSaved }) {
-  return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-3 sm:p-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 justify-between">
-          <div className="flex items-center gap-2"><Layers className="w-5 h-5 text-emerald-300" /><div className="text-white font-bold">{subject?.name || "بابەت"}</div></div>
-          <div className="flex items-center gap-2">
-            {hasSaved && (<>
-              <button onClick={onResume} className="text-xs px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white">بەردەوامبە</button>
-              <button onClick={onClearSaved} className="text-xs px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300">سڕینەوەى هەڵگرتن</button>
-            </>)}
-            <button onClick={onBack} className="text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white">گەڕانەوە بۆ بابەتەکان</button>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2">
-          <div className="relative">
-            <input dir="rtl" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="گەڕان لە ناونیشان، ساڵ، خولی، جۆر..." className="w-full rounded-2xl bg-zinc-900/60 border border-white/10 text-white text-[13px] sm:text-sm px-9 py-2.5 outline-none focus:ring-2 focus:ring-emerald-400/30" />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SelectPill label="ساڵ" value={examYear} onChange={onYear} options={years} />
-            <SelectPill label="خولی" value={examTerm} onChange={onTerm} options={["all", "term1", "term2"]} render={(v) => (v === "all" ? "هەموو" : termLabel(v))} />
-            <SelectPill label="جۆر" value={examKind} onChange={onKind} options={["all", "national"]} render={(v) => (v === "all" ? "هەموو" : kindLabel(v))} />
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-3 sm:p-4">
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{Array.from({ length: 6 }).map((_, i) => (<div key={i} className="h-28 rounded-2xl bg-white/5 animate-pulse" />))}</div>
-        ) : list.length === 0 ? (
-          <div className="text-zinc-300 text-center py-6">هیچ تاقیکردنەوەیەک بەم فلتەرە نییە.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {list.map((e) => (
-              <motion.button key={e.id} layout transition={SPRING} onClick={() => onSelect({ id: e.id, title: e.title || [e.subject?.name, e.year ? `${e.year}-${e.year + 1}` : "", termLabel(e.term), kindLabel(e.kind)].filter(Boolean).join(" · "), year: e.year, term: e.term, kind: e.kind, grade: e.grade, stream: e.stream, subject_name: e.subject?.name || "" })} className="group text-right rounded-2xl overflow-hidden border border-white/10 bg-zinc-950/60 transition focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
-                <div className="p-4 bg-gradient-to-br from-white/5 to-transparent">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-white font-extrabold leading-tight line-clamp-2">{e.title || e.subject?.name}</div>
-                    <div className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 text-[11px] inline-flex items-center gap-1"><Sparkles className="w-3 h-3" /> ٥٠ پرس</div>
+        {/* Popular Subjects */}
+        <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }}>
+          <h2 className="text-2xl font-bold text-white mb-6 text-center">بابەتە بەناوبانگەکان</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(subjects || []).slice(0, 6).map((subject, index) => (
+              <motion.button
+                key={subject.id}
+                onClick={() => onSelectSubject(subject)}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.7 + index * 0.1 }}
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="group bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-right hover:bg-white/15 transition-all duration-300"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 group-hover:scale-110 transition-transform duration-300">
+                    <BookOpen size={20} className="text-white" />
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-zinc-300">
-                    {Number.isFinite(e.year) && <Badge>{e.year}-{e.year + 1}</Badge>}
-                    {e.term && <Badge>{termLabel(e.term)}</Badge>}
-                    {e.kind && <Badge>{kindLabel(e.kind)}</Badge>}
-                    {e.grade && <Badge>پۆل {e.grade}</Badge>}
-                    {e.stream && <Badge>{streamLabel(e.stream)}</Badge>}
-                  </div>
+                  <div className="text-sm text-gray-300">{subject.count} تاقیکردنەوە</div>
                 </div>
-                <div className="h-1.5 bg-gradient-to-r from-emerald-400/50 via-cyan-300/50 to-transparent group-hover:from-emerald-400 group-hover:via-cyan-300" />
+                <h3 className="text-xl font-bold text-white mb-2">{subject.name}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {subject.streams.map(stream => (
+                    <span key={stream} className="px-2 py-1 rounded-lg bg-white/10 text-xs text-gray-300">
+                      {streamLabel(stream)}
+                    </span>
+                  ))}
+                </div>
               </motion.button>
             ))}
           </div>
-        )}
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 /* =========================
-   START OPTIONS
+   SUBJECTS
    ========================= */
-function StartOptions({ exam, mode, onMode, customMin, onCustomMin, onCancel, onStart }) {
-  const [timerChoice, setTimerChoice] = useState("45");
-  useEffect(() => { if (timerChoice !== "custom") onCustomMin(timerChoice === "Off" ? "0" : timerChoice); }, [timerChoice]);
+function SubjectSelection({ subjects, onSelect, onBack }) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredSubjects = (subjects || []).filter(subject =>
+    String(subject.name || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4 space-y-4">
-      <div className="text-white font-extrabold text-lg">{exam?.title || "ئازمون"}</div>
-
-      <div className="space-y-2">
-        <div className="text-zinc-300 text-sm">دۆخی کار</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onClick={() => onMode("practice")} className={`text-right rounded-xl border px-3 py-2 ${mode === "practice" ? "bg-emerald-600/20 border-emerald-500/30 text-white" : "bg-white/5 border-white/10 text-zinc-200 hover:bg-white/10"}`}>
-            <div className="font-semibold">ئامادەکاری (Preview)</div>
-            <div className="text-[12px] opacity-80">وەڵامە راستەکان دەرکەون، دەتوانی نیشانبەیت</div>
-          </button>
-          <button onClick={() => onMode("exam")} className={`text-right rounded-xl border px-3 py-2 ${mode === "exam" ? "bg-emerald-600/20 border-emerald-500/30 text-white" : "bg-white/5 border-white/10 text-zinc-200 hover:bg-white/10"}`}>
-            <div className="font-semibold">ئازمونی ڕەسمی</div>
-            <div className="text-[12px] opacity-80">وەڵامەکان تا کۆتایی دەرناکەون</div>
+    <motion.div initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">هەڵبژاردنی بابەت</h1>
+            <p className="text-gray-300">بابەتێک هەڵبژێرە بۆ دەستپێکردنی تاقیکردنەوە</p>
+          </div>
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white transition-colors"
+          >
+            <ArrowRight size={16} />
+            گەڕانەوە
           </button>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <div className="text-zinc-300 text-sm">کاتژمێر</div>
-        <div className="flex flex-wrap gap-2">
-          {['Off','20','45','60','custom'].map((t) => (
-            <button key={t} onClick={() => setTimerChoice(t)} className={`px-3 py-1.5 rounded-lg border text-sm ${timerChoice === t ? "bg-emerald-600/20 border-emerald-500/30 text-emerald-100" : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"}`}>{t === 'Off' ? 'بێ کات' : t === 'custom' ? 'Custom' : `${t} خولەک`}</button>
+        {/* Search */}
+        <div className="relative mb-8">
+          <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="گەڕان لە بابەتەکان..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pr-12 pl-4 py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Subjects Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSubjects.map((subject, index) => (
+            <motion.button
+              key={subject.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.05, y: -10 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onSelect(subject)}
+              className="group bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-right hover:from-white/20 hover:to-white/10 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 group-hover:scale-110 transition-transform duration-300">
+                  <BookOpen size={28} className="text-white" />
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-300 mb-1">تاقیکردنەوە</div>
+                  <div className="text-2xl font-bold text-white">{subject.count}</div>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-4">{subject.name}</h3>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {subject.streams.map(stream => (
+                    <span key={stream} className="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 text-sm">
+                      {streamLabel(stream)}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-gray-300">
+                  {subject.minGrade != null && subject.maxGrade != null ? (
+                    <span>پۆل {subject.minGrade}-{subject.maxGrade}</span>
+                  ) : <span />}
+                  {subject.years?.length ? (
+                    <span>{subject.years[0]}-{subject.years[0] + 1}</span>
+                  ) : <span />}
+                </div>
+              </div>
+            </motion.button>
           ))}
-          {timerChoice === "custom" && (
-            <input inputMode="numeric" dir="ltr" value={customMin} onChange={(e) => onCustomMin(e.target.value.replace(/[^0-9]/g, ''))} placeholder="45" className="w-24 rounded-lg bg-zinc-900/60 border border-white/10 text-white text-sm px-3 py-1.5 outline-none focus:ring-2 focus:ring-emerald-400/30" />
-          )}
         </div>
       </div>
-
-      <div className="flex flex-col sm:flex-row gap-2">
-        <button onClick={onStart} className="flex-1 h-10 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white">دەستپێبکە</button>
-        <button onClick={onCancel} className="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white">پاشگەزبونەوە</button>
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
 /* =========================
-   WIDGETS
+   EXAMS
    ========================= */
-function Badge({ children, className = "" }) { return <span className={`px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 ${className}`}>{children}</span>; }
-function SelectPill({ label, value, onChange, options, render }) {
-  return (
-    <div className="inline-flex items-center gap-1">
-      <span className="text-[11px] text-zinc-300">{label}:</span>
-      <div className="flex gap-1">
-        {options.map((op) => {
-          const val = op; const text = render ? render(op) : String(op);
-          const active = String(value) === String(val);
-          return (
-            <button key={val} onClick={() => onChange(val)} className={`px-2 py-0.5 rounded-lg border text-[11px] ${active ? "bg-emerald-600/20 border-emerald-500/30 text-emerald-100" : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"}`}>{text}</button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+function ExamSelection({ subject, exams, onBack, onStartQuiz, resumeAvailable, onResume, onClearSaved, stats }) {
+  const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id);
+  const [mode, setMode] = useState("exam");
+  const [minutes, setMinutes] = useState(exams[0]?.duration || 45);
 
-/* Sticky quiz header */
-function QuizHeaderSticky({ meta, remaining, answered, total, running, onPause, onPlay, onReset, onSubmit, mode, revealAll, onToggleReveal }) {
-  const pct = total ? Math.round((answered / total) * 100) : 0;
-  const mm = remaining == null ? null : String(Math.floor(remaining / 60)).padStart(2, "0");
-  const ss = remaining == null ? null : String(remaining % 60).padStart(2, "0");
+  useEffect(() => {
+    setSelectedExamId(exams[0]?.id);
+    setMinutes(exams[0]?.duration || 45);
+  }, [exams]);
+
+  const selectedExam = exams.find(e => e.id === selectedExamId);
+  const myStat = selectedExam ? stats?.[String(selectedExam.id)] : null;
 
   return (
-    <div className="sticky top-16 sm:top-20 z-20 rounded-2xl border border-white/10 bg-zinc-900/75 backdrop-blur p-2.5 sm:p-3">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="relative w-10 h-10 sm:w-11 sm:h-11 shrink-0">
-            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" stroke="currentColor" strokeWidth="4" className="text-zinc-800" />
-              <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray={`${pct}, 100`} className="text-emerald-400" />
-            </svg>
-            <div className="absolute inset-0 grid place-items-center text-[10px] sm:text-[11px] text-zinc-200">{pct}%</div>
+    <motion.div initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">{subject?.name}</h1>
+            <p className="text-gray-300">تاقیکردنەوەیەک هەڵبژێرە بۆ دەستپێکردن</p>
           </div>
-          <div className="min-w-0">
-            <div className="text-white font-semibold truncate">{meta?.title || "ئازمون"}</div>
-            <div className="text-[11px] sm:text-[12px] text-zinc-400">وەڵامدراوە: {answered} / {total} · {mode === 'practice' ? 'ئامادەکاری' : 'ئازمونی ڕەسمی'}</div>
-          </div>
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white transition-colors"
+          >
+            <ArrowRight size={16} />
+            گەڕانەوە
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-          <div className="px-2 py-1.5 sm:px-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-[12px] sm:text-sm inline-flex items-center gap-1.5">
-            <TimerIcon className="w-4 h-4" />
-            <span className="tabular-nums">{remaining == null ? '∞' : `${mm}:${ss}`}</span>
+        {/* Resume banner */}
+        {resumeAvailable && (
+          <div className="mb-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-100 p-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            <div className="flex-1 text-sm">هەوڵێکی پێشوو هەیە. دەتەوێت بەردەوام بیت؟</div>
+            <button onClick={onResume} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm">بەردەوام‌بە</button>
+            <button onClick={onClearSaved} className="px-3 py-1.5 rounded-lg bg-white/10 text-emerald-100 text-sm">سڕینەوە</button>
           </div>
-
-          {running ? (
-            <button onClick={onPause} aria-label="وەستاندن" className="h-9 px-2 sm:px-2.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white"><Pause className="w-4 h-4" /></button>
-          ) : (
-            <button onClick={onPlay} aria-label="دەستپێک یان بەردەوامی" className="h-9 px-2 sm:px-2.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white"><Play className="w-4 h-4" /></button>
-          )}
-
-          <button onClick={onReset} aria-label="سڕینی کات" className="h-9 px-2 sm:px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"><RotateCw className="w-4 h-4" /></button>
-
-          {mode === 'practice' && (
-            <button onClick={onToggleReveal} className="h-9 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white inline-flex items-center gap-1.5">
-              {revealAll ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />} {revealAll ? 'شاردنەوە' : 'نیشاندانی وەڵام'}
-            </button>
-          )}
-
-          <button onClick={onSubmit} className="flex-1 sm:flex-none h-9 px-3 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white">کۆتایی بدە</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* Question Card — letter chips */
-function QuestionCard({ q, index, total, answer, onPick, onPrev, onNext, mode, revealAll }) {
-  if (!q) return null; const n = index + 1; const opts = q.options || [];
-  const reveal = mode === 'practice' && (revealAll || typeof answer === 'number');
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-zinc-300 text-sm">پرسیار <span className="text-white font-semibold">{n}</span> / {total}</div>
-        <div className="flex items-center gap-2">
-          <button onClick={onPrev} className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"><ChevronRight className="w-4 h-4" /></button>
-          <button onClick={onNext} className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"><ChevronLeft className="w-4 h-4" /></button>
-        </div>
-      </div>
-
-      <motion.div key={q.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}>
-        <div className="text-white font-semibold leading-relaxed text-[15px] sm:text-base mb-3">{q.question}</div>
-        {q.image_url && (
-          <div className="mb-3"><img src={q.image_url} alt="question" className="max-h-72 w-full object-contain rounded-xl ring-1 ring-white/10 bg-black/20" loading="lazy" /></div>
         )}
 
-        <div className="grid gap-2">
-          {opts.map((opt, i) => {
-            const num = i + 1; const isPicked = answer === num; const isCorrect = num === q.correct_index;
-            const letter = ['A','B','C','D'][i];
+        {/* Start Options */}
+        <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 mb-8">
+          <h2 className="text-xl font-bold text-white mb-4">ڕێکخستنەکانی تاقیکردنەوە</h2>
 
-            let cls = "bg-white/5 border-white/10 text-zinc-200 hover:bg-white/10";
-            if (mode === 'exam') {
-              // Real exam: do NOT imply correctness; only show a neutral picked state
-              if (isPicked) cls = "bg-white/10 border-white/20 text-white";
-            } else {
-              if (reveal) {
-                if (isCorrect) cls = "bg-emerald-600/20 border-emerald-500/30 text-white";
-                else if (isPicked) cls = "bg-rose-600/20 border-rose-500/30 text-white";
-              } else if (isPicked) {
-                cls = "bg-emerald-600/20 border-emerald-500/30 text-white";
-              }
-            }
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Mode Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">جۆری تاقیکردنەوە</label>
+              <div className="space-y-2">
+                <label className={`flex items-center p-3 rounded-xl bg-white/5 border ${mode === 'exam' ? 'border-cyan-500' : 'border-white/10'} cursor-pointer hover:bg-white/10 transition-colors`}>
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="exam"
+                    checked={mode === "exam"}
+                    onChange={() => setMode("exam")}
+                    className="text-cyan-500 mr-3"
+                  />
+                  <div>
+                    <div className="text-white font-medium">ئازمونی فەرمی</div>
+                    <div className="text-sm text-gray-300">وەڵامەکان تا کۆتایی نیشان نادرێن</div>
+                  </div>
+                </label>
 
+                <label className={`flex items-center p-3 rounded-xl bg-white/5 border ${mode === 'practice' ? 'border-cyan-500' : 'border-white/10'} cursor-pointer hover:bg-white/10 transition-colors`}>
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="practice"
+                    checked={mode === "practice"}
+                    onChange={() => setMode("practice")}
+                    className="text-cyan-500 mr-3"
+                  />
+                  <div>
+                    <div className="text-white font-medium">ڕاهێنانی زیرەک</div>
+                    <div className="text-sm text-gray-300">دەتوانیت وەڵامت بگۆڕیت و شی کردنەوە ببینیت</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Duration selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">کاتی تاقیکردنەوە (خولەک)</label>
+              <input
+                type="number"
+                value={minutes}
+                onChange={(e) => setMinutes(Math.max(1, Number(e.target.value || 45)))}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                min="1"
+              />
+              {myStat && (
+                <div className="mt-2 text-xs text-gray-300">
+                  هەوڵەکان: {myStat.attempts || 0} — باشترین: {myStat.best || 0}%
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              disabled={!selectedExam}
+              onClick={() => onStartQuiz(selectedExam, mode, minutes)}
+              className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold text-lg hover:bg-cyan-600 transition-colors flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              دەستپێکردن <ArrowLeft size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Exams List */}
+        <h2 className="text-2xl font-bold text-white mb-6">لیستی تاقیکردنەوەکان</h2>
+        <div className="space-y-4">
+          {exams.map(exam => {
+            const st = stats?.[String(exam.id)];
             return (
-              <button key={i} onClick={() => onPick(num)} className={`text-right rounded-xl border px-3 py-2 transition ${cls}`}>
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white/10 border border-white/10 text-[12px] mr-2">{letter}</span>
-                <span>{opt}</span>
-              </button>
+              <motion.div
+                key={exam.id}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                onClick={() => { setSelectedExamId(exam.id); setMinutes(exam.duration || 45); }}
+                className={`flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all duration-300
+                  ${selectedExamId === exam.id ? 'bg-cyan-500/20 border border-cyan-500/50' : 'bg-white/5 border border-white/10 hover:bg-white/10'}`}
+              >
+                <div>
+                  <h3 className="text-lg font-semibold text-white">{exam.title}</h3>
+                  <div className="text-sm text-gray-300 flex items-center gap-4 mt-1">
+                    {Number.isFinite(exam.year) && (
+                      <span className="flex items-center gap-1">
+                        <Calendar size={14} className="text-cyan-400" />
+                        {exam.year}
+                      </span>
+                    )}
+                    {exam.kind && (
+                      <span className="flex items-center gap-1">
+                        <ListChecks size={14} className="text-cyan-400" />
+                        {kindLabel(exam.kind)}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Clock size={14} className="text-cyan-400" />
+                      {(exam.duration || 45)} خولەک
+                    </span>
+                    {st && (
+                      <span className="flex items-center gap-1">
+                        <Award size={14} className="text-emerald-400" />
+                        {st.best}% باشترین
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronLeft size={24} className="text-white" />
+              </motion.div>
             );
           })}
         </div>
-
-        {mode === 'practice' && reveal && (
-          <div className="mt-3 text-[12px] text-emerald-200">وەڵامی ڕاست: {q.correct_index}</div>
-        )}
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 }
 
-/* Palette */
-function Palette({ questions, order, idx, answers, onJump }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-white font-semibold inline-flex items-center gap-2"><Grid className="w-4 h-4" /> پەلتەى پرسیارەکان</div>
-        <div className="text-[12px] text-zinc-400">کرتە بکە بۆ بازدانی هەر پرسیارێک</div>
-      </div>
-      <div className="grid grid-cols-10 sm:grid-cols-12 md:grid-cols-16 lg:grid-cols-20 gap-1.5">
-        {order.map((ordIdx, i) => {
-          const q = questions[ordIdx]; const picked = answers[q.id]; const active = i === idx;
-          const stateClass = picked ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-200" : "bg-white/5 border-white/10 text-zinc-200";
-          return (
-            <button key={q.id} onClick={() => onJump(i)} className={`rounded-full border text-[11px] px-2 py-1 ${stateClass} ${active ? "ring-2 ring-emerald-400/40" : ""}`} title={q.question}>{i + 1}</button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+/* =========================
+   QUIZ
+   ========================= */
+function QuizInterface({
+  exam, question, questionIndex, totalQuestions, answers, timeLeft, isRunning,
+  mode, showAnswers, onAnswer, onNext, onPrev, onJumpTo,
+  onToggleTimer, onToggleAnswers, onSubmit, questions
+}) {
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
-/* Result */
-function ResultCard({ meta, score, total, elapsed, onRetry }) {
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
-  const ss = String(elapsed % 60).padStart(2, "0");
-  const pct = total ? Math.round((score / total) * 100) : 0;
+  const getOptionClass = (idx, q) => {
+    if (!q) return "bg-white/5 border-white/10 text-white hover:bg-white/10";
+    const picked = answers[q.id];
+    const isSelected = picked === idx;
+    const isCorrectOption = idx === letterToIndex(q.correct_option);
+
+    if ((mode === 'practice' && showAnswers)) {
+      if (isCorrectOption) return 'bg-green-500/20 border-green-500/50 text-green-200';
+      if (isSelected && !isCorrectOption) return 'bg-red-500/20 border-red-500/50 text-red-200';
+    }
+    if (isSelected) return 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200';
+    return 'bg-white/5 border-white/10 text-white hover:bg-white/10';
+  };
+
+  const opts = useMemo(() => {
+    if (!question) return [];
+    return [
+      { key: "A", text: question.option_a },
+      { key: "B", text: question.option_b },
+      { key: "C", text: question.option_c },
+      { key: "D", text: question.option_d },
+    ].filter(o => o.text != null && o.text !== "");
+  }, [question]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {pct >= 60 ? (<CheckCircle2 className="w-6 h-6 text-emerald-400" />) : (<XCircle className="w-6 h-6 text-rose-400" />)}
-          <div>
-            <div className="text-white font-semibold">{meta?.title || "ئازمون"}</div>
-            <div className="text-[12px] text-zinc-400">نمرە: <span className="text-white">{score}</span> / {total} — {pct}%</div>
+    <motion.div initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-white">{exam?.title}</h1>
+            <span className="px-3 py-1 rounded-full bg-white/10 text-white/70 text-sm">
+              {mode === 'exam' ? 'ئازمونی فەرمی' : 'ڕاهێنانی زیرەک'}
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white/70">
+              <Clock size={20} />
+              <span className="font-mono text-lg">{formatTime(timeLeft)}</span>
+            </div>
+            <button onClick={onToggleTimer} className="p-2 rounded-full bg-white/10 text-white/70 hover:bg-white/20 transition-colors">
+              {isRunning ? <Pause size={20} /> : <Play size={20} />}
+            </button>
+            <button onClick={onSubmit} className="px-4 py-2 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 transition-colors">
+              کۆتایی
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-zinc-300"><TimerIcon className="w-4 h-4" /> کاتی بەکارھێنان: {mm}:{ss}</div>
-      </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <button onClick={onRetry} className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white inline-flex items-center gap-2"><RotateCw className="w-4 h-4" /> دەست پێکردنەوە</button>
-        <div className="px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 inline-flex items-center gap-2"><Award className="w-4 h-4" /> ئەفەرین! پێشکەوتن دەکەیت</div>
-      </div>
-    </div>
-  );
-}
-
-/* Review after finish */
-function ReviewList({ questions, order, answers }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-3 sm:p-4">
-      <div className="text-white font-semibold mb-2 inline-flex items-center gap-2"><ListChecks className="w-4 h-4" /> چاوپێکەوتن</div>
-      <div className="space-y-2">
-        {order.map((ordIdx, i) => {
-          const q = questions[ordIdx]; const picked = answers[q.id]; const ok = picked === q.correct_index;
-          return (
-            <div key={q.id} className="rounded-2xl overflow-hidden border border-white/10">
-              <div className="p-3 bg-gradient-to-r from-white/5 to-transparent">
-                <div className="flex items-start justify-between">
-                  <div className="text-white font-semibold">{i + 1}. {q.question}</div>
-                  <div className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${ok ? "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30" : "bg-rose-500/15 text-rose-200 border border-rose-400/30"}`}>{ok ? "✅ راستە" : "❌ هەڵە"}</div>
-                </div>
+        {/* Quiz Body */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Question Area */}
+          <div className="lg:col-span-2">
+            <motion.div
+              key={question?.id || "noq"}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={SPRING}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 mb-6 space-y-6"
+            >
+              <div className="flex items-center justify-between text-gray-300 text-lg">
+                <span className="font-bold text-white">پرسیار {questionIndex + 1} لە {totalQuestions}</span>
+                {question && <span className="text-sm">پرسیاری: {question.id}</span>}
               </div>
-              <div className="p-3 grid gap-1.5 bg-zinc-950/40">
-                {q.options.map((o, k) => {
-                  const num = k + 1; const isCorrect = num === q.correct_index; const isPicked = num === picked;
-                  const cls = isCorrect ? "bg-emerald-600/15 border-emerald-500/30 text-emerald-100" : isPicked ? "bg-rose-600/15 border-rose-500/30 text-rose-100" : "bg-white/5 border-white/10 text-zinc-200";
-                  const letter = ['A','B','C','D'][k];
+
+              {question?.image_url && (
+                <a href={question.image_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs text-emerald-300 hover:underline">
+                  <Download className="w-4 h-4" /> داگرتنی وێنە
+                </a>
+              )}
+
+              <p className="text-xl md:text-2xl text-white font-medium leading-relaxed">{question?.question}</p>
+
+              <div className="space-y-3">
+                {opts.map((opt, i) => {
+                  const idx = i + 1;
                   return (
-                    <div key={k} className={`rounded-lg border px-3 py-1.5 ${cls}`}>
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white/10 border border-white/10 text-[12px] mr-2">{letter}</span>
-                      <span>{o}</span>
-                    </div>
+                    <button
+                      key={opt.key}
+                      onClick={() => question && onAnswer(question.id, idx)}
+                      className={`flex items-center w-full text-right p-4 rounded-xl transition-colors duration-200 ${getOptionClass(idx, question)}`}
+                    >
+                      <span className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 ml-4 font-bold">
+                        {opt.key}
+                      </span>
+                      <span className="text-right flex-grow">{opt.text}</span>
+                      {mode === 'practice' && showAnswers && question && (
+                        <div className="mr-auto">
+                          {idx === letterToIndex(question.correct_option) && <CheckCircle2 size={24} className="text-green-400" />}
+                          {answers[question.id] === idx && idx !== letterToIndex(question.correct_option) && <XCircle size={24} className="text-red-400" />}
+                        </div>
+                      )}
+                    </button>
                   );
                 })}
               </div>
-              {q.analysis && (<div className="p-3 text-[12px] text-zinc-300"><strong className="text-zinc-200">پەسنیار:</strong> {q.analysis}</div>)}
+            </motion.div>
+
+            {/* Analysis Section (practice mode) */}
+            {mode === 'practice' && showAnswers && question?.analysis && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
+                className="bg-white/10 backdrop-blur-sm border border-green-500/50 rounded-2xl p-6 mt-4 space-y-4">
+                <div className="flex items-center gap-3 text-green-400">
+                  <Lightbulb size={24} />
+                  <h3 className="text-xl font-bold">شیکار</h3>
+                </div>
+                <p className="text-white leading-relaxed">{question.analysis}</p>
+              </motion.div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between mt-6">
+              <button
+                onClick={onPrev}
+                disabled={questionIndex === 0}
+                className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <ArrowRight size={20} />
+                پێشوو
+              </button>
+              <div className="flex items-center gap-4">
+                {mode === 'practice' && (
+                  <button
+                    onClick={onToggleAnswers}
+                    className="px-4 py-2 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors flex items-center gap-2"
+                  >
+                    {showAnswers ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showAnswers ? 'شیکار بشارەوە' : 'شیکار ببینە'}
+                  </button>
+                )}
+                <button
+                  onClick={onNext}
+                  disabled={questionIndex === totalQuestions - 1}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  دواتر
+                  <ArrowLeft size={20} />
+                </button>
+              </div>
             </div>
-          );
-        })}
+          </div>
+
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-white mb-4">پوختەی پرسیارەکان</h3>
+              <div className="flex flex-wrap gap-2">
+                {questions.map((q, index) => {
+                  const isAnswered = Object.prototype.hasOwnProperty.call(answers, q.id);
+                  const isCurrent = index === questionIndex;
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => onJumpTo(index)}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-200
+                        ${isCurrent ? 'bg-cyan-500/80 text-white ring-2 ring-cyan-400 ring-offset-2 ring-offset-neutral-900' :
+                          isAnswered ? 'bg-green-500/40 text-green-100 hover:bg-green-500/50' :
+                            'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                    >
+                      {index + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* =========================
+   RESULT
+   ========================= */
+function ResultView({ exam, score, onRetry }) {
+  const { correct, total, percentage } = score;
+
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+      className="min-h-[50vh] p-6 flex flex-col items-center justify-center text-center">
+      <div className="max-w-xl mx-auto space-y-8 bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 md:p-12">
+        <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4 }}
+          className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-r from-purple-500 to-pink-600">
+          <Trophy size={48} className="text-white" />
+        </motion.div>
+        <div className="text-4xl md:text-5xl font-bold text-white">ئەنجامەکانت</div>
+        <div className="text-xl text-gray-300">{exam?.title}</div>
+        <div className="text-7xl md:text-8xl font-black bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+          {percentage}%
+        </div>
+        <div className="flex items-center justify-center gap-8 text-gray-300 font-medium text-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={24} className="text-green-400" />
+            <span>{correct} وەڵامی دروست</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <XCircle size={24} className="text-red-400" />
+            <span>{total - correct} وەڵامی هەڵە</span>
+          </div>
+        </div>
+        <button
+          onClick={onRetry}
+          className="px-8 py-4 rounded-full bg-cyan-500 text-white font-bold text-lg hover:bg-cyan-600 transition-colors mt-2 flex items-center justify-center gap-2 mx-auto"
+        >
+          تاقیکردنەوەیەکی تر بکە
+          <RefreshCw size={20} />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+/* =========================
+   REVIEW (correct answers visible)
+   ========================= */
+function ReviewList({ questions, answers }) {
+  return (
+    <div className="max-w-5xl mx-auto px-6 pb-12">
+      <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm p-6 space-y-4">
+        <div className="flex items-center gap-2 text-white font-bold text-xl">
+          <ListChecks className="text-emerald-300" /> پێداچوونەوەی وەڵامەکان
+        </div>
+        <div className="space-y-4">
+          {questions.map((q, i) => {
+            const picked = answers[q.id];
+            const correctIndex = letterToIndex(q.correct_option);
+            const ok = picked === correctIndex;
+            const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
+            return (
+              <div key={q.id} className="rounded-xl border border-white/10 overflow-hidden">
+                <div className="p-4 bg-white/5 flex items-start gap-3">
+                  <div className={`mt-0.5 rounded-full w-6 h-6 grid place-items-center shrink-0 ${ok ? "bg-emerald-600/80" : "bg-rose-600/80"}`}>
+                    {ok ? <CheckCircle2 size={16} className="text-white" /> : <XCircle size={16} className="text-white" />}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div className="text-white font-semibold">{i + 1}. {q.question}</div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-600/20 text-emerald-100 border border-emerald-500/30">وەڵامی راست: {["A","B","C","D"][correctIndex-1]}</span>
+                      <span className={`px-2 py-0.5 rounded-lg border ${ok ? "bg-emerald-500/15 text-emerald-100 border-emerald-400/30" : "bg-rose-500/15 text-rose-100 border-rose-400/30"}`}>
+                        وەڵامی تۆ: {picked ? ["A","B","C","D"][picked-1] : "هیچ"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-3 grid gap-1.5 bg-black/30">
+                  {opts.map((txt, k) => {
+                    const num = k + 1;
+                    const isCorrect = num === correctIndex;
+                    const isPicked = num === picked;
+                    const cls = isCorrect ? "bg-emerald-600/15 border-emerald-500/30 text-emerald-100" : isPicked ? "bg-rose-600/15 border-rose-500/30 text-rose-100" : "bg-white/5 border-white/10 text-zinc-200";
+                    const letter = ['A','B','C','D'][k];
+                    return (
+                      <div key={k} className={`rounded-lg border px-3 py-1.5 ${cls}`}>
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white/10 border border-white/10 font-bold text-xs">{letter}</span>
+                        <span className="mr-2">{txt}</span>
+                      </div>
+                    );
+                  })}
+                  {q.analysis && (
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-zinc-200">
+                      <div className="flex items-center gap-2 font-bold text-white"><Info className="w-4 h-4 text-emerald-300" /> شی کردنەوە</div>
+                      <div className="mt-1">{q.analysis}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

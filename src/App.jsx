@@ -26,7 +26,7 @@ import SubjectContent from "./pages/SubjectContent.jsx";
 
 // Public
 import WelcomePWA from "./pages/WelcomePWA.jsx";
-import ExamsPage from "./pages/Exams.jsx";
+import ExamsPage from "./pages/SuggestPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 import SecureResourceViewer from "./pages/Courses/SecureResourceViewer";
@@ -46,6 +46,7 @@ import ExamQuiz from "./pages/ExamQuiz.jsx";
 import EpisodePage from './pages/resources/EpisodePage.jsx';
 import ScientistPage from "./pages/resources/ScientistPage.jsx";
 import ScientistListPage from "./pages/resources/ScientistListPage.jsx";
+import SuggestPage from "./pages/SuggestPage.jsx";
 /* ─────────────────────────────
     Auth Context
     ───────────────────────────── */
@@ -153,7 +154,7 @@ function AppShell() {
     <div dir="rtl" className="bg-zinc-950 text-zinc-100 min-h-[100dvh] flex flex-col">
       <Header onHeightChange={setHeaderH} />
       <main
-        className="flex-1 overflow-y-auto custom-scroll fix-ios px-3 md:px-6"
+        className="flex-1 overflow-y-auto custom-scroll fix-ios px-1 md:px-2"
         style={{
           // Use CSS variables for safe area top and bottom.
           paddingTop: `calc(${headerH}px + env(safe-area-inset-top, 0px))`,
@@ -205,14 +206,11 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/grammar" element={<GrammarPage />} />
             <Route path="/students/" element={<Students />} />
-            <Route path="/exams/grade12" element={<ExamsGrade12 />} />
             <Route path="/schedule" element={<Schedule />} />
-            <Route path="/exams" element={<ExamsHome />} />
-            <Route path="/exams/bank" element={<ExamBank />} />
             <Route path="/settings" element={<ProfileSettings />} />
             <Route path="/exam" element={<ExamQuiz />} />
             <Route path="/study" element={<StudyHub />} />
-            <Route path="/course" element={<CoursePage />} />
+            <Route path="/suggest" element={<SuggestPage />} />
             <Route path="/subjects">
               <Route index element={<SubjectsHub />} />
               <Route path=":id" element={<SubjectDetail />} />

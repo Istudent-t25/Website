@@ -7,7 +7,7 @@ const tabs = [
   { to: "/", label: "سەرەکی", icon: Home },
   { to: "/subjects", label: "بابەتەکان", icon: Library },
   { to: "/exam", label: "تاقیكردنه‌وه‌", icon: BookMarked },
-  { to: "/course", label: "وانەکان", icon: Book },
+  { to: "/suggest", label: "زانیاری", icon: Book },
   // { to: "/courses", label: "وانەکان", icon: Book },
   { to: "/settings", label: "ڕێکخستن", icon: Settings },
 ];

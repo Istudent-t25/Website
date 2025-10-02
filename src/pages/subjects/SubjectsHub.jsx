@@ -1,57 +1,48 @@
-// src/pages/SubjectsHub.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/SubjectsHub.jsx — “Dashboard-style” Subjects Hub (RTL, Dark, Motion)
+import React, { useEffect, useMemo, useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   LibraryBig,
-  Search,
-  CheckCircle2,
-  Info,
-  ChevronDown,
-  BookOpen,
-  FlaskConical,
-  Feather,
-  CircleDashed,
-  Star,
+  BookMarked,
+  Calculator, Atom, Microscope, Languages, Pen, BookOpen,
+  Star, CheckCircle2, CircleDashed, Info, ChevronDown, AlertTriangle, TrendingUp
 } from "lucide-react";
 
-/** APIs */
+/* ============================== Config / APIs ============================== */
 const API_SUBJECTS = "https://api.studentkrd.com/api/v1/subjects";
 const API_DOCS = "https://api.studentkrd.com/api/v1/documents";
 const API_PAPERS = "https://api.studentkrd.com/api/v1/papers";
 
-/** utils */
-async function fetchJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("Network error");
+/* ============================== Utils ============================== */
+const EASE = [0.22, 1, 0.36, 1];
+const SPRING = { type: "spring", stiffness: 260, damping: 24 };
+
+async function fetchJSON(url, signal) {
+  const r = await fetch(url, { signal, credentials: "omit" });
+  if (!r.ok) throw new Error(`Network error: ${r.status} ${r.statusText}`);
   return r.json();
 }
-
-/** fetch all pages helper (follows next_page_url) */
-async function fetchAllPages(baseUrl, initialParams = "") {
+async function fetchAllPages(baseUrl, initialParams = "", signal) {
   const out = [];
   let url = `${baseUrl}${initialParams ? `?${initialParams}` : ""}`;
   let guard = 0;
   while (url && guard < 20) {
-    const j = await fetchJSON(url);
+    const j = await fetchJSON(url, signal);
     if (Array.isArray(j?.data)) out.push(...j.data);
     url = j?.next_page_url || null;
     guard += 1;
   }
   return out;
 }
-
-/** safe params (omit null/undefined/"null") */
 function buildParams(obj) {
   const sp = new URLSearchParams();
   Object.entries(obj || {}).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== "null" && v !== "") {
-      sp.set(k, String(v));
-    }
+    if (v !== null && v !== undefined && v !== "null" && v !== "") sp.set(k, String(v));
   });
   return sp.toString();
 }
-
-/** localStorage -> stream key */
+const lsGetRaw = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } };
 function normalizeTrack(v) {
   const t = (v || "").toLowerCase();
   if (t.includes("scientific") || t.includes("sci") || t === "زانستی") return "scientific";
@@ -65,478 +56,414 @@ function streamKurdish(s) {
   if (s === "both") return "هاوبەش";
   return "—";
 }
+function iconForSubject(name = "") {
+  const n = String(name).toLowerCase();
+  if (/(math|بیر|بیەر|بیرکاری)/.test(n)) return Calculator;
+  if (/(phys|فیز|فیزی)/.test(n)) return Atom;
+  if (/(chem|کیمیا|كیمیا)/.test(n)) return BookOpen; // swapped to match Dashboard vibe
+  if (/(bio|زیند|جین)/.test(n)) return Microscope;
+  if (/(engl|ئینگ|انگلی)/.test(n)) return Languages;
+  if (/(kurd|کورد|كورد)/.test(n)) return Pen;
+  if (/(arab|عرب|عەرە)/.test(n)) return BookOpen;
+  return BookMarked;
+}
 
-/* ---------- visual helpers ---------- */
-const SubjectIcon = ({ code, className = "w-5 h-5" }) => {
-  if (code === "scientific") return <FlaskConical className={className} />;
-  if (code === "literary") return <Feather className={className} />;
-  return <BookOpen className={className} />;
-};
-const toneMap = {
-  scientific: {
-    strip: "from-emerald-400 to-teal-400",
-    chip: "bg-emerald-500/10 text-emerald-200 border-emerald-400/30",
-    icon: "text-emerald-300",
-    ring: "ring-emerald-400/30",
-    title: "زانستی",
-  },
-  literary: {
-    strip: "from-fuchsia-400 to-pink-400",
-    chip: "bg-fuchsia-500/10 text-fuchsia-200 border-fuchsia-400/30",
-    icon: "text-fuchsia-300",
-    ring: "ring-fuchsia-400/30",
-    title: "ئەدەبی",
-  },
-  both: {
-    strip: "from-amber-400 to-orange-400",
-    chip: "bg-amber-500/10 text-amber-200 border-amber-400/30",
-    icon: "text-amber-300",
-    ring: "ring-amber-400/30",
-    title: "هاوبەش",
-  },
-};
-
-/* ---------- section wrapper ---------- */
-const Section = ({ title, count, children, icon, iconTone }) => (
-  <div className="space-y-4">
-    <div className="flex items-center gap-3 text-white">
-      {icon && React.createElement(icon, { className: `w-6 h-6 ${iconTone}` })}
-      <div className="font-extrabold text-xl">{title}</div>
-      <span className="text-[12px] px-2 py-0.5 rounded-full bg-white/5 text-white/90 border border-white/10">
-        {count} بابەت
-      </span>
+/* ============================== Reusable UI ============================== */
+const Panel = memo(function Panel({ className = "", children }) {
+  return (
+    <div className={"rounded-3xl bg-zinc-900/70 backdrop-blur-2xl ring-1 ring-zinc-800/70 shadow-[0_10px_24px_rgba(0,0,0,0.35)] relative overflow-hidden " + className}>
+      <div className="absolute inset-0 pointer-events-none [mask-image:radial-gradient(120%_60%_at_100%_0%,black,transparent)]" />
+      {children}
     </div>
-    {children}
-  </div>
-);
+  );
+});
 
-/* ---------- clean playful card ---------- */
-const Card = ({ subject, onClick, badge, badgeColor, isReady }) => {
-  const code = subject.code === "scientific" || subject.code === "literary" ? subject.code : "both";
-  const t = toneMap[code];
+const StatTile = memo(function StatTile({ label, value, sub, icon: Icon }) {
+  return (
+    <div className="rounded-2xl ring-1 ring-white/10 bg-white/5 p-4 flex items-center gap-3 min-w-0">
+      <div className="grid place-items-center w-10 h-10 rounded-xl bg-white/10 ring-1 ring-white/15 shrink-0">
+        <Icon className="w-5 h-5 text-white" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-zinc-300 text-[11.5px] truncate">{label}</div>
+        <div className="text-zinc-50 font-bold text-lg leading-5">{value}</div>
+        {sub && <div className="text-[11px] text-zinc-500">{sub}</div>}
+      </div>
+    </div>
+  );
+});
 
-  // show top-right badge only if it’s different from the stream chip
-  const showBadge = !!badge && badge.trim() !== t.title;
+const SubjectsCard = memo(function SubjectsCard({ subject, count, onClick, isReady, colorIdx = 1 }) {
+  const Icon = iconForSubject(subject.name);
+  const reduce = useReducedMotion();
+  const colors = {
+    1: 'from-cyan-500 to-blue-500',
+    2: 'from-purple-500 to-pink-500',
+    3: 'from-emerald-500 to-green-600',
+    4: 'from-amber-500 to-orange-600',
+    5: 'from-indigo-500 to-purple-600',
+    6: 'from-teal-500 to-cyan-600',
+    7: 'from-rose-500 to-pink-600',
+    8: 'from-fuchsia-500 to-violet-600'
+  };
+  const gradient = colors[((colorIdx - 1) % 8) + 1];
 
   return (
-    <button
-      onClick={isReady ? () => onClick(subject.id) : undefined}
+    <motion.button
+      onClick={isReady ? onClick : undefined}
+      whileHover={reduce ? {} : { y: -4, scale: 1.01 }}
+      whileTap={reduce ? {} : { scale: 0.98 }}
+      className={`relative text-right w-full rounded-2xl p-4 transition group overflow-hidden
+        ${isReady ? "cursor-pointer ring-1 ring-white/10 bg-white/[0.03]" : "cursor-not-allowed opacity-60 ring-1 ring-white/5 bg-white/[0.02]"}`
+      }
       title={subject.name}
-      className={`group relative text-right rounded-2xl border border-white/10 bg-zinc-900/70 hover:bg-zinc-900 transition-all duration-200 focus:outline-none focus:ring-2 ${t.ring}`}
     >
-      {/* thin gradient strip */}
-      <div className={`h-1 w-full rounded-t-2xl bg-gradient-to-r ${t.strip}`} />
-
-      <div className="p-4 sm:p-5">
-        {/* title row */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="grid place-items-center rounded-xl p-2 bg-white/5 border border-white/10">
-              <SubjectIcon code={code} className={`w-5 h-5 ${t.icon}`} />
-            </span>
-            <div className="text-[15px] font-extrabold text-white leading-5 line-clamp-2">
-              {subject.name}
-            </div>
+      {/* background glow */}
+      <div className={`absolute -top-10 -left-10 w-52 h-52 rounded-full blur-3xl opacity-20 bg-gradient-to-br ${gradient}`} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="grid place-items-center w-10 h-10 rounded-xl bg-white/10 ring-1 ring-white/15 shrink-0">
+            <Icon className="w-5 h-5 text-white" />
           </div>
-
-          {showBadge && (
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] border ${badgeColor} text-white bg-white/5`}>
-              {badge}
-            </span>
-          )}
-        </div>
-
-        {/* meta row */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[12px]">
-            {isReady ? (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                <span className="text-emerald-200">ئامادەیە</span>
-              </>
-            ) : (
-              <>
-                <CircleDashed className="w-4 h-4 text-rose-300" />
-                <span className="text-rose-200">به‌م زوانه‌</span>
-              </>
-            )}
+          <div className={`flex items-center gap-1 text-[11.5px] ${isReady ? "text-emerald-300" : "text-rose-300"}`}>
+            {isReady ? <CheckCircle2 className="w-3.5 h-3.5" /> : <CircleDashed className="w-3.5 h-3.5" />}
+            <span>{isReady ? "ئامادەیە" : "ئامادە نییە"}</span>
           </div>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full border ${t.chip}`}>
-            {t.title}
-          </span>
         </div>
+        <div className="mt-3">
+          <div className="text-white font-bold text-[13.5px] sm:text-lg truncate">{subject.name}</div>
+          {/* <div className="text-[11.5px] text-zinc-400">ژمارەی داتا: {count}</div> */}
+        </div>
+        {isReady && (
+          <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, (count / 20) * 100)}%` }}
+              transition={{ duration: 0.7, ease: EASE }}
+              className={`h-full bg-gradient-to-r ${gradient}`}
+            />
+          </div>
+        )}
       </div>
-    </button>
+    </motion.button>
   );
-};
+});
 
 const SkeletonGrid = ({ rows = 12 }) => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
     {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="rounded-2xl border border-white/10 bg-zinc-900/70">
-        <div className="h-1 w-full rounded-t-2xl bg-white/10" />
-        <div className="p-4">
-          <div className="h-5 w-3/4 bg-white/10 rounded mb-3" />
-          <div className="h-3 w-1/2 bg-white/10 rounded" />
-        </div>
-      </div>
+      <div key={i} className="h-28 rounded-2xl bg-white/5 ring-1 ring-white/10 animate-pulse" />
     ))}
   </div>
 );
 
-/* =========================
-   PAGE
-   ========================= */
+/* ============================== Page ============================== */
 export default function SubjectsHub() {
   const nav = useNavigate();
+  const reduce = useReducedMotion();
 
+  // State (persisted like dashboard)
   const [grade, setGrade] = useState(() => {
     try {
-      const gRaw = localStorage.getItem("grade");
+      const gRaw = lsGetRaw("grade", "12");
       const g = gRaw ? Number(gRaw) : null;
       return Number.isFinite(g) ? g : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   });
   const [track, setTrack] = useState(() => {
-    try {
-      const tRaw = localStorage.getItem("track");
-      return normalizeTrack(tRaw);
-    } catch {
-      return null;
-    }
+    try { return normalizeTrack(lsGetRaw("track", "scientific")); } catch { return null; }
   });
 
   const [allSubjects, setAllSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [onlyReady, setOnlyReady] = useState(false);
 
-  const [avail, setAvail] = useState({
-    any: new Set(),
-    scientific: new Set(),
-    literary: new Set(),
-    both: new Set(),
-    basic: new Set(),
-  });
+  // availability sets + totals for dashboard tiles
+  const [avail, setAvail] = useState({ any: new Set(), scientific: new Set(), literary: new Set(), both: new Set(), basic: new Set() });
+  const [totals, setTotals] = useState({ docs: 0, papers: 0 });
 
-  /* data load */
   useEffect(() => {
     let ok = true;
-
+    const controller = new AbortController();
     (async () => {
-      setLoading(true);
+      setLoading(true); setError("");
       try {
         const [subjectsJSON, docs, papers] = await Promise.all([
-          fetchJSON(`${API_SUBJECTS}?page=1&per_page=100`),
-          fetchAllPages(API_DOCS, buildParams({ grade, stream: track, per_page: "100" })),
-          fetchAllPages(API_PAPERS, buildParams({ grade, stream: track, per_page: "100" })),
+          fetchJSON(`${API_SUBJECTS}?page=1&per_page=100`, controller.signal),
+          fetchAllPages(API_DOCS, buildParams({ grade, stream: track, per_page: "100" }), controller.signal),
+          fetchAllPages(API_PAPERS, buildParams({ grade, stream: track, per_page: "100" }), controller.signal),
         ]);
-
         if (!ok) return;
 
         const subjects = (subjectsJSON?.data || []).map((s) => ({
-          id: s.id,
-          name: s.name,
-          code: (s.code || "").toLowerCase() || null,
+          id: s.id, name: s.name, code: (s.code || "").toLowerCase() || null
         }));
         setAllSubjects(subjects);
 
-        const sets = {
-          any: new Set(),
-          scientific: new Set(),
-          literary: new Set(),
-          both: new Set(),
-          basic: new Set(),
-        };
-
+        const sets = { any: new Set(), scientific: new Set(), literary: new Set(), both: new Set(), basic: new Set() };
         for (const d of docs) {
-          const sid = d?.subject_id;
-          if (!sid) continue;
-          sets.any.add(sid);
-          const st = (d?.stream || null) ? String(d.stream).toLowerCase() : null;
-          if (st === "scientific") sets.scientific.add(sid);
-          else if (st === "literary") sets.literary.add(sid);
-          else if (st === "both") sets.both.add(sid);
-          else sets.basic.add(sid);
+          const sid = d?.subject_id; if (!sid) continue; sets.any.add(sid);
+          const st = d?.stream ? String(d.stream).toLowerCase() : null;
+          if (st === "scientific") sets.scientific.add(sid); else if (st === "literary") sets.literary.add(sid); else if (st === "both") sets.both.add(sid); else sets.basic.add(sid);
         }
-
         for (const p of papers) {
-          const sid = p?.subject_id;
-          if (!sid) continue;
-          sets.any.add(sid);
-          const st = (p?.stream || null) ? String(p.stream).toLowerCase() : null;
-          if (st === "scientific") sets.scientific.add(sid);
-          else if (st === "literary") sets.literary.add(sid);
-          else if (st === "both") sets.both.add(sid);
-          else sets.basic.add(sid);
+          const sid = p?.subject_id; if (!sid) continue; sets.any.add(sid);
+          const st = p?.stream ? String(p.stream).toLowerCase() : null;
+          if (st === "scientific") sets.scientific.add(sid); else if (st === "literary") sets.literary.add(sid); else if (st === "both") sets.both.add(sid); else sets.basic.add(sid);
         }
-
-        if (!ok) return;
         setAvail(sets);
-      } catch {
-        if (!ok) return;
-        setAvail({
-          any: new Set(),
-          scientific: new Set(),
-          literary: new Set(),
-          both: new Set(),
-          basic: new Set(),
-        });
+        setTotals({ docs: docs.length, papers: papers.length });
+      } catch (e) {
+        if (!ok || controller.signal.aborted) return;
+        setError(e?.message || "هەڵەیەك ڕوویدا");
+        setAvail({ any: new Set(), scientific: new Set(), literary: new Set(), both: new Set(), basic: new Set() });
+        setTotals({ docs: 0, papers: 0 });
       } finally {
         if (ok) setLoading(false);
       }
     })();
-
-    return () => {
-      ok = false;
-    };
+    return () => { ok = false; controller.abort(); };
   }, [grade, track]);
 
-  /* search & grouping */
+  // search & grouping (dashboard-style grouping)
   const queryFiltered = useMemo(() => {
     if (!q.trim()) return allSubjects;
     const needle = q.trim().toLowerCase();
     return allSubjects.filter((s) => (s.name || "").toLowerCase().includes(needle));
   }, [q, allSubjects]);
 
+  const wantsStream = typeof grade === "number" && grade >= 10;
   const grouped = useMemo(() => {
-    const wantsStream = typeof grade === "number" && grade >= 10;
-    const filteredSubjects = queryFiltered;
-
-    if (!wantsStream) {
-      const basic = filteredSubjects;
-      return { mode: "basic", basic };
-    }
-
-    const sci = filteredSubjects.filter((s) => s.code === "scientific" || s.code === "both");
-    const lit = filteredSubjects.filter((s) => s.code === "literary" || s.code === "both");
-
+    const src = queryFiltered;
+    if (!wantsStream) return { mode: "basic", basic: src };
+    const sci = src.filter((s) => s.code === "scientific" || s.code === "both");
+    const lit = src.filter((s) => s.code === "literary" || s.code === "both");
     if (track === "scientific") return { mode: "scientific", sci };
     if (track === "literary") return { mode: "literary", lit };
     return { mode: "both", sci, lit };
-  }, [queryFiltered, grade, track]);
+  }, [queryFiltered, wantsStream, track]);
 
-  const openSubject = (id) => nav(`/subjects/${id}`);
+  const filterReady = (arr) => (onlyReady ? arr.filter((s) => avail.any.has(s.id)) : arr);
+  const getCount = (subjectId) => {
+    // simple “readiness score” — how many buckets include this subject
+    return (avail.scientific.has(subjectId) ? 1 : 0)
+      + (avail.literary.has(subjectId) ? 1 : 0)
+      + (avail.both.has(subjectId) ? 1 : 0)
+      + (avail.basic.has(subjectId) ? 1 : 0);
+  };
 
+  const totalSubjects = allSubjects.length;
+  const readySubjects = allSubjects.filter((s) => avail.any.has(s.id)).length;
+
+  // handlers
+  const openSubject = (id) => useNavigate()(`/subjects/${id}`);
   const handleGradeChange = (e) => {
     const newGrade = e.target.value === "null" ? null : Number(e.target.value);
     setGrade(newGrade);
     localStorage.setItem("grade", newGrade == null ? "" : String(newGrade));
-    if (newGrade < 10) {
-      setTrack(null);
-      localStorage.removeItem("track");
-    }
+    if (newGrade == null || newGrade < 10) { setTrack(null); localStorage.removeItem("track"); }
   };
   const handleTrackChange = (e) => {
     const newTrack = e.target.value === "null" ? null : e.target.value;
     setTrack(newTrack);
-    if (newTrack == null) localStorage.removeItem("track");
-    else localStorage.setItem("track", newTrack);
+    if (newTrack == null) localStorage.removeItem("track"); else localStorage.setItem("track", newTrack);
   };
 
-  /* ready filter */
-  const filterReady = (arr) => (onlyReady ? arr.filter((s) => avail.any.has(s.id)) : arr);
-
-  /* header pills */
-  const headerPills = useMemo(() => {
-    const pills = [];
-    if (grade != null)
-      pills.push({ label: `پۆل ${grade}`, tone: "text-amber-200 bg-amber-500/10 border-amber-400/30" });
-    if (grade >= 10 && track)
-      pills.push({ label: streamKurdish(track), tone: "text-sky-200 bg-sky-500/10 border-sky-400/30" });
-    if (onlyReady)
-      pills.push({ label: "تەنیا ئامادە", tone: "text-emerald-200 bg-emerald-500/10 border-emerald-400/30" });
-    return pills;
-  }, [grade, track, onlyReady]);
-
+  /* ============================== Render ============================== */
   return (
-    <div dir="rtl" className="p-4 sm:p-6 space-y-6 min-h-screen font-kurdish bg-zinc-950 text-white">
-      {/* header (clean, no background art) */}
-      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4 sm:p-6 sticky top-2 z-10 backdrop-blur">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="grid place-items-center rounded-2xl p-3 bg-white/5 border border-white/10">
-                <LibraryBig className="w-6 h-6 text-amber-300" />
+    <div dir="rtl" className="relative p-3 sm:p-5 font-sans space-y-5 bg-zinc-950 min-h-screen text-right">
+      {/* dotted page bg like dashboard */}
+      <div className="fixed inset-0 -z-10 h-full w-full bg-black bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]" />
+
+      {/* Hero / Header Bar */}
+      <motion.div
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, ease: EASE }}
+        className="relative z-10 overflow-hidden rounded-b-[28px] ring-1 ring-zinc-800/70 bg-gradient-to-b from-zinc-900/80 to-zinc-950/80"
+      >
+        {/* glow blobs */}
+        <div className="absolute -top-24 -right-10 w-[320px] h-[320px] blur-3xl opacity-30"
+             style={{ background: "radial-gradient(50% 50% at 50% 50%, #22d3ee55 0%, transparent 70%)" }} />
+        <div className="absolute -bottom-10 -left-10 w-[420px] h-[420px] blur-3xl opacity-30"
+             style={{ background: "radial-gradient(50% 50% at 50% 50%, #8b5cf655 0%, transparent 70%)" }} />
+
+        <div className="relative p-4 sm:p-6 pb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="grid place-items-center w-11 h-11 rounded-2xl bg-white/5 ring-1 ring-white/10 shrink-0">
+                <LibraryBig className="w-6 h-6 text-lime-400" />
               </span>
-              <div className="flex flex-col">
-                <div className="font-extrabold text-2xl leading-6">بابەتەکان</div>
-                <div className="text-[12px] text-zinc-300">وانە، کتێب و وێنەکان — هەمووی لەم شوێنە.</div>
+              <div className="min-w-0">
+                <div className="font-extrabold text-[clamp(18px,2.2vw,24px)] leading-6 text-zinc-100">سەنتەری بابەتەکان</div>
+                <div className="text-[12px] sm:text-sm text-zinc-300 truncate">هەموو بابەتەکانت بە شێوازی داشبۆرد — خێرا، سادە، جوان.</div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-[13px] font-medium">
               <div className="relative">
-                <select
-                  value={grade ?? "null"}
-                  onChange={handleGradeChange}
-                  className="rounded-full bg-zinc-900 border border-white/10 text-white px-4 py-2 text-center appearance-none cursor-pointer pr-10 hover:bg-zinc-800"
-                >
+                <select value={grade ?? "null"} onChange={handleGradeChange} className="rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100 px-4 py-2 text-center appearance-none cursor-pointer pr-10 outline-none focus:ring-zinc-700 text-sm">
                   <option value="null">هەڵبژاردنی پۆل</option>
                   {[...Array(12).keys()].map((i) => i + 1).map((g) => (
                     <option key={g} value={g}>پۆل {g}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white pointer-events-none" />
+                <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
               </div>
-
               {grade >= 10 && (
                 <div className="relative">
-                  <select
-                    value={track ?? "null"}
-                    onChange={handleTrackChange}
-                    className="rounded-full bg-zinc-900 border border-white/10 text-white px-4 py-2 text-center appearance-none cursor-pointer pr-10 hover:bg-zinc-800"
-                  >
-                    <option value="null">هەڵبژاردنی تڕاک</option>
+                  <select value={track ?? "null"} onChange={handleTrackChange} className="rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100 px-4 py-2 text-center appearance-none cursor-pointer pr-10 outline-none focus:ring-zinc-700 text-sm">
+                    <option value="null">هەڵبژاردنی جۆر</option>
                     <option value="scientific">زانستی</option>
                     <option value="literary">ئەدەبی</option>
                     <option value="both">هاوبەش</option>
                   </select>
-                  <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white pointer-events-none" />
+                  <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                 </div>
               )}
-
-              {/* Ready-only toggle */}
-              <button
-                onClick={() => setOnlyReady((v) => !v)}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border transition-colors
-                  ${onlyReady
-                    ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-200"
-                    : "bg-zinc-900 border-white/10 text-zinc-200 hover:bg-zinc-800"}
-                `}
-                title="تەنیا ئەو بابەتانەی ئامادەن"
-              >
-                <Star className="w-4 h-4" />
-                تەنیا ئامادە
-              </button>
             </div>
           </div>
 
-          <div className="relative">
+          {/* search + toggles */}
+          <form onSubmit={(e) => e.preventDefault()} className="mt-4 relative" role="search" aria-label="گەڕان">
             <input
               dir="rtl"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="گەڕان بۆ ناوی بابەت..."
-              className="w-full rounded-2xl bg-zinc-900 border border-white/10 text-white text-sm px-10 py-3 outline-none focus:ring-2 focus:ring-amber-400/30 placeholder:text-zinc-400"
+              className="w-full pe-28 ps-4 py-3 rounded-2xl bg-zinc-900/70 ring-1 ring-zinc-800/70 text-zinc-100 placeholder-zinc-500 outline-none focus:ring-zinc-700 text-[13.5px] sm:text-base"
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {headerPills.map((p, i) => (
-                <span key={i} className={`text-[11px] px-2 py-0.5 rounded-full border ${p.tone}`}>
-                  {p.label}
-                </span>
-              ))}
+            <div className="absolute inset-y-0 right-0 flex items-center gap-2 pr-2">
+              <button type="button"
+                onClick={() => setOnlyReady((v) => !v)}
+                className={`px-3 py-1.5 rounded-xl ring-1 text-[12px] sm:text-sm transition
+                  ${onlyReady ? "bg-cyan-600/25 ring-cyan-500/25 text-cyan-100" : "bg-white/5 ring-white/10 text-zinc-200 hover:bg-white/10"}`}>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-4 h-4" /> تەنیا ئامادە
+                </div>
+              </button>
+              <button type="submit" className="px-3 py-1.5 rounded-xl bg-cyan-600/25 ring-1 ring-cyan-500/25 text-[12px] sm:text-sm text-cyan-100 hover:bg-cyan-600/35 transition">
+                گەڕان
+              </button>
             </div>
+          </form>
 
-            <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1">
-              <Info className="w-3.5 h-3.5" />
-              <span>تەنها ئەو بابەتانە پیشان دەدرێن کە بۆ پۆلی هەڵبژێردراوت خواردنی ناوەوە هەبن.</span>
-            </div>
+          <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1">
+            <Info className="w-3.5 h-3.5" />
+            <span>بابەتەکان بەپێی پۆل/تڕاک فلتەر دەبن. داتاکان لە کتێب/کاغەزەکانەوە هاتوون.</span>
+          </div>
+
+          {/* dashboard-like stat tiles */}
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <StatTile label="کۆی بابەتەکان" value={totalSubjects} sub="هەموو پۆلەکان" icon={BookMarked} />
+            <StatTile label="بابه‌ته‌ ئاماده‌كان" value={readySubjects} sub="هەمان ئێستا داتایان هەیە" icon={CheckCircle2} />
+            <StatTile label="ژمارەی کتێب" value={totals.docs} sub="Documents" icon={TrendingUp} />
+            <StatTile label="ژمارەی کاغەزەکان" value={totals.papers} sub="Papers" icon={Star} />
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* body */}
-      {loading ? (
-        <SkeletonGrid rows={12} />
-      ) : grouped.mode === "basic" ? (
-        <Section title="بابەتە بنەڕهتییەکان" count={filterReady(grouped.basic).length} icon={BookOpen} iconTone="text-sky-300">
-          {filterReady(grouped.basic).length === 0 ? (
-            <div className="text-zinc-400 text-sm">هیچ بابەتێک نەدۆزرایەوە.</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-              {filterReady(grouped.basic).map((s) => (
-                <Card
-                  key={s.id}
-                  subject={s}
-                  onClick={openSubject}
-                  badge="بەناوەند"
-                  badgeColor="border-sky-400/30"
-                  isReady={avail.any.has(s.id)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      ) : grouped.mode === "scientific" ? (
-        <Section title="زانستی" count={filterReady(grouped.sci).length} icon={FlaskConical} iconTone="text-emerald-300">
-          {filterReady(grouped.sci).length === 0 ? (
-            <div className="text-zinc-400 text-sm">نییە.</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-              {filterReady(grouped.sci).map((s) => (
-                <Card
-                  key={s.id}
-                  subject={s}
-                  onClick={openSubject}
-                  isReady={avail.any.has(s.id)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      ) : grouped.mode === "literary" ? (
-        <Section title="ئەدەبی و هاوبەش" count={filterReady(grouped.lit).length} icon={Feather} iconTone="text-fuchsia-300">
-          {filterReady(grouped.lit).length === 0 ? (
-            <div className="text-zinc-400 text-sm">نییە.</div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-              {filterReady(grouped.lit).map((s) => (
-                <Card
-                  key={s.id}
-                  subject={s}
-                  onClick={openSubject}
-                  isReady={avail.any.has(s.id)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      ) : (
-        <div className="space-y-8">
-          <Section title="زانستی و هاوبەش" count={filterReady(grouped.sci).length} icon={FlaskConical} iconTone="text-emerald-300">
-            {filterReady(grouped.sci).length === 0 ? (
-              <div className="text-zinc-400 text-sm">نییە.</div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                {filterReady(grouped.sci).map((s) => (
-                  <Card
-                    key={s.id}
-                    subject={s}
-                    onClick={openSubject}
-                    isReady={avail.any.has(s.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="ئەدەبی" count={filterReady(grouped.lit).length} icon={Feather} iconTone="text-fuchsia-300">
-            {filterReady(grouped.lit).length === 0 ? (
-              <div className="text-zinc-400 text-sm">نییە.</div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                {filterReady(grouped.lit).map((s) => (
-                  <Card
-                    key={s.id}
-                    subject={s}
-                    onClick={openSubject}
-                    isReady={avail.any.has(s.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
+      {/* error banner */}
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200 flex items-start gap-3" aria-live="polite">
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-bold mb-1">هه‌ڵه‌!</div>
+            <div className="text-sm leading-6">ناتوانرێت زانیاریه‌کان بکرێنەوە. تکایە دوبارە هەوڵبدەوە.</div>
+            <div className="mt-1 text-xs opacity-70 ltr:font-mono rtl:font-mono break-words">{error}</div>
+          </div>
         </div>
       )}
+
+      {/* body / grids (dashboard sections) */}
+      <Panel>
+        <div className="p-5">
+          {loading ? (
+            <SkeletonGrid rows={12} />
+          ) : (
+            <>
+              {/* If basic (grades < 10) → single grid. Otherwise → grouped like the dashboard sections. */}
+              {(!wantsStream) ? (
+                filterReady(queryFiltered).length === 0 ? (
+                  <div className="text-[12.5px] sm:text-sm text-zinc-400">هیچ بابەتێك نەدۆزرایەوە.</div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                    <AnimatePresence>
+                      {filterReady(queryFiltered).map((s, i) => (
+                        <motion.div
+                          key={s.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={SPRING}
+                        >
+                          <SubjectsCard
+                            subject={s}
+                            count={getCount(s.id)}
+                            isReady={avail.any.has(s.id)}
+                            colorIdx={i + 1}
+                            onClick={() => nav(`/subjects/${s.id}`)}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-6">
+                  {/* scientific / both */}
+                  <div>
+                    <div className="text-cyan-300 font-semibold mb-3 flex items-center gap-2">
+                      <Atom className="w-4 h-4" /> زانستی و هاوبەش
+                    </div>
+                    {filterReady(grouped.sci || []).length === 0 ? (
+                      <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                        {(grouped.sci || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
+                          <SubjectsCard
+                            key={s.id}
+                            subject={s}
+                            count={getCount(s.id)}
+                            isReady={avail.any.has(s.id)}
+                            colorIdx={i + 1}
+                            onClick={() => nav(`/subjects/${s.id}`)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* literary */}
+                  <div>
+                    <div className="text-fuchsia-300 font-semibold mb-3 flex items-center gap-2">
+                      <Pen className="w-4 h-4" /> ئەدەبی
+                    </div>
+                    {filterReady(grouped.lit || []).length === 0 ? (
+                      <div className="text-[12.5px] sm:text-sm text-zinc-400">نییە.</div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                        {(grouped.lit || []).filter((s) => !onlyReady || avail.any.has(s.id)).map((s, i) => (
+                          <SubjectsCard
+                            key={s.id}
+                            subject={s}
+                            count={getCount(s.id)}
+                            isReady={avail.any.has(s.id)}
+                            colorIdx={i + 1}
+                            onClick={() => nav(`/subjects/${s.id}`)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Panel>
     </div>
   );
 }
-
-/* (Optional) Tailwind keyframes if you want a shimmer later:
-@keyframes shimmer { 0% { transform: translateX(-100%);} 100% { transform: translateX(100%);} }
-*/

@@ -42,7 +42,7 @@ function streamKurdish(s) {
 function typeKurdish(t) {
   const v = (t || "").toLowerCase();
   if (v === "book") return "کتێب";
-  if (v === "booklet") return "بوکلت";
+  if (v === "booklet") return "مه‌لزه‌مه‌";
   if (v === "guide") return "ڕێبرد";
   return "بەلگە";
 }
@@ -146,7 +146,7 @@ function Thumb({ src, alt, onClick }) {
 
 function BookCard({ doc }) {
   const navigate = useNavigate();
-  const title = doc?.title || "کتێب/بوکلت";
+  const title = doc?.title || "کتێب/مه‌لزه‌مه‌";
   const fileUrl = doc?.file_url || doc?.pdf_url || doc?.image_url || doc?.thumb_url || "";
   const subject = doc?.subject?.name;
   const grade = doc?.grade;
@@ -277,7 +277,7 @@ export default function BooksAndBooklets() {
         });
       } catch {
         if (!ok) return;
-        setErr("نەتوانرا کتێب و بوکلتەکان باربکرێن.");
+        setErr("نەتوانرا کتێب ەکان باربکرێن.");
       } finally {
         setInitialLoading(false);
       }
@@ -328,7 +328,7 @@ export default function BooksAndBooklets() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2 text-white">
             <BookOpen className="w-5 h-5 text-emerald-300" />
-            <div className="font-extrabold text-lg sm:text-xl">کتێب و بوکلت</div>
+            <div className="font-extrabold text-lg sm:text-xl">کتێب </div>
             {meta.total ? <span className="text-[11px] text-zinc-300">({meta.total})</span> : null}
           </div>
 
@@ -379,7 +379,7 @@ export default function BooksAndBooklets() {
 
       {/* Empty */}
       {!initialLoading && filtered.length === 0 && (
-        <div className="text-zinc-400">هیچ کتێب/بوکلتێک نەدۆزرایەوە.</div>
+        <div className="text-zinc-400">هیچ کتێب/مه‌لزه‌مه‌ێک نەدۆزرایەوە.</div>
       )}
 
       {/* Grid */}
