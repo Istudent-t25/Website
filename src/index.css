@@ -151,3 +151,4 @@ html.dark body,
   --accent: #22d3ee;   /* cyan-400 default */
   --font-scale: 1;     /* 0.9..1.2 applied to root container */
 }
+.h-screen-real { min-height: calc(var(--vh) * 100); }

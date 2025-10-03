@@ -11,47 +11,48 @@ import Header from "./components/Header.jsx";
 import BottomNav from "./components/BottomNav.jsx";
 
 // Pages
-import Dashboard from "./pages/Dashboard.jsx";
-import Students from "./pages/Students.jsx";
-import ExamsGrade12 from "./pages/notneccery/ExamsGrade12.jsx";
+import Dashboard from "./pages/main/Dashboard.jsx";
+// import Students from "./pages/notneccery/Students.jsx";
+// import ExamsGrade12 from "./pages/notneccery/ExamsGrade12.jsx";
 import Schedule from "./pages/Schedule.jsx";
-import SoundsPage from "./pages/Sounds.jsx";
-import GrammarPage from "./pages/Grammers.jsx";
-import ProfileSettings from "./pages/ProfileSettings.jsx";
-import ExamBank from "./pages/notneccery/ExamBank.jsx";
-import ExamsHome from "./pages/ExamsHome.jsx";
+import SoundsPage from "./pages/resources/Sounds.jsx";
+import GrammarPage from "./pages/notneccery/Grammers.jsx";
+import ProfileSettings from "./pages/main/ProfileSettings.jsx";
+// import ExamBank from "./pages/notneccery/ExamBank.jsx";
+// import ExamsHome from "./pages/notneccery/ExamsHome.jsx";
 import ResourceViewer from "./pages/ResourceViewer.jsx";
 import AuthWizard from "./pages/AuthWizard.jsx";
-import SubjectContent from "./pages/SubjectContent.jsx";
+// import SubjectContent from "./pages/notneccery/SubjectContent.jsx";
 
 // Public
-import WelcomePWA from "./pages/WelcomePWA.jsx";
-import ExamsPage from "./pages/SuggestPage.jsx";
+// import WelcomePWA from "./pages/WelcomePWA.jsx";
+// import ExamsPage from "./pages/notneccery/SuggestPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
-import SecureResourceViewer from "./pages/Courses/SecureResourceViewer";
-import SecureVideo from "./pages/Courses/SecureVideo";
-import SubjectPage from "./pages/Courses/SubjectPage";
-import CoursePage from "./pages/Courses/CoursePage";
-import StudyHub from "./pages/StudyHub.jsx";
+// import SecureResourceViewer from "./pages/notneccery/Courses/SecureResourceViewer.js";
+// import SecureVideo from "./pages/notneccery/Courses/SecureVideo.js";
+// import SubjectPage from "./pages/notneccery/Courses/SubjectPage.js";
+// import CoursePage from "./pages/notneccery/Courses/CoursePage.js";
+import StudyHub from "./pages/notneccery/StudyHub.jsx";
 import DocsGallery from "./pages/DocsGallery.jsx";
 
-import { SubjectsHub, SubjectDetail } from "@/pages/subjects";
-import BooksAndBooklets from "@/pages/resources/books/BooksAndBooklets";
-import ImportantNotes from "@/pages/resources/notes/ImportantNotes";
-import ImportantExams from "@/pages/resources/exams/ImportantExams";
-import BooksLiterary from "@/pages/resources/books/BooksLiterary";
-import Papers from "./pages/resources/papers/Paper.jsx";
+import { SubjectsHub, SubjectDetail } from "./pages/main/subjects";
+import BooksAndBooklets from "@/pages/resources/Books.jsx";
+// import ImportantNotes from "@/pages/resources/notes/ImportantNotes";
+// import ImportantExams from "@/pages/resources/exams/ImportantExams";
+// import BooksLiterary from "@/pages/resources/books/BooksLiterary";
+import Papers from "./pages/resources/Paper.jsx";
 import Gallery from "./pages/resources/Gallery.jsx";
-import ExamQuiz from "./pages/ExamQuiz.jsx";
+import ExamQuiz from "./pages/main/ExamQuiz.jsx";
 import EpisodePage from './pages/resources/EpisodePage.jsx';
 import ScientistPage from "./pages/resources/ScientistPage.jsx";
-import ScientistListPage from "./pages/resources/ScientistListPage.jsx";
-import SuggestPage from "./pages/SuggestPage.jsx";
-import StudyGuidePage from "./pages/StudyGuidePage.jsx";
-import UnitConverter from "./pages/UnitConverter.jsx";
-import NewsShowcase from "./pages/news/NewsPage.jsx";
-import NewsPreview from "./pages/news/NewsPreview.jsx";
+// import ScientistListPage from "./pages/resources/ScientistListPage.jsx";
+import SuggestPage from "./pages/notneccery/SuggestPage.jsx";
+import StudyGuidePage from "./pages/suggest/StudyGuidePage.jsx";
+import UnitConverter from "./pages/suggest/UnitConverter.jsx";
+import NewsShowcase from "./pages/main/news/NewsPage.jsx";
+import NewsPreview from "./pages/main/news/NewsPreview.jsx";
+import FreeformPage from "./pages/suggest/FreeformPage.jsx";
 /* ─────────────────────────────
     Auth Context
     ───────────────────────────── */
@@ -185,14 +186,15 @@ function AppShell() {
 }
 function NoChromeLayout() {
   return (
-    <div dir="rtl" className="bg-zinc-950 text-zinc-100 min-h-[100dvh]">
+    <div dir="rtl" className="bg-zinc-950 text-zinc-100 h-screen-real">
       {/* No Header / No BottomNav */}
-      <main className="min-h-[100dvh] overflow-y-auto px-3 md:px-6">
+      <main className="overflow-y-auto px-3 md:px-6 safe-top safe-bottom" style={{ minHeight: "100%" }}>
         <Outlet />
       </main>
     </div>
   );
 }
+
 
 /* ─────────────────────────────
     Main App
@@ -216,7 +218,6 @@ export default function App() {
             <Route path="/study" element={<StudyHub />} />
             <Route path="/suggest" element={<SuggestPage />} />
             <Route path="/news" element={<NewsShowcase />} />
-
             <Route path="/subjects">
               <Route index element={<SubjectsHub />} />
               <Route path=":id" element={<SubjectDetail />} />
@@ -231,12 +232,14 @@ export default function App() {
             <Route path="/guide" element={<StudyGuidePage />} />
             <Route path="/news/:slug" element={<NewsPreview />} />
             <Route path="/unit-converter" element={<UnitConverter />} />
+            <Route path="/freeform" element={<FreeformPage />} />
+
             <Route path="/resources">
               <Route path="books" element={<BooksAndBooklets />} />
-              <Route path="books-literary" element={<BooksLiterary />} />
               <Route path="papers" element={<Papers />} />
-              <Route path="notes" element={<ImportantNotes />} />
-              <Route path="exams" element={<ImportantExams />} />
+              {/* <Route path="books-literary" element={<BooksLiterary />} /> */}
+              {/* <Route path="notes" element={<ImportantNotes />} /> */}
+              {/* <Route path="exams" element={<ImportantExams />} /> */}
               <Route path="gallery" element={<Gallery />} />
               <Route path="texts" element={<EpisodePage />} />
               <Route path="scientist" element={<ScientistPage />} />
@@ -244,8 +247,8 @@ export default function App() {
             </Route>
 
             {/* Optional: also full-screen */}
-            <Route path="/secure-viewer" element={<SecureResourceViewer />} />
-            <Route path="/secure-video" element={<SecureVideo />} />
+            {/* <Route path="/secure-viewer" element={<SecureResourceViewer />} />
+            <Route path="/secure-video" element={<SecureVideo />} /> */}
           </Route>
         </Route>
 

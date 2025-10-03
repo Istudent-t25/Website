@@ -1,17 +1,21 @@
 <!doctype html>
-<html lang="en" dir="rtl" class="dark">
+<html lang="ku" dir="rtl" class="dark">
   <head>
     <meta charset="utf-8" />
     <title>iStudent — کتێب، بۆکڵێت، ڤیدیۆ، و پەرتووکان</title>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    
+    <!-- ✅ exactly one viewport meta; expose safe areas with viewport-fit=cover -->
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+
+    <!-- PWA / theme -->
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0d12" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes" />
 
+    <!-- SEO (optional) -->
     <meta name="description" content="iStudent: هەموو شتێک بۆ خوێندکار — کتێب، بۆکڵێت، ڤیدیۆ، پەرتووەکان..." />
     <link rel="canonical" href="https://your-domain.example/" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
@@ -25,24 +29,22 @@
     <meta name="twitter:title" content="iStudent — کتێب، مه‌لزه‌مه‌، ڤیدیۆ، و پەرتووکان" />
     <meta name="twitter:description" content="هەموو کۆمەڵەبابەتی خوێندن لە یەک شوێن." />
     <meta name="twitter:image" content="/images/cover-1200x630.png" />
-    
+
+    <!-- Icons / manifest -->
     <link rel="icon" href="/icons/pwa-192.png" sizes="192x192" />
     <link rel="icon" href="/icons/pwa-512.png" sizes="512x512" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
     <style>
-      :root {
-        color-scheme: dark;
-      }
-      html, body, #root {
-        background: #0b0d12;
-      }
+      :root { color-scheme: dark; }
+      html, body, #root { background: #0b0d12; }
     </style>
   </head>
 
   <body class="bg-zinc-950 text-zinc-100">
-    <div id="root" class="min-h-screen"></div>
+    <!-- ⚠️ avoid Tailwind's min-h-screen here; use app-level real height instead -->
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

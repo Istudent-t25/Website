@@ -368,6 +368,14 @@ export default function ModernEpisodePage() {
     });
   };
 
+  const clearProgress = () => {
+    // Confirmation dialog in Kurdish
+    if (window.confirm("ئایا دڵنیایت لە سڕینەوەی هەموو پێشکەوتنەکان؟ ئەمە ناتوانرێت هەڵبوەشێنرێتەوە.")) {
+      setProgress({});
+      // Note: Progress will automatically persist and update local storage via useEffect.
+    }
+  };
+
   /* ---------- Small components ---------- */
   const LoadingSkeleton = () => {
     const layout =
@@ -906,6 +914,16 @@ export default function ModernEpisodePage() {
               </label>
 
               <div className="flex items-center gap-2 justify-end">
+                {/* NEW: Clear Progress Button */}
+                <Button
+                  onClick={clearProgress}
+                  className="text-red-300 border-red-500/30 hover:bg-red-500/10"
+                  title="سڕینەوەی پێشکەوتنەکان"
+                  icon={RotateCcw} 
+                >
+                  سڕینەوەی پێشکەوتن
+                </Button>
+                
                 <button
                   onClick={() => window.location.reload()}
                   className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-xl border border-white/10 hover:bg-white/10"
@@ -929,13 +947,32 @@ export default function ModernEpisodePage() {
             </p>
           </Card>
         ) : (
-          <>
-            {page.view === "list" && renderList()}
-            {page.view === "episode" && renderEpisode()}
-          </>
+          <AnimatePresence mode="wait">
+            {page.view === "list" && (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={SPRING}
+              >
+                {renderList()}
+              </motion.div>
+            )}
+            {page.view === "episode" && (
+              <motion.div
+                key="episode"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={SPRING}
+              >
+                {renderEpisode()}
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
       </div>
-
       <ImageViewer
         src={page.imageViewer}
         onClose={() => dispatch({ type: "CLOSE_IMAGE_VIEWER" })}

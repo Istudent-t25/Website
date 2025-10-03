@@ -1,638 +1,743 @@
-// src/pages/AuthWizard.jsx — add track picker when grade > 9 (save to localStorage)
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, Mail, Globe, LogIn, Lock, Eye, EyeOff,
   Loader2, User, GraduationCap, Users, X, CheckCircle2, AlertTriangle,
-  ChevronRight, ChevronLeft
+  ChevronRight, ChevronLeft, Briefcase, BookOpen, Star, Repeat2,
+  Hash, RotateCcw, PenTool, UserCog, UploadCloud,
+  UserCircle, Heart, Rabbit, Cat, Dog, Bot, Smile, Code
 } from "lucide-react";
 
-// Firebase
+// ✅ Real Firebase (your existing lib)
+import { auth, storage } from "@/lib/firebase";
 import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  fetchSignInMethodsForEmail,
-  setPersistence,
-  browserLocalPersistence,
-  sendEmailVerification,
 } from "firebase/auth";
-import { auth, db } from "../lib/firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-/* ---------- یارمەتیدەر ---------- */
+// ✅ Laravel API helper (Bearer <ID_TOKEN>)
+import { api } from "@/lib/apiClient";
+
+/* -------------------------------------------------------------------------- */
+/* Helpers & Settings                                                         */
+/* -------------------------------------------------------------------------- */
+
 const cls = (...a) => a.filter(Boolean).join(" ");
 const EASE = [0.22, 0.61, 0.36, 1];
-const EMAIL_COMMON = ["gmail.com", "hotmail.com", "yahoo.com", "outlook.com", "icloud.com"];
+const MIN_PASSWORD_LENGTH = 8;
 
-function lev(a="", b=""){
-  const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
-  for(let i=0;i<=m;i++)dp[i][0]=i;for(let j=0;j<=n;j++)dp[0][j]=j;
-  for(let i=1;i<=m;i++){for(let j=1;j<=n;j++){const c=a[i-1]===b[j-1]?0:1;dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+c);}}
-  return dp[m][n];
-}
-function suggestEmailDomain(value) {
-  if (!value || !value.includes("@")) return null;
-  const [, dom] = value.split("@");
-  if (!dom) return null;
-  let best = null, bestD = 1e9;
-  for (const d of EMAIL_COMMON) {
-    const L = lev(dom, d);
-    if (L < bestD) { bestD = L; best = d; }
-  }
-  return bestD > 0 && bestD <= 2 ? best : null;
+function burstConfetti() { console.log("🎉 Confetti!"); }
+
+// Map UI track → API enum
+function mapTrackForApi(uiTrack, grade) {
+  const g = Number(grade);
+  if (g <= 9) return "general"; // UI shows "common"
+  if (uiTrack === "scientific" || uiTrack === "literary") return uiTrack;
+  return "general";
 }
 
-function burstConfetti() {
-  const N = 90;
-  const wrap = document.createElement("div");
-  wrap.style.position = "fixed"; wrap.style.inset = "0"; wrap.style.pointerEvents = "none"; wrap.style.zIndex = "9999";
-  document.body.appendChild(wrap);
-  const colors = ["#22d3ee","#a78bfa","#34d399","#f472b6","#f59e0b","#ef4444"];
-  for (let i=0;i<N;i++){
-    const p = document.createElement("div");
-    p.style.position = "absolute"; p.style.width = "8px"; p.style.height = "12px";
-    p.style.background = colors[i%colors.length]; p.style.left = (Math.random()*100)+"%"; p.style.top = "-20px";
-    p.style.opacity = "0.9"; p.style.borderRadius = "2px"; wrap.appendChild(p);
-    const duration = 1100 + Math.random()*900, x = (Math.random()*200-100);
-    p.animate([{ transform:`translate(0,0)`, top:"-10px" }, { transform:`translate(${x}px, 100vh)`, top:"100vh" }], { duration, easing:"cubic-bezier(.22,.61,.36,1)", fill:"forwards" });
-  }
-  setTimeout(()=>wrap.remove(), 2200);
-}
-
-async function persistProfile({ grade, gender }) {
-  try {
-    const user = auth.currentUser;
-    const data = { grade, gender, updatedAt: serverTimestamp ? serverTimestamp() : new Date() };
-    if (user && db) {
-      const ref = doc(db, "users", user.uid);
-      const prev = await getDoc(ref);
-      await setDoc(ref, { ...prev.data(), ...data }, { merge: true });
-    }
-    localStorage.setItem("grade", grade);
-    localStorage.setItem("gender", gender);
-  } catch {}
-}
-
-/* ---------- وەرگێڕانی هەڵەکانی Firebase بۆ کوردی ---------- */
+// Friendly errors
 function kuAuthError(e, { context = "generic" } = {}) {
-  const code = (e?.code || "").toString();
+  const code = String(e?.code || "");
   const map = {
     "auth/invalid-credential": "ناونیشانی ئیمەیل یان وشەی نهێنی نادروستە.",
     "auth/wrong-password": "وشەی نهێنی هەڵەیە.",
     "auth/user-not-found": "هەژماریەک بەو ئیمەیلە نەدۆزرایەوە.",
-    "auth/too-many-requests": "هەوڵدانەکان زۆر بوون. تکایە دوای چەند خولەکە هەوڵبدەوە.",
-    "auth/network-request-failed": "کێشەی تۆڕ. تکایە پەیوەندیت بپشکنە.",
-    "auth/account-exists-with-different-credential": "ئەم ئیمەیلە پێشتر بە ڕێگایەکی تر داخڵکراوە. هەمان ڕێگا بەکاربێنە.",
+    "auth/too-many-requests": "هەوڵدان زۆر بوو. چەند خولەک چاوەڕێ بکە.",
     "auth/email-already-in-use": "ئەم ئیمەیلە پێشتر تۆمارکراوە.",
     "auth/invalid-email": "ئیمەیل نادروستە.",
-    "auth/weak-password": "وشەی نهێنی لاوازە (کەمەند ٨ پیت).",
-    "auth/popup-closed-by-user": "پەنجەرەکە داخرا پێشەوە.",
-    "auth/operation-not-allowed": "ئەم جۆرە چوونەژوورەوە ڕێگەپێنەدراوە.",
-    "auth/requires-recent-login": "تکایە دووبارە بچۆ ژوورەوە و هەوڵبدە."
+    "auth/weak-password": `وشەی نهێنی لاوازە (کەمتر لە ${MIN_PASSWORD_LENGTH} پیت).`,
+    "auth/popup-closed-by-user": "پەنجەرە داخرا.",
   };
-  if (code === "auth/invalid-credential" && context === "login") {
-    return "ئیمەیل یان وشەی نهێنی هەڵەیە. تکایە دوبارە دابننەوە یان وشەی نهێنیت لەبیرکردووەتەوە؟";
-  }
-  if (code === "auth/account-exists-with-different-credential" && context === "google") {
-    return "ئەم ئیمەیلە پێشترە بە ڕێگایەکی تر (مثلاً پەسۆرد). تکایە هەمان ڕێگا هەڵبژێرە یان بچۆ بۆ چوونەژوورەوە بە پەسۆرد.";
-  }
-  return map[code] || "هەڵەیەک ڕوویدا. تکایە دووبارە هەوڵبدە.";
+  return map[code] || "هەڵەیەک ڕوویدا. دووبارە هەوڵبدە.";
 }
 
-/* ---------- ڕستەکان (کوردی) ---------- */
+/* -------------------------------------------------------------------------- */
+/* Strings                                                                    */
+/* -------------------------------------------------------------------------- */
+
 const STR = {
-  title: "چوونەژوورەوە / تۆمارکردن",
-  subtitle: "هەموو شتێک بە هەنگاو — سادە و خۆش.",
-  google: "چوونەژوورەوەی Google",
+  title: "دەروازەی چوونەژوورەوە",
+  subtitle: "فێربوونی زیرەکانە لە هەموو شوێنێک.",
+  google: "چوونەژوورەوە بە Google",
   or: "یان",
   login: "چوونەژوورەوە",
   register: "تۆمارکردن",
   next: "دواتر",
   back: "پێشوو",
   finishLogin: "چوونەژوورەوە",
-  finishRegister: "دروستکردنی هەژمار",
-  name: "ناو",
+  finishRegister: "تەواوکردنی تۆمارکردن",
+  name: "ناو و ناوی خێزان",
   email: "ئیمەیل",
   password: "وشەی نهێنی",
   confirmPw: "دووبارە وشەی نهێنی",
   grade: "پۆل",
+  gradePrompt: "پۆلی ئێستا هەڵبژێرە:",
   gender: "رەگەز",
   male: "نێر",
   female: "مێ",
-  capsOn: "CAPS LOCK چالاکە",
-  emailSuggest: (s) => `واتە ${s}‌ت دەخوازیت؟`,
+  track: "لقی خوێندن",
+  trackPrompt: "بۆ پۆلی ١٠-١٢",
+  scientific: "زانستی",
+  literary: "ئەدبی",
+  common: "گشتی (٧-٩)",
+  personalTitle: "کەسایەتی کردن",
+  personalSubtitle: "وێنەی تایبەت بە خۆت هەڵبژێرە.",
+  uploadImage: "وێنە باربکە",
+  writeBio: "بایۆ",
+  capsLock: "Caps Lock لەسەرە.",
 };
 
-/* ---------- خانەی تێکست ---------- */
-function Field({ label, icon, children, hint }) {
+const ICON_COMPONENTS = { UserCircle, Heart, Rabbit, Cat, Dog, Bot, Smile, Code };
+const SUGGESTED_ICONS = {
+  male: ["UserCircle", "Bot", "Code", "Dog"],
+  female: ["Heart", "Rabbit", "Cat", "Smile"],
+};
+
+/* -------------------------------------------------------------------------- */
+/* Small UI                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function Field({ label, icon, children, hint, className, required }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1.5 inline-flex items-center gap-2 text-zinc-300">{icon}{label}</span>
+    <label className={cls("block text-sm", className)}>
+      <span className="mb-1.5 inline-flex items-center gap-2 text-zinc-800 font-medium">
+        {icon}{label}
+        {required && <span className="text-rose-500 text-xs font-normal">(پێویستە)</span>}
+      </span>
       {children}
       {hint}
     </label>
   );
 }
 
-/* ---------- کۆمپۆنەنتی سەرەکی ---------- */
+function SelectButton({ icon, label, onClick, selected, colorClass = "bg-indigo" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cls(
+        "px-3 py-2 rounded-xl border text-sm transition font-medium flex items-center justify-center gap-2",
+        selected
+          ? `${colorClass}-500 text-white border-${colorClass}-500 shadow-md shadow-${colorClass}-300/60`
+          : "bg-white/50 border-white/40 text-zinc-700 hover:bg-white/80"
+      )}
+    >
+      {icon} {label}
+    </button>
+  );
+}
+
+function IconSelectorButton({ iconName, currentIcon, onClick, className }) {
+  const IconComponent = ICON_COMPONENTS[iconName];
+  const isSelected = iconName === currentIcon;
+  if (!IconComponent) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(iconName)}
+      className={cls(
+        "h-12 w-12 rounded-full grid place-items-center ring-2 transition-all duration-300",
+        isSelected
+          ? "bg-indigo-500 ring-indigo-300 text-white shadow-lg shadow-indigo-300/50"
+          : "bg-white ring-gray-300 text-zinc-600 hover:bg-indigo-50 hover:ring-indigo-200",
+        className
+      )}
+      aria-label={`Select icon ${iconName}`}
+    >
+      <IconComponent className="h-6 w-6" />
+    </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export default function AuthWizard() {
   const nav = useNavigate();
   const loc = useLocation();
   const backTo = loc.state?.from?.pathname || "/";
 
-  const [mode, setMode] = useState("login"); // 'login' | 'register'
+  const [mode, setMode] = useState("login");
   const LOGIN_STEPS = 2, REG_STEPS = 3;
   const [step, setStep] = useState(1);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
-  // login
+  // login & register states
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [capsOn, setCapsOn] = useState(false);
-  const [emailHint, setEmailHint] = useState(null);
-
-  // register
-  const [name, setName] = useState("");
   const [pw2, setPw2] = useState("");
+
+  // register step 1
+  const [name, setName] = useState("");
   const GRADES = ["7","8","9","10","11","12"];
   const [grade, setGrade] = useState(localStorage.getItem("grade") || "12");
   const [gender, setGender] = useState(localStorage.getItem("gender") || "male");
-
-  // NEW: track (only required when grade > 9)
   const [track, setTrack] = useState(() => {
     const g = Number(localStorage.getItem("grade") || "12");
     const existing = localStorage.getItem("track") || "";
-    return g > 9 ? existing : "common";
+    return g > 9 ? existing || "scientific" : "common";
   });
 
-  // focus
+  // register step 3
+  const [icon, setIcon] = useState(localStorage.getItem("icon") || (gender === 'female' ? 'Heart' : 'UserCircle'));
+  const [bio, setBio] = useState(localStorage.getItem("bio") || "");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    const stored = localStorage.getItem("icon");
+    if (stored && (stored.startsWith("http") || ICON_COMPONENTS[stored])) return stored;
+    return gender === 'female' ? 'Heart' : 'UserCircle';
+  });
+
+  // focus mgmt
   const firstInputRef = useRef(null);
   useEffect(() => { firstInputRef.current?.focus?.(); }, [mode, step]);
-
-  // theming & persistence
-  useEffect(() => { document.documentElement.classList.add("dark"); }, []);
-  useEffect(() => { setPersistence(auth, browserLocalPersistence).catch(()=>{}); }, []);
-  useEffect(() => { setEmailHint(suggestEmailDomain(email)); }, [email]);
   const onKeyPw = (e) => setCapsOn(e.getModifierState && e.getModifierState("CapsLock"));
 
   const total = mode === "login" ? LOGIN_STEPS : REG_STEPS;
-  const pct = Math.round((step-1) / total * 100);
+  const pct = Math.round(((step > total ? total : step) - 1) / total * 100);
+  const needsTrackSelection = Number(grade) > 9;
 
-  function go(modeKey){
-    setErr("");
-    setMode(modeKey);
-    setStep(1);
-  }
-  function next() {
-    setErr("");
-    if (step < total) setStep(step+1);
-  }
-  function back() {
-    setErr("");
-    if (step > 1) setStep(step-1);
-  }
+  function go(modeKey){ setErr(""); setMode(modeKey); setStep(1); }
+  function next() { setErr(""); if (step < total) setStep(step+1); }
+  function back() { setErr(""); if (step > 1) setStep(step-1); }
 
-  // ڕەزامەندی بۆ هەر هەنگاوێک
-  const canNext = useMemo(() => {
-    if (mode === "login") {
-      if (step === 1) return !!email;
-      return !!pw && pw.length >= 8;
-    } else {
-      if (step === 1) return !!name && !!email;
-      if (step === 2) return !!pw && pw.length >= 8 && pw2 === pw;
-      if (step === 3) {
-        const needsTrack = Number(grade) > 9;
-        const trackOK = needsTrack ? (track === "scientific" || track === "literary") : true;
-        return !!grade && (gender === "male" || gender === "female") && trackOK;
-      }
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setAvatarUrl(URL.createObjectURL(selectedFile)); // preview
+      setIcon(selectedFile.name);
     }
-  }, [mode, step, email, name, pw, pw2, grade, gender, track]);
+  };
 
-  /* ---------- کردارەکان ---------- */
+  async function startUpload() {
+    // If no file chosen, keep current avatarUrl/icon choice (could be an icon name)
+    if (!file) return { ok: true, url: (avatarUrl && avatarUrl.startsWith("http")) ? avatarUrl : null };
+
+    if (!auth.currentUser) return { ok: false, error: "not-authenticated" };
+    try {
+      setUploading(true);
+      const uid = auth.currentUser.uid;
+      const path = `users/${uid}/avatar_${Date.now()}.jpg`;
+      const r = ref(storage, path);
+      await uploadBytes(r, file, { contentType: file.type || "image/jpeg" });
+      const url = await getDownloadURL(r);
+      setAvatarUrl(url);
+      setIcon(url);
+      setUploading(false);
+      return { ok: true, url };
+    } catch (e) {
+      setUploading(false);
+      return { ok: false, error: e };
+    }
+  }
+
+  // Save to Laravel (/me). Also stash locally for UX.
+  async function persistProfileToBackend({ avatarUrlFinal }) {
+    const payload = {
+      grade: Number(grade),
+      track: mapTrackForApi(track, grade),
+      photo_url: avatarUrlFinal || (avatarUrl.startsWith("http") ? avatarUrl : null),
+      settings: { gender, bio, icon: avatarUrlFinal || icon },
+    };
+    await api("/api/v1/me", { method: "PUT", body: payload });
+
+    // local cache (optional)
+    localStorage.setItem("grade", String(grade));
+    localStorage.setItem("gender", gender);
+    localStorage.setItem("track", track);
+    if (payload.photo_url) localStorage.setItem("icon", payload.photo_url);
+    if (bio) localStorage.setItem("bio", bio);
+  }
+
+  // Google Sign-in (works on both tabs)
   async function doGoogle() {
-    setErr(""); setLoading(true);
+    setLoading(true); setErr("");
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
 
-      const g = Number(localStorage.getItem("grade") || "0");
-      const gen = localStorage.getItem("gender");
-      const tr = localStorage.getItem("track");
+      // Notify backend (optional convenience)
+      await api("/api/v1/auth/firebase", {
+        method: "POST",
+        body: { idToken: await auth.currentUser.getIdToken(true) },
+      });
 
-      const hasBasics = g > 0 && (gen === "male" || gen === "female");
-      const needsTrack = g > 9;
-      const hasTrack = tr === "scientific" || tr === "literary";
-
-      if (hasBasics && (!needsTrack || hasTrack)) {
-        burstConfetti();
-        setTimeout(()=> nav(backTo, { replace: true }), 600);
-      } else {
-        setMode("register");
-        setStep(3);
-      }
+      burstConfetti();
+      setTimeout(()=> nav(backTo, { replace: true }), 400);
     } catch (e) {
-      setErr(kuAuthError(e, { context: "google" }));
-    } finally { setLoading(false); }
+      setErr(kuAuthError(e, { context: "google-login" }));
+    } finally {
+      setLoading(false);
+    }
   }
 
+  // Login (email/password)
   async function submitLogin(){
     setErr("");
     if (!email || !pw) return;
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, pw);
+
+      // Optional “login” hit (else /me will upsert on first call)
+      await api("/api/v1/auth/firebase", {
+        method: "POST",
+        body: { idToken: await auth.currentUser.getIdToken(true) },
+      });
+
       burstConfetti();
-      setTimeout(()=> nav(backTo, { replace: true }), 600);
+      setTimeout(()=> nav(backTo, { replace: true }), 400);
     } catch (e) {
-      setErr(kuAuthError(e, { context: "login" }));
+      setErr(kuAuthError(e) || "هەڵەی چوونەژوورەوە.");
     } finally { setLoading(false); }
   }
 
-  async function submitRegister(){
+  // Final register submit (creates Firebase user, uploads avatar, updates Laravel)
+  async function submitRegStep3() {
     setErr("");
-    if (!name || !email || !pw || pw !== pw2) return;
     setLoading(true);
     try {
-      // Save track to localStorage (and default to "common" for grade <= 9)
-      const needsTrack = Number(grade) > 9;
-      const toStore = needsTrack ? (track || "scientific") : "common";
-      localStorage.setItem("track", toStore);
+      // 1) Create Firebase account
+      const cred = await createUserWithEmailAndPassword(auth, email, pw);
+      if (name) await updateProfile(cred.user, { displayName: name });
 
-      const cr = await createUserWithEmailAndPassword(auth, email, pw);
-      if (name) await updateProfile(cr.user, { displayName: name });
-      try { await sendEmailVerification(cr.user); } catch {}
-      await persistProfile({ grade, gender });
-      burstConfetti();
-      setTimeout(()=> nav(backTo, { replace: true }), 700);
-    } catch (e) {
-      if (e?.code === "auth/email-already-in-use") {
-        try {
-          const methods = await fetchSignInMethodsForEmail(auth, email);
-          setErr(`ئەم ئیمەیلە پێشتر تۆمارکراوە. ڕێگای پێشووتر: ${methods.join(", ")}`);
-        } catch {
-          setErr(kuAuthError(e));
-        }
-      } else {
-        setErr(kuAuthError(e));
+      // 2) Upload avatar (if any)
+      const up = await startUpload();
+      if (up.ok === false) throw up.error;
+
+      // 3) Update profile photo in Firebase (optional)
+      if (up.url) {
+        try { await updateProfile(auth.currentUser, { photoURL: up.url }); } catch {}
+
+        // 4) Tell backend we logged in (optional)
       }
-    } finally { setLoading(false); }
+      await api("/api/v1/auth/firebase", {
+        method: "POST",
+        body: { idToken: await auth.currentUser.getIdToken(true) },
+      });
+
+      // 5) Persist grade/track/photo/settings to Laravel
+      await persistProfileToBackend({ avatarUrlFinal: up.url || null });
+
+      burstConfetti();
+      setTimeout(()=> nav(backTo, { replace: true }), 400);
+    } catch (e) {
+      setErr(kuAuthError(e) || "هەڵەی تۆمارکردن.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  /* ---------- هەنگاوەکان (UI) ---------- */
+  // validation
+  const canNext = useMemo(() => {
+    if (mode === "login") {
+      if (step === 1) return !!email;
+      return !!pw && pw.length >= MIN_PASSWORD_LENGTH;
+    } else {
+      if (step === 1) {
+        const trackOK = needsTrackSelection ? (track === "scientific" || track === "literary") : true;
+        return !!name && !!email && !!grade && (gender === "male" || gender === "female") && trackOK;
+      }
+      if (step === 2) return !!pw && pw.length >= MIN_PASSWORD_LENGTH && pw2 === pw;
+      if (step === 3) return !!avatarUrl && !uploading;
+    }
+    return false;
+  }, [mode, step, email, name, pw, pw2, grade, gender, track, needsTrackSelection, avatarUrl, uploading]);
+
+  /* ---------------------- UI steps ---------------------- */
+
   const LoginStep1 = (
-    <Field
-      label={STR.email}
-      icon={<Mail className="h-4 w-4" />}
-      hint={emailHint && (
-        <div className="mt-1 text-xs text-amber-300 inline-flex items-center gap-1">
-          <AlertTriangle className="h-3.5 w-3.5" /> {STR.emailSuggest(`${email.split("@")[0]}@${emailHint}`)}
-        </div>
-      )}
-    >
-      <div className="flex items-center rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
+    <div className="flex flex-col gap-5">
+      <h3 className="text-xl font-bold text-indigo-700">{STR.login}</h3>
+      <Field label={STR.email} icon={<Mail className="h-4 w-4 text-sky-500" />} required>
         <input
-          ref={firstInputRef}
-          className="w-full bg-transparent outline-none text-sm"
-          type="email"
-          value={email}
-          onChange={e=>setEmail(e.target.value)}
-          placeholder="you@example.com"
-          required
-          autoComplete="email"
+          type="email" ref={firstInputRef}
+          className="w-full p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50"
+          value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="email@example.com"
         />
-      </div>
-    </Field>
+      </Field>
+    </div>
   );
+
   const LoginStep2 = (
-    <Field label={STR.password} icon={<Lock className="h-4 w-4" /> }
-      hint={capsOn && (
-        <div className="mt-1 text-xs text-amber-300 inline-flex items-center gap-1">
-          <AlertTriangle className="h-3.5 w-3.5" /> {STR.capsOn}
+    <div className="flex flex-col gap-5">
+      <h3 className="text-xl font-bold text-indigo-700">{STR.password}</h3>
+      <Field label={STR.password} icon={<Lock className="h-4 w-4 text-rose-500" />} required>
+        <div className="relative">
+          <input
+            type={showPw ? "text" : "password"} ref={firstInputRef}
+            className="w-full p-3 pr-12 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50"
+            value={pw} onChange={e => setPw(e.target.value)}
+            onKeyDown={onKeyPw}
+            placeholder={`لانی کەم ${MIN_PASSWORD_LENGTH} پیت`}
+          />
+          <button type="button" onClick={() => setShowPw(p => !p)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-indigo-500 transition">
+            {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
         </div>
-      )}
-    >
-      <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
-        <input
-          ref={firstInputRef}
-          className="w-full bg-transparent outline-none text-sm"
-          type={showPw?"text":"password"}
-          value={pw}
-          onChange={e=>setPw(e.target.value)}
-          onKeyUp={onKeyPw} onKeyDown={onKeyPw}
-          placeholder="********"
-          required minLength={8}
-          autoComplete="current-password"
-        />
-        <button type="button" onClick={()=>setShowPw(v=>!v)} className="text-zinc-400 hover:text-zinc-200" tabIndex={-1} aria-label="Show password">
-          {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-    </Field>
+        {capsOn && <div className="mt-1 text-xs text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {STR.capsLock}</div>}
+      </Field>
+      <button type="button" className="text-xs text-indigo-600 font-medium hover:text-indigo-800 transition w-fit">وشەی نهێنیم بیرچووە</button>
+    </div>
   );
 
   const RegStep1 = (
-    <div className="grid gap-3">
-      <Field label={STR.name} icon={<User className="h-4 w-4" />}>
-        <div className="flex items-center rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
-          <input
-            ref={firstInputRef}
-            className="w-full bg-transparent outline-none text-sm"
-            value={name}
-            onChange={e=>setName(e.target.value)}
-            placeholder="..."
-            required
-          />
-        </div>
+    <div className="flex flex-col gap-5">
+      <h3 className="text-xl font-bold text-indigo-700">{STR.register}</h3>
+
+      <Field label={STR.name} icon={<User className="h-4 w-4 text-sky-500" />} required>
+        <input
+          type="text" ref={firstInputRef}
+          className="w-full p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50"
+          value={name} onChange={e => setName(e.target.value)}
+          placeholder="وەکو: ئەحمەد محەمەد"
+        />
       </Field>
-      <Field
-        label={STR.email}
-        icon={<Mail className="h-4 w-4" />}
-        hint={emailHint && (
-          <div className="mt-1 text-xs text-amber-300 inline-flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" /> {STR.emailSuggest(`${email.split("@")[0]}@${emailHint}`)}
+
+      <Field label={STR.email} icon={<Mail className="h-4 w-4 text-emerald-500" />} required>
+        <input
+          type="email"
+          className="w-full p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50"
+          value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="email@example.com"
+        />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label={STR.grade} icon={<GraduationCap className="h-4 w-4 text-rose-500" />} required>
+          <select
+            className="w-full p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50 appearance-none"
+            value={grade}
+            onChange={e => {
+              const newGrade = e.target.value;
+              setGrade(newGrade);
+              if (Number(newGrade) <= 9) setTrack("common");
+            }}
+          >
+            {GRADES.map(g => <option key={g} value={g}>پۆلی {g}</option>)}
+          </select>
+        </Field>
+
+        <Field label={STR.gender} icon={<Users className="h-4 w-4 text-amber-500" />} required>
+          <div className="flex gap-2 h-full items-center pt-2">
+            <SelectButton
+              label={STR.male} icon={<UserCircle className="h-4 w-4" />}
+              onClick={() => setGender("male")} selected={gender === "male"}
+            />
+            <SelectButton
+              label={STR.female} icon={<Heart className="h-4 w-4" />}
+              onClick={() => setGender("female")} selected={gender === "female"}
+            />
           </div>
+        </Field>
+      </div>
+
+      <AnimatePresence>
+        {needsTrackSelection && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Field
+              label={STR.track}
+              icon={<BookOpen className="h-4 w-4 text-teal-500" />}
+              required
+              hint={<div className="text-xs text-zinc-500 mt-1">{STR.trackPrompt}</div>}
+            >
+              <div className="flex gap-2 pt-1">
+                <SelectButton
+                  label={STR.scientific} icon={<Hash className="h-4 w-4" />}
+                  onClick={() => setTrack("scientific")} selected={track === "scientific"}
+                  colorClass="bg-teal"
+                />
+                <SelectButton
+                  label={STR.literary} icon={<PenTool className="h-4 w-4" />}
+                  onClick={() => setTrack("literary")} selected={track === "literary"}
+                  colorClass="bg-orange"
+                />
+              </div>
+            </Field>
+          </motion.div>
         )}
-      >
-        <div className="flex items-center rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
-          <input
-            className="w-full bg-transparent outline-none text-sm"
-            type="email"
-            value={email}
-            onChange={e=>setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-            autoComplete="new-email"
-          />
-        </div>
-      </Field>
+      </AnimatePresence>
     </div>
   );
 
   const RegStep2 = (
-    <div className="grid sm:grid-cols-2 gap-3">
-      <Field label={STR.password} icon={<Lock className="h-4 w-4" /> }
-        hint={capsOn && (
-          <div className="mt-1 text-xs text-amber-300 inline-flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" /> {STR.capsOn}
-          </div>
-        )}
-      >
-        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
+    <div className="flex flex-col gap-5">
+      <h3 className="text-xl font-bold text-indigo-700">دروستکردنی وشەی نهێنی</h3>
+
+      <Field label={STR.password} icon={<Lock className="h-4 w-4 text-rose-500" />} required>
+        <div className="relative">
           <input
-            ref={firstInputRef}
-            className="w-full bg-transparent outline-none text-sm"
-            type={showPw?"text":"password"}
-            value={pw}
-            onChange={e=>setPw(e.target.value)}
-            onKeyUp={onKeyPw} onKeyDown={onKeyPw}
-            placeholder="********"
-            required minLength={8}
-            autoComplete="new-password"
+            type={showPw ? "text" : "password"} ref={firstInputRef}
+            className="w-full p-3 pr-12 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-indigo-400/50"
+            value={pw} onChange={e => setPw(e.target.value)}
+            onKeyDown={onKeyPw}
+            placeholder={`لانی کەم ${MIN_PASSWORD_LENGTH} پیت`}
           />
-          <button type="button" onClick={()=>setShowPw(v=>!v)} className="text-zinc-400 hover:text-zinc-200" tabIndex={-1} aria-label="Show password">
-            {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          <button type="button" onClick={() => setShowPw(p => !p)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-indigo-500 transition">
+            {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </button>
         </div>
+        {capsOn && <div className="mt-1 text-xs text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {STR.capsLock}</div>}
       </Field>
 
-      <Field label={STR.confirmPw} icon={<Lock className="h-4 w-4" />}>
-        <div className="flex items-center rounded-2xl border border-white/10 bg-zinc-900/60 px-3 py-2">
-          <input
-            className="w-full bg-transparent outline-none text-sm"
-            type="password"
-            value={pw2}
-            onChange={e=>setPw2(e.target.value)}
-            placeholder="********"
-            required minLength={8}
-            autoComplete="new-password"
-          />
-        </div>
-      </Field>
-    </div>
-  );
-
-  const RegStep3 = (
-    <div className="grid sm:grid-cols-2 gap-3">
-      <div>
-        <div className="mb-1.5 inline-flex items-center gap-2 text-zinc-300 text-sm"><GraduationCap className="h-4 w-4" /> {STR.grade}</div>
-        <div className="grid grid-cols-3 gap-2">
-          {GRADES.map((g) => (
-            <button
-              key={g}
-              ref={g===GRADES[0] ? firstInputRef : undefined}
-              type="button"
-              onClick={() => {
-                setGrade(g);
-                if (Number(g) > 9) {
-                  const prev = localStorage.getItem("track") || "";
-                  setTrack(prev); // require fresh selection if empty
-                } else {
-                  setTrack("common");
-                  localStorage.setItem("track", "common");
-                }
-              }}
-              className={cls("px-3 py-2 rounded-xl border text-sm transition",
-                grade===g?"bg-emerald-500 text-black border-emerald-300":"bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
-            >{g}</button>
-          ))}
-        </div>
-
-        {/* NEW: Track selector for grade > 9 */}
-        {Number(grade) > 9 && (
-          <div className="mt-3">
-            <div className="mb-1.5 inline-flex items-center gap-2 text-zinc-300 text-sm">
-              <GraduationCap className="h-4 w-4" /> تۆ زانستی یان وێژەیی؟
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { setTrack("scientific"); localStorage.setItem("track","scientific"); }}
-                className={cls("px-3 py-2 rounded-xl border text-sm transition",
-                  track==="scientific" ? "bg-cyan-500 text-black border-cyan-300"
-                                       : "bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
-              >
-                زانستی
-              </button>
-              <button
-                type="button"
-                onClick={() => { setTrack("literary"); localStorage.setItem("track","literary"); }}
-                className={cls("px-3 py-2 rounded-xl border text-sm transition",
-                  track==="literary" ? "bg-cyan-500 text-black border-cyan-300"
-                                     : "bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
-              >
-                وێژەیی
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <div className="mb-1.5 inline-flex items-center gap-2 text-zinc-300 text-sm"><Users className="h-4 w-4" /> {STR.gender}</div>
-        <div className="grid grid-cols-2 gap-2">
-          {[{key:"male",label:STR.male},{key:"female",label:STR.female}].map((g) => (
-            <button
-              key={g.key}
-              type="button"
-              onClick={() => setGender(g.key)}
-              className={cls("px-3 py-2 rounded-xl border text-sm transition",
-                gender===g.key?"bg-cyan-500 text-black border-cyan-300":"bg-zinc-900/60 border-white/10 text-zinc-200 hover:bg-white/10")}
-            >{g.label}</button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div dir="rtl" className="min-h-[100svh] text-white">
-      {/* پاشمەرجەی پاشەکەوت و پسپۆڕی پشتەوە */}
-      <div aria-hidden className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-32 right-0 left-0 h-[28rem] blur-3xl opacity-60"
-          style={{ background: "conic-gradient(from 180deg at 50% 50%, rgba(34,211,238,.25), rgba(167,139,250,.22), rgba(52,211,153,.18), rgba(244,114,182,.18), rgba(34,211,238,.25))" }}
+      <Field label={STR.confirmPw} icon={<Repeat2 className="h-4 w-4 text-purple-500" />} required>
+        <input
+          type="password"
+          className={cls(
+            "w-full p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 outline-none focus:ring-2",
+            pw2 !== pw && pw2.length > 0 ? "focus:ring-rose-400/50 border-rose-300" : "focus:ring-indigo-400/50"
+          )}
+          value={pw2} onChange={e => setPw2(e.target.value)}
+          placeholder="دووبارە وشەی نهێنی بنووسە"
         />
-        <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_1px,transparent_1px)] [background-size:14px_14px]" />
+        {pw2 !== pw && pw2.length > 0 && <div className="mt-1 text-xs text-rose-600 font-medium">وشەکان یەکسان نین.</div>}
+      </Field>
+    </div>
+  );
+
+  const isImg = avatarUrl && (avatarUrl.startsWith("http") || avatarUrl.startsWith("blob"));
+  const IconComponent = avatarUrl ? ICON_COMPONENTS[avatarUrl] : null;
+  const RegStep3 = (
+    <div className="flex flex-col gap-6">
+      <header>
+        <h3 className="text-xl font-bold text-indigo-700">{STR.personalTitle}</h3>
+        <p className="text-sm text-zinc-500 mt-1">{STR.personalSubtitle}</p>
+      </header>
+
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+        <div className="relative flex-shrink-0 h-20 w-20 rounded-full bg-gray-200 grid place-items-center ring-4 ring-indigo-500/50 shadow-lg overflow-hidden">
+          {isImg ? (
+            <img src={avatarUrl} alt="Avatar Preview" className="h-full w-full object-cover" />
+          ) : IconComponent ? (
+            <IconComponent className="h-10 w-10 text-indigo-600" />
+          ) : (
+            <UserCircle className="h-10 w-10 text-zinc-500" />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3 flex-1 w-full">
+          <Field label={STR.uploadImage} icon={<UploadCloud className="h-4 w-4 text-fuchsia-500" />}>
+            <input type="file" id="avatar-upload" accept="image/*" onChange={handleFileChange} className="hidden" />
+            <label htmlFor="avatar-upload" className="w-full text-center px-4 py-2 rounded-xl text-sm border border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-700 font-semibold cursor-pointer hover:bg-fuchsia-500/20 transition flex items-center justify-center gap-2">
+              {file ? <CheckCircle2 className="h-4 w-4" /> : <UploadCloud className="h-4 w-4" />}
+              {file ? `فایل هەڵبژێردراوە: ${file.name}` : "وێنەیەک هەڵبژێرە"}
+            </label>
+          </Field>
+
+          <div className="mt-1 flex items-center gap-3">
+            {SUGGESTED_ICONS[gender].map(iconName => (
+              <IconSelectorButton
+                key={iconName}
+                iconName={iconName}
+                currentIcon={icon}
+                onClick={() => { setIcon(iconName); setAvatarUrl(iconName); setFile(null); }}
+              />
+            ))}
+          </div>
+          {uploading && (
+            <div className="mt-2 text-xs text-indigo-600 flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> بارکردنی وێنە...
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="relative max-w-5xl mx-auto px-4 pt-10 pb-[env(safe-area-inset-bottom,0px)]">
-        <header className="pb-6 flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-cyan-500/20 ring-1 ring-cyan-400/40 grid place-items-center">
-              <Sparkles className="h-6 w-6 text-cyan-300" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{STR.title}</h1>
-              <p className="text-sm text-zinc-400 mt-1">{STR.subtitle}</p>
-            </div>
-          </div>
-        </header>
+      <Field label={STR.writeBio} icon={<PenTool className="h-4 w-4 text-amber-500" />}>
+        <textarea
+          className="w-full h-24 p-3 rounded-xl border border-white/80 bg-white/70 shadow-inner shadow-gray-200 text-sm text-zinc-900 placeholder:text-zinc-500 outline-none focus:ring-2 focus:ring-indigo-400/50 resize-none"
+          value={bio}
+          onChange={e => setBio(e.target.value)}
+          placeholder="کورتە باس لەسەر خۆت..."
+          maxLength={200}
+        />
+        <div className="text-xs text-zinc-400 mt-1 text-right">
+          {bio.length} / 200
+        </div>
+      </Field>
+    </div>
+  );
 
-        <motion.div
-          initial={{ y: 16, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: .35, ease: EASE }}
-          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 max-w-xl mx-auto overflow-hidden"
+  const progressSteps = mode === "login"
+    ? [{ label: STR.email, icon: Mail }, { label: STR.password, icon: Lock }]
+    : [{ label: "زانیاری", icon: User }, { label: "وشەی نهێنی", icon: Lock }, { label: "کەسایەتی", icon: UserCog }];
+
+  /* ----------------------------- Render ----------------------------- */
+  return (
+    <div dir="rtl" className="min-h-[100svh] text-zinc-900 bg-gray-50 overflow-hidden">
+      <div className="fixed inset-0 lg:right-[50%] bg-gradient-to-br from-indigo-50 to-sky-100" />
+
+      <div className="relative flex min-h-[100svh]">
+        <div
+          className="hidden lg:block fixed inset-y-0 left-[50%] bg-gradient-to-br from-sky-400 to-indigo-600 shadow-2xl shadow-indigo-500/50 transition-all duration-500 ease-out"
+          style={{ width: isFocused ? '60%' : '50%' }}
         >
-          <div className="p-6 sm:p-8">
-            {/* Google */}
-            <div className="grid">
-              <button
-                onClick={doGoogle}
-                disabled={loading}
-                className="rounded-2xl border border-white/10 bg-white/10 hover:bg-white/15 px-4 py-3 flex items-center justify-center gap-3 text-sm"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-5 w-5 text-emerald-300" />}
-                <div>{STR.google}</div>
-              </button>
-            </div>
+          <div className={cls(
+            "absolute inset-0 backdrop-blur-xl bg-black/10 flex flex-col justify-center p-12 text-white/90 transition-all duration-500 ease-out",
+            isFocused ? "scale-[0.9] opacity-80" : "scale-[1] opacity-100",
+            "items-end text-right pr-16"
+          )}>
+            <Star className="h-16 w-16 text-amber-300 mb-4 animate-pulse" />
+            <h2 className="text-4xl font-extrabold mb-3 leading-tight">دەروازەی</h2>
+            <h2 className="text-4xl font-extrabold mb-3 leading-tight">{STR.title}</h2>
+            <p className="text-lg font-light max-w-sm">{STR.subtitle}</p>
+          </div>
+        </div>
 
-            {/* یان */}
-            <div className="my-4 flex items-center gap-3 text-xs text-zinc-400">
-              <div className="h-px flex-1 bg-white/10" />
-              {STR.or}
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
+        <div
+          className={cls(
+            "w-full p-4 sm:p-8 lg:p-12 flex flex-col justify-center items-center lg:items-end min-h-[100svh] transition-all duration-500 ease-out",
+            isFocused ? 'lg:w-[40%]' : 'lg:w-1/2'
+          )}
+        >
+          <header className="pb-6 lg:hidden">
+            <h1 className="text-3xl font-bold leading-tight">{STR.title}</h1>
+            <p className="text-sm text-zinc-500 mt-1">{STR.subtitle}</p>
+          </header>
 
-            {/* هەڵبژاردنی دۆخ */}
-            <div className="mb-4 flex gap-1 p-1 rounded-2xl bg-white/5 border border-white/10">
-              <button type="button" onClick={()=>go("login")}
-                className={cls("px-3 py-1.5 rounded-xl text-xs sm:text-sm flex-1", mode==="login"?"bg-white/10 ring-1 ring-white/10":"hover:bg-white/5")}>
-                {STR.login}
-              </button>
-              <button type="button" onClick={()=>go("register")}
-                className={cls("px-3 py-1.5 rounded-xl text-xs sm:text-sm flex-1", mode==="register"?"bg-white/10 ring-1 ring-white/10":"hover:bg-white/5")}>
-                {STR.register}
-              </button>
-            </div>
-
-            {/* پڕۆگرەس */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-                <span>هەنگاو {step} / {total}</span>
-                <span>{pct}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-cyan-400" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-
-            {/* ناوەڕۆک */}
-            <div className="min-h-[210px]">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${mode}-${step}`}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: .22, ease: EASE }}
-                  className="space-y-3"
-                >
-                  {mode === "login" && (step === 1 ? LoginStep1 : LoginStep2)}
-                  {mode === "register" && (step === 1 ? RegStep1 : step === 2 ? RegStep2 : RegStep3)}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-
-            {/* هەڵە */}
-            {err && <div className="mt-2 text-rose-400 text-xs">{err}</div>}
-
-            {/* دوگمەکان */}
-            <div className="mt-4 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={back}
-                disabled={step===1 || loading}
-                className={cls("inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm",
-                  step===1 || loading ? "opacity-50 cursor-not-allowed bg-white/5 border-white/10" : "bg-white/5 border-white/10 hover:bg-white/10")}
-              >
-                <ChevronRight className="h-4 w-4" /> {STR.back}
-              </button>
-
-              {step < total ? (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: .25, ease: EASE }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                if (!document.activeElement.closest('.auth-wizard-form')) setIsFocused(false);
+              }, 100);
+            }}
+            className="rounded-3xl border border-white/70 bg-white/70 backdrop-blur-3xl shadow-2xl shadow-gray-200/60 p-6 sm:p-8 w-full max-w-lg auth-wizard-form"
+          >
+            <div className="lg:pl-4">
+              {/* Google Button */}
+              <div className="grid">
                 <button
-                  type="button"
-                  onClick={next}
-                  disabled={!canNext || loading}
-                  className={cls("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-black font-medium shadow-lg shadow-cyan-500/20",
-                    !canNext || loading ? "opacity-60 cursor-not-allowed" : "")}
+                  onClick={doGoogle} disabled={loading}
+                  className="rounded-xl border border-white/80 bg-white/70 hover:bg-white px-4 py-3 flex items-center justify-center gap-3 text-sm font-medium text-zinc-8 00 shadow-md transition"
                 >
-                  {STR.next} <ChevronLeft className="h-4 w-4" />
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-5 w-5 text-emerald-500" />}
+                  <div>{STR.google}</div>
                 </button>
-              ) : (
-                mode === "login" ? (
-                  <button
-                    type="button"
-                    onClick={submitLogin}
-                    disabled={!canNext || loading}
-                    className={cls("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-medium shadow-lg shadow-emerald-500/20",
-                      !canNext || loading ? "opacity-60 cursor-not-allowed" : "")}
+              </div>
+
+              {/* OR */}
+              <div className="my-4 flex items-center gap-3 text-xs text-zinc-500">
+                <div className="h-px flex-1 bg-gray-300" /> {STR.or} <div className="h-px flex-1 bg-gray-300" />
+              </div>
+
+              {/* Mode selector */}
+              <div className="mb-6 flex gap-1 p-1 rounded-xl bg-white/90 border border-white/90 shadow-inner shadow-gray-200/50">
+                <button type="button" onClick={()=>go("login")}
+                  className={cls("px-3 py-2 rounded-lg text-sm flex-1 font-semibold transition", mode==="login"?"bg-indigo-500 text-white shadow-lg shadow-indigo-200/80":"text-zinc-600 hover:bg-white")}>
+                  {STR.login}
+                </button>
+                <button type="button" onClick={()=>go("register")}
+                  className={cls("px-3 py-2 rounded-lg text-sm flex-1 font-semibold transition", mode==="register"?"bg-indigo-500 text-white shadow-lg shadow-indigo-200/80":"text-zinc-600 hover:bg-white")}>
+                  {STR.register}
+                </button>
+              </div>
+
+              {/* Progress */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between text-xs text-zinc-600 mb-2">
+                  <span className="font-medium">هەنگاو: {step} / {total}</span>
+                  <span className="font-medium">{pct}% تەواو</span>
+                </div>
+                <div className="flex items-center justify-between relative mb-2">
+                  <div className="absolute inset-x-0 h-1 rounded-full bg-white/70 top-1/2 -translate-y-1/2 z-0 shadow-inner shadow-gray-200" />
+                  <div className="absolute h-1 rounded-full bg-indigo-500 top-1/2 -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  {(mode === "login"
+                    ? [{ label: STR.email, icon: Mail }, { label: STR.password, icon: Lock }]
+                    : [{ label: "زانیاری", icon: User }, { label: "وشەی نهێنی", icon: Lock }, { label: "کەسایەتی", icon: UserCog }]
+                  ).map((p, i) => (
+                    <div key={i} className={cls("flex flex-col items-center z-10", mode === "login" ? "w-1/2" : "w-1/3")}>
+                      <div className={cls("h-6 w-6 rounded-full grid place-items-center ring-2 transition-all duration-300", step >= i+1 ? "bg-indigo-500 ring-white text-white shadow-md shadow-indigo-300" : "bg-white ring-gray-300 text-zinc-500")}>
+                        <p.icon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className={cls("text-xs mt-1 transition-colors duration-300", step >= i+1 ? "text-indigo-600 font-semibold" : "text-zinc-500")}>
+                        {p.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step body */}
+              <div className="min-h-[280px]">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`${mode}-${step}`}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: .25, ease: EASE }}
+                    className="space-y-4"
                   >
+                    {mode === "login" && (step === 1 ? LoginStep1 : LoginStep2)}
+                    {mode === "register" && (step === 1 ? RegStep1 : step === 2 ? RegStep2 : RegStep3)}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Error */}
+              {err && <div className="mt-4 text-rose-600 text-sm font-medium flex items-center gap-1"><AlertTriangle className="h-4 w-4" />{err}</div>}
+
+              {/* Footer buttons */}
+              <div className="mt-6 flex items-center justify-between">
+                <button
+                  type="button" onClick={back} disabled={step===1 || loading || uploading}
+                  className={cls("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition", step===1 || loading || uploading ? "opacity-40 cursor-not-allowed text-zinc-500" : "text-zinc-700 hover:bg-white/90")}>
+                  <ChevronLeft className="h-4 w-4" /> {STR.back}
+                </button>
+
+                {mode === "login" && step === LOGIN_STEPS ? (
+                  <button
+                    type="button" onClick={submitLogin} disabled={!canNext || loading}
+                    className={cls("inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-semibold shadow-lg shadow-emerald-300/60 transition", !canNext || loading ? "opacity-60 cursor-not-allowed" : "")}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
                     {STR.finishLogin}
                   </button>
-                ) : (
+                ) : mode === "register" && step === REG_STEPS ? (
                   <button
-                    type="button"
-                    onClick={submitRegister}
-                    disabled={!canNext || loading}
-                    className={cls("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-medium shadow-lg shadow-emerald-500/20",
-                      !canNext || loading ? "opacity-60 cursor-not-allowed" : "")}
-                  >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    type="button" onClick={submitRegStep3} disabled={!canNext || loading || uploading}
+                    className={cls("inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold shadow-lg shadow-indigo-300/60 transition", !canNext || loading || uploading ? "opacity-60 cursor-not-allowed" : "")}>
+                    {loading || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     {STR.finishRegister}
                   </button>
-                )
-              )}
+                ) : (
+                  <button
+                    type="button" onClick={next} disabled={!canNext || loading || uploading}
+                    className={cls("inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-semibold shadow-lg shadow-sky-300/60 transition", !canNext || loading || uploading ? "opacity-60 cursor-not-allowed" : "")}>
+                    {STR.next} <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
+
       </div>
     </div>
   );
